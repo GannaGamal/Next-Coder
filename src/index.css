@@ -1,0 +1,254 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================
+   CSS Variables — Dark (default)
+   ============================================ */
+:root {
+  --navy-900: #1a1f37;
+  --navy-800: #252b42;
+  --navy-700: #2d3454;
+}
+
+/* ============================================
+   CSS Variables — Light mode
+   ============================================ */
+html.light-mode {
+  --navy-900: #f0f2f8;
+  --navy-800: #ffffff;
+  --navy-700: #e4e8f5;
+}
+
+/* ============================================
+   Light mode — text-white overrides
+   ============================================ */
+html.light-mode .text-white            { color: #1a1f37 !important; }
+html.light-mode .text-white\/90        { color: rgba(26,31,55,0.90) !important; }
+html.light-mode .text-white\/80        { color: rgba(26,31,55,0.80) !important; }
+html.light-mode .text-white\/70        { color: rgba(26,31,55,0.70) !important; }
+html.light-mode .text-white\/60        { color: rgba(26,31,55,0.60) !important; }
+html.light-mode .text-white\/50        { color: rgba(26,31,55,0.50) !important; }
+html.light-mode .text-white\/40        { color: rgba(26,31,55,0.40) !important; }
+html.light-mode .text-white\/30        { color: rgba(26,31,55,0.30) !important; }
+html.light-mode .text-white\/20        { color: rgba(26,31,55,0.20) !important; }
+html.light-mode .text-white\/10        { color: rgba(26,31,55,0.10) !important; }
+
+/* hover variants */
+html.light-mode .hover\:text-white:hover          { color: #1a1f37 !important; }
+html.light-mode .group:hover .group-hover\:text-white { color: #1a1f37 !important; }
+
+/* ============================================
+   Light mode — border-white overrides
+   ============================================ */
+html.light-mode .border-white\/5       { border-color: rgba(26,31,55,0.06) !important; }
+html.light-mode .border-white\/10      { border-color: rgba(26,31,55,0.10) !important; }
+html.light-mode .border-white\/20      { border-color: rgba(26,31,55,0.14) !important; }
+html.light-mode .border-white\/30      { border-color: rgba(26,31,55,0.18) !important; }
+html.light-mode .border-white\/40      { border-color: rgba(26,31,55,0.22) !important; }
+
+/* ============================================
+   Light mode — bg-white/X overrides (card surfaces)
+   ============================================ */
+html.light-mode .bg-white\/5           { background-color: rgba(26,31,55,0.04) !important; }
+html.light-mode .bg-white\/10          { background-color: rgba(26,31,55,0.07) !important; }
+html.light-mode .bg-white\/20          { background-color: rgba(26,31,55,0.10) !important; }
+html.light-mode .bg-white\/30          { background-color: rgba(26,31,55,0.13) !important; }
+
+/* hover bg-white variants */
+html.light-mode .hover\:bg-white\/5:hover   { background-color: rgba(26,31,55,0.04) !important; }
+html.light-mode .hover\:bg-white\/10:hover  { background-color: rgba(26,31,55,0.07) !important; }
+html.light-mode .hover\:bg-white\/20:hover  { background-color: rgba(26,31,55,0.10) !important; }
+
+/* ============================================
+   Light mode — placeholder overrides
+   ============================================ */
+html.light-mode .placeholder-white\/50::placeholder { color: rgba(26,31,55,0.45) !important; }
+html.light-mode .placeholder-white\/40::placeholder { color: rgba(26,31,55,0.38) !important; }
+html.light-mode .placeholder-white\/30::placeholder { color: rgba(26,31,55,0.30) !important; }
+
+/* ============================================
+   Light mode — input text color
+   ============================================ */
+html.light-mode input,
+html.light-mode textarea,
+html.light-mode select {
+  color: #1a1f37;
+}
+
+/* ============================================
+   Light mode — backdrop adjustments for navbar
+   ============================================ */
+html.light-mode .bg-navy-900\/95 {
+  background-color: rgba(240,242,248,0.97) !important;
+}
+html.light-mode .shadow-lg {
+  box-shadow: 0 4px 20px rgba(26,31,55,0.10) !important;
+}
+
+/* ============================================
+   Light mode — gray text overrides
+   ============================================ */
+html.light-mode .text-gray-300      { color: rgba(26,31,55,0.75) !important; }
+html.light-mode .text-gray-400      { color: rgba(26,31,55,0.60) !important; }
+html.light-mode .text-gray-500      { color: rgba(26,31,55,0.45) !important; }
+html.light-mode .text-gray-600      { color: rgba(26,31,55,0.40) !important; }
+html.light-mode .placeholder-gray-500::placeholder { color: rgba(26,31,55,0.38) !important; }
+html.light-mode .placeholder-gray-400::placeholder { color: rgba(26,31,55,0.44) !important; }
+
+/* ============================================
+   Light mode — hardcoded dark bg overrides
+   ============================================ */
+html.light-mode [class*="bg-[#1a1f37]"]   { background-color: var(--navy-900) !important; }
+html.light-mode [class*="bg-[#252b42]"]   { background-color: var(--navy-800) !important; }
+html.light-mode [class*="bg-[#2d3454]"]   { background-color: var(--navy-700) !important; }
+html.light-mode [class*="bg-[#0f1219]"]   { background-color: var(--navy-900) !important; }
+html.light-mode [class*="bg-[#0f1225]"]   { background-color: var(--navy-900) !important; }
+html.light-mode [class*="from-[#1a1f37]"] { --tw-gradient-from: var(--navy-900) var(--tw-gradient-from-position) !important; }
+html.light-mode [class*="from-[#0f1219]"] { --tw-gradient-from: var(--navy-900) var(--tw-gradient-from-position) !important; }
+html.light-mode [class*="from-[#0f1225]"] { --tw-gradient-from: var(--navy-900) var(--tw-gradient-from-position) !important; }
+html.light-mode [class*="to-[#0f1219]"]   { --tw-gradient-to: var(--navy-900) var(--tw-gradient-to-position) !important; }
+html.light-mode [class*="to-[#0f1225]"]   { --tw-gradient-to: var(--navy-900) var(--tw-gradient-to-position) !important; }
+html.light-mode [class*="via-[#"]         { --tw-gradient-stops: var(--tw-gradient-from), var(--navy-900) var(--tw-gradient-via-position), var(--tw-gradient-to) !important; }
+
+/* ============================================
+   Custom animations
+   ============================================ */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-18px); }
+}
+@keyframes float-x {
+  0%, 100% { transform: translateX(0px); }
+  50%       { transform: translateX(-12px); }
+}
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@keyframes spin-reverse {
+  from { transform: rotate(360deg); }
+  to   { transform: rotate(0deg); }
+}
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50%       { opacity: 0.8; transform: scale(1.08); }
+}
+@keyframes rise {
+  from { opacity: 0; transform: translateY(32px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes slide-right {
+  from { opacity: 0; transform: translateX(-30px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes orbit-dot {
+  from { transform: rotate(0deg) translateX(120px) rotate(0deg); }
+  to   { transform: rotate(360deg) translateX(120px) rotate(-360deg); }
+}
+@keyframes orbit-dot-inner {
+  from { transform: rotate(0deg) translateX(70px) rotate(0deg); }
+  to   { transform: rotate(360deg) translateX(70px) rotate(-360deg); }
+}
+@keyframes orbit-dot-outer {
+  from { transform: rotate(180deg) translateX(170px) rotate(-180deg); }
+  to   { transform: rotate(540deg) translateX(170px) rotate(-540deg); }
+}
+
+.animate-float        { animation: float 3.5s ease-in-out infinite; }
+.animate-float-slow   { animation: float 5.5s ease-in-out infinite; }
+.animate-float-x      { animation: float-x 4s ease-in-out infinite; }
+.animate-spin-slow    { animation: spin-slow 18s linear infinite; }
+.animate-spin-reverse { animation: spin-reverse 24s linear infinite; }
+.animate-pulse-glow   { animation: pulse-glow 3s ease-in-out infinite; }
+.animate-rise         { animation: rise 0.7s ease-out both; }
+.animate-fade-in      { animation: fade-in 0.8s ease-out both; }
+.animate-slide-right  { animation: slide-right 0.7s ease-out both; }
+.animate-orbit-dot        { animation: orbit-dot 8s linear infinite; }
+.animate-orbit-dot-inner  { animation: orbit-dot-inner 5s linear infinite; }
+.animate-orbit-dot-outer  { animation: orbit-dot-outer 12s linear infinite; }
+
+/* Global scrollbar hiding - works across all browsers */
+html,
+body {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  display: none;
+}
+
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+*::-webkit-scrollbar {
+  display: none;
+}
+
+/* ============================================
+   Thin scrollbar — opt-in utility class
+   Overrides the global scrollbar-hiding above
+   ============================================ */
+.thin-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(139, 92, 246, 0.25) transparent;
+  -ms-overflow-style: auto;
+}
+
+.thin-scrollbar::-webkit-scrollbar {
+  display: block !important;
+  width: 4px;
+  height: 4px;
+}
+
+.thin-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.thin-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(139, 92, 246, 0.25);
+  border-radius: 99px;
+}
+
+.thin-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(139, 92, 246, 0.5);
+}
+
+/* Light mode thin scrollbar */
+html.light-mode .thin-scrollbar {
+  scrollbar-color: rgba(26, 31, 55, 0.15) transparent;
+}
+
+html.light-mode .thin-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(26, 31, 55, 0.15);
+}
+
+html.light-mode .thin-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(26, 31, 55, 0.3);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}

@@ -1,0 +1,268 @@
+import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
+import { User, UserRole } from '../types';
+import { loginUser, AuthResponse, refreshToken, revokeToken } from '../services/auth.service';
+import { getUserImage } from '../services/user.image.service';
+
+// Admin credentials
+const ADMIN_EMAIL = 'admin123@gmail.com';
+const ADMIN_PASSWORD = 'admin123';
+const ADMIN_NAME = 'admin';
+
+// Refresh buffer: refresh 90 seconds before expiry
+const REFRESH_BUFFER_MS = 90_000;
+
+interface AuthContextType {
+  user: User | null;
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
+  loginDirectly: (user: User) => void;
+  logout: () => void;
+  register: (email: string, password: string, name: string, roles: UserRole[]) => Promise<void>;
+  updateUser: (updates: Partial<User>) => void;
+  addRole: (role: UserRole) => void;
+  removeRole: (role: UserRole) => void;
+  isAuthenticated: boolean;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within AuthProvider');
+  }
+  return context;
+};
+
+export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  const [user, setUser] = useState<User | null>(null);
+  const refreshTimerRef = useRef<number | null>(null);
+
+  // ── Token refresh helpers ──────────────────────────────────────────────────
+
+  const clearRefreshTimer = () => {
+    if (refreshTimerRef.current !== null) {
+      clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = null;
+    }
+  };
+
+  /**
+   * Schedules an automatic token refresh 90 s before `expiration`.
+   * If the expiration is already past (or within buffer), refreshes immediately.
+   */
+  const scheduleTokenRefresh = (expiration: string) => {
+    clearRefreshTimer();
+    const expiresAt = new Date(expiration).getTime();
+    const delay = Math.max(0, expiresAt - Date.now() - REFRESH_BUFFER_MS);
+
+    refreshTimerRef.current = window.setTimeout(async () => {
+      try {
+        const data = await refreshToken();
+        if (data.token) {
+          localStorage.setItem('authToken', data.token);
+        }
+        // Update user with new expiration if returned
+        if (data.refreshTokenExpiration) {
+          setUser((prev) => {
+            if (!prev) return prev;
+            const updated = { ...prev, refreshTokenExpiration: data.refreshTokenExpiration! };
+            localStorage.setItem('user', JSON.stringify(updated));
+            return updated;
+          });
+          scheduleTokenRefresh(data.refreshTokenExpiration);
+        }
+      } catch {
+        // Refresh failed — token likely expired server-side, force logout
+        doLogout();
+      }
+    }, delay);
+  };
+
+  // ── Internal logout (no revoke, used when refresh fails) ──────────────────
+
+  const doLogout = () => {
+    clearRefreshTimer();
+    localStorage.removeItem('user');
+    localStorage.removeItem('authToken');
+    setUser(null);
+  };
+
+  // ── On mount: restore session + schedule refresh ───────────────────────────
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem('user');
+    if (!storedUser) return;
+
+    const parsedUser = JSON.parse(storedUser) as User;
+    setUser(parsedUser);
+
+    const token = localStorage.getItem('authToken');
+    if (token) {
+      // Fetch the real profile photo
+      getUserImage()
+        .then((url) => {
+          if (url) {
+            const withPhoto = { ...parsedUser, avatar: url };
+            localStorage.setItem('user', JSON.stringify(withPhoto));
+            setUser(withPhoto);
+          }
+        })
+        .catch(() => { /* keep cached avatar */ });
+
+      // Schedule refresh if we know the expiration
+      if (parsedUser.refreshTokenExpiration) {
+        scheduleTokenRefresh(parsedUser.refreshTokenExpiration);
+      }
+    }
+
+    return () => clearRefreshTimer();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Login ──────────────────────────────────────────────────────────────────
+
+  const login = async (email: string, password: string, rememberMe = false) => {
+    // Admin shortcut
+    if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
+      const adminUser: User = {
+        id: 'admin-001',
+        email: ADMIN_EMAIL,
+        name: ADMIN_NAME,
+        roles: ['admin'],
+        avatar: 'https://readdy.ai/api/search-image?query=professional%20admin%20user%20avatar%20icon%20with%20shield%20badge%20modern%20minimal%20design%20dark%20background&width=200&height=200&seq=admin1&orientation=squarish',
+        createdAt: new Date().toISOString(),
+      };
+      localStorage.setItem('user', JSON.stringify(adminUser));
+      setUser(adminUser);
+      return;
+    }
+
+    const data: AuthResponse = await loginUser(email, password, rememberMe);
+
+    if (data.token) localStorage.setItem('authToken', data.token);
+
+    const normalizeRole = (r: string): UserRole => {
+      const lower = r.toLowerCase().trim();
+      if (lower === 'job seeker' || lower === 'job-seeker') return 'applicant';
+      return lower as UserRole;
+    };
+    const normalizedRoles = (data.roles ?? []).map(normalizeRole);
+
+    const loggedInUser: User = {
+      id: data.userId || String(Date.now()),
+      email: data.email || email,
+      name: data.fullName || email.split('@')[0],
+      roles: normalizedRoles,
+      avatar: '',
+      createdAt: new Date().toISOString(),
+      jobSeekerId: data.jobSeekerId,
+      employerId: data.employerId,
+      learnerId: data.learnerId,
+      clientId: data.clientId,
+      freeLancerId: data.freeLancerId,
+      refreshTokenExpiration: data.refreshTokenExpiration,
+    };
+
+    localStorage.setItem('user', JSON.stringify(loggedInUser));
+    setUser(loggedInUser);
+
+    // Fetch profile photo immediately
+    getUserImage()
+      .then((url) => {
+        if (url) {
+          const withPhoto = { ...loggedInUser, avatar: url };
+          localStorage.setItem('user', JSON.stringify(withPhoto));
+          setUser(withPhoto);
+        }
+      })
+      .catch(() => { /* silently ignore */ });
+
+    // Schedule token auto-refresh
+    if (data.refreshTokenExpiration) {
+      scheduleTokenRefresh(data.refreshTokenExpiration);
+    }
+  };
+
+  // ── Login directly (OTP confirm etc.) ─────────────────────────────────────
+
+  const loginDirectly = (newUser: User) => {
+    localStorage.setItem('user', JSON.stringify(newUser));
+    setUser(newUser);
+    if (newUser.refreshTokenExpiration) {
+      scheduleTokenRefresh(newUser.refreshTokenExpiration);
+    }
+  };
+
+  // ── Logout ─────────────────────────────────────────────────────────────────
+
+  const logout = () => {
+    const token = localStorage.getItem('authToken');
+    if (token) {
+      // Fire-and-forget — revoke on server, but don't block local logout
+      revokeToken(token);
+    }
+    doLogout();
+  };
+
+  // ── Register ───────────────────────────────────────────────────────────────
+
+  const register = async (email: string, password: string, name: string, roles: UserRole[]) => {
+    if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD && name.toLowerCase() === ADMIN_NAME) {
+      const adminUser: User = {
+        id: 'admin-001',
+        email: ADMIN_EMAIL,
+        name: ADMIN_NAME,
+        roles: ['admin'],
+        avatar: 'https://readdy.ai/api/search-image?query=professional%20admin%20user%20avatar%20icon%20with%20shield%20badge%20modern%20minimal%20design%20dark%20background&width=200&height=200&seq=admin1&orientation=squarish',
+        createdAt: new Date().toISOString(),
+      };
+      localStorage.setItem('user', JSON.stringify(adminUser));
+      setUser(adminUser);
+      return;
+    }
+
+    const newUser: User = {
+      id: Date.now().toString(),
+      email,
+      name,
+      roles,
+      createdAt: new Date().toISOString(),
+    };
+    localStorage.setItem('user', JSON.stringify(newUser));
+    setUser(newUser);
+  };
+
+  // ── User mutations ─────────────────────────────────────────────────────────
+
+  const updateUser = (updates: Partial<User>) => {
+    if (user) {
+      const updatedUser = { ...user, ...updates };
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      setUser(updatedUser);
+    }
+  };
+
+  const addRole = (role: UserRole) => {
+    if (user && !user.roles.includes(role)) {
+      const updatedUser = { ...user, roles: [...user.roles, role] };
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      setUser(updatedUser);
+    }
+  };
+
+  const removeRole = (role: UserRole) => {
+    if (user && user.roles.includes(role)) {
+      const updatedUser = { ...user, roles: user.roles.filter((r) => r !== role) };
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      setUser(updatedUser);
+    }
+  };
+
+  return (
+    <AuthContext.Provider
+      value={{ user, login, loginDirectly, logout, register, updateUser, addRole, removeRole, isAuthenticated: !!user }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+};
