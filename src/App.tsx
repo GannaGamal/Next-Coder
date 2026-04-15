@@ -7,7 +7,7 @@ import { ThemeProvider } from './contexts/ThemeContext';
 
 function App() {
   return (
-    <BrowserRouter basename={__BASE_PATH__}>
+    <BrowserRouter basename="/Next-Coder/">
       <ThemeProvider>
         <AuthProvider>
           <ViewAsProvider>

@@ -65,7 +65,7 @@ export default defineConfig({
       dts: true,
     }),
   ],
-  base,
+  base: '/Next-Coder/',
   build: {
     sourcemap: true,
     outDir: "out",
