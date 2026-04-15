@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { UserRole } from '../../types';
+import type { UserRole } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
 import { registerUser, confirmEmailOtp, resendOtp } from '../../services/auth.service';
+import rocketImage from '../../assets/space-rocket.png';
 
 interface Company {
   id: string;
@@ -309,7 +310,11 @@ const Register = () => {
           {/* Logo */}
           <Link to="/" className="inline-flex items-center space-x-3 mb-8">
             <div className="w-10 h-10 flex items-center justify-center rounded-lg">
-              <i className="ri-rocket-2-line text-white text-xl"></i>
+              <img
+                src={rocketImage}
+                alt="rocket"
+                className="w-5 h-5 object-contain"
+              />
             </div>
             <span className="text-2xl font-bold text-white">Next Coder</span>
           </Link>

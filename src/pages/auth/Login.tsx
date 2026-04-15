@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import { resendOtp, confirmEmailOtp } from '../../services/auth.service';
+import rocketImage from '../../assets/space-rocket.png';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -165,7 +166,11 @@ const Login = () => {
           {/* Logo */}
           <Link to="/" className="inline-flex items-center space-x-3 mb-12">
             <div className="w-10 h-10 flex items-center justify-center rounded-lg">
-              <i className="ri-rocket-2-line text-white text-xl"></i>
+              <img
+                src={rocketImage}
+                alt="rocket"
+                className="w-7 h-7 object-contain"
+              />
             </div>
             <span className="text-2xl font-bold text-white">Next Coder</span>
           </Link>
@@ -179,7 +184,6 @@ const Login = () => {
           {/* Error */}
           {error && !showOtpPanel && (
             <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-lg flex items-start">
-              <i className="ri-error-warning-line text-red-400 text-lg mt-0.5 mr-3 flex-shrink-0"></i>
               <span className="text-sm text-red-400">{error}</span>
             </div>
           )}

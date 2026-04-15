@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import Navbar from '../../components/feature/Navbar';
 import Footer from '../../components/feature/Footer';
 import { useTranslation } from 'react-i18next';
+import rocketImage from '../../assets/space-rocket.png';
 
 type ResourceType = 'video' | 'article' | 'quiz' | 'exercise' | 'project' | 'documentation';
 
@@ -612,7 +613,7 @@ const CourseDetail = () => {
             ) : (
               <div className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 rounded-xl border border-purple-500/30 p-6">
                 <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
-                  <div className="w-14 h-14 bg-purple-500/20 rounded-xl flex items-center justify-center flex-shrink-0"><i className="ri-rocket-2-line text-2xl text-purple-400"></i></div>
+                  <div className="w-14 h-14 bg-purple-500/20 rounded-xl flex items-center justify-center flex-shrink-0"><img src={rocketImage} alt="rocket" className="w-6 h-6 object-contain" /></div>
                   <div className="flex-1">
                     <h3 className="text-white font-bold text-lg mb-1">{t('roadmaps.readyToGraduate')}</h3>
                     <p className="text-white/60 text-sm">{t('roadmaps.readyToGraduateBody')}</p>

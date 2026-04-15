@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { forgotPassword, resendOtp, resetPassword } from '../../services/auth.service';
+import rocketImage from '../../assets/space-rocket.png';
 
 type Stage = 'email' | 'reset' | 'success';
 
@@ -159,7 +160,11 @@ const ForgotPassword = () => {
           {/* Logo */}
           <Link to="/" className="inline-flex items-center space-x-3 mb-12">
             <div className="w-10 h-10 flex items-center justify-center rounded-lg">
-              <i className="ri-rocket-2-line text-white text-xl"></i>
+              <img
+                src={rocketImage}
+                alt="rocket"
+                className="w-7 h-7 object-contain"
+              />
             </div>
             <span className="text-2xl font-bold text-white">Next Coder</span>
           </Link>

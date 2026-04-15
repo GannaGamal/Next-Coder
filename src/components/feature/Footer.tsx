@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import rocketImage from '../../assets/space-rocket.png';
 
 const Footer = () => {
   const { t } = useTranslation();
@@ -11,7 +12,11 @@ const Footer = () => {
           <div>
             <div className="flex items-center space-x-3 mb-6">
               <div className="w-10 h-10 flex items-center justify-center rounded-lg">
-                <i className="ri-rocket-2-line text-white text-xl"></i>
+                  <img
+                    src={rocketImage}
+                    alt="rocket"
+                    className="w-7 h-7 object-contain"
+                  />
               </div>
               <span className="text-2xl font-bold">Next Coder</span>
             </div>
