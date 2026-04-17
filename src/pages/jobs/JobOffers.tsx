@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Navbar from '../../components/feature/Navbar';
 import Footer from '../../components/feature/Footer';
@@ -8,6 +8,8 @@ import CustomSelect from '../../components/base/CustomSelect';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useTranslation } from 'react-i18next';
+import { createJobPost, getJobPosts, getJobSkills } from '../../services/job-post.service';
+import type { JobPostItem, JobSkill } from '../../services/job-post.service';
 
 interface Job {
   id: string;
@@ -54,6 +56,13 @@ const JobOffers = () => {
   const [jobExperience, setJobExperience] = useState('Entry');
   const [jobDescription, setJobDescription] = useState('');
   const [jobSubmitted, setJobSubmitted] = useState(false);
+  const [jobSubmitError, setJobSubmitError] = useState('');
+  const [isPostingJob, setIsPostingJob] = useState(false);
+  const [apiSkills, setApiSkills] = useState<JobSkill[]>([]);
+  const [skillsLoadError, setSkillsLoadError] = useState('');
+  const [jobsFromApi, setJobsFromApi] = useState<Job[]>([]);
+  const [jobsLoading, setJobsLoading] = useState(false);
+  const [jobsError, setJobsError] = useState('');
 
   const toggleJobFormSkill = (skill: string) => {
     setJobFormSkills(prev =>
@@ -61,23 +70,178 @@ const JobOffers = () => {
     );
   };
 
-  const handlePostJobSubmit = (e: React.FormEvent) => {
+  const handlePostJobSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setJobSubmitted(true);
-    setTimeout(() => {
-      setShowPostJobModal(false);
-      setJobSubmitted(false);
-      setJobTitle('');
-      setJobCompany('');
-      setJobLocation('');
-      setJobSalaryMin('');
-      setJobSalaryMax('');
-      setJobDescription('');
-      setJobFormSkills([]);
-      setJobType('Full-time');
-      setJobExperience('Entry');
-    }, 1800);
+    setJobSubmitError('');
+    setIsPostingJob(true);
+
+    try {
+      const mappedSkillIds = jobFormSkills
+        .map((selected) => {
+          const matched = apiSkills.find(
+            (skill) => skill.name.trim().toLowerCase() === selected.trim().toLowerCase()
+          );
+          return matched?.id;
+        })
+        .filter((id): id is number => typeof id === 'number');
+
+      const payload = {
+        title: jobTitle.trim(),
+        location: jobLocation.trim(),
+        companyName: jobCompany.trim(),
+        jobType,
+        experienceLevel: jobExperience,
+        minSalary: jobSalaryMin ? Number(jobSalaryMin) : undefined,
+        maxSalary: jobSalaryMax ? Number(jobSalaryMax) : undefined,
+        description: jobDescription.trim(),
+        skillIds: mappedSkillIds,
+      };
+
+      await createJobPost(payload);
+
+      setJobSubmitted(true);
+      setTimeout(() => {
+        setShowPostJobModal(false);
+        setJobSubmitted(false);
+        setJobTitle('');
+        setJobCompany('');
+        setJobLocation('');
+        setJobSalaryMin('');
+        setJobSalaryMax('');
+        setJobDescription('');
+        setJobFormSkills([]);
+        setJobType('Full-time');
+        setJobExperience('Entry');
+      }, 1800);
+    } catch (err: unknown) {
+      setJobSubmitError(err instanceof Error ? err.message : 'Failed to post job. Please try again.');
+    } finally {
+      setIsPostingJob(false);
+    }
   };
+
+  const toRelativeDate = (isoDate?: string): string => {
+    if (!isoDate) return 'Recently';
+    const created = new Date(isoDate).getTime();
+    if (Number.isNaN(created)) return 'Recently';
+    const diffMs = Date.now() - created;
+    const dayMs = 24 * 60 * 60 * 1000;
+    const days = Math.max(0, Math.floor(diffMs / dayMs));
+    if (days === 0) return 'Today';
+    if (days === 1) return '1 day ago';
+    return `${days} days ago`;
+  };
+
+  const mapApiJobToUi = (item: JobPostItem): Job => {
+    const min = typeof item.minSalary === 'number' ? item.minSalary : 0;
+    const max = typeof item.maxSalary === 'number' ? item.maxSalary : 0;
+
+    return {
+      id: String(item.id),
+      title: item.title,
+      company: item.companyName,
+      companyLogo: 'https://readdy.ai/api/search-image?query=modern%20company%20logo%20minimalist%20clean%20branding%20on%20white%20background&width=100&height=100&seq=job-api&orientation=squarish',
+      employerId: item.employerId ?? '0',
+      location: item.location,
+      type: (['Full-time', 'Part-time', 'Contract', 'Remote', 'Internship'].includes(item.jobType)
+        ? item.jobType
+        : 'Full-time') as Job['type'],
+      salary: min || max ? `$${min.toLocaleString()} - $${max.toLocaleString()}` : 'Not specified',
+      experience: item.experienceLevel || 'Not specified',
+      skills: item.skills,
+      postedDate: toRelativeDate(item.createdAt),
+      description: item.description,
+      applicants: item.jobSeekersCount ?? 0,
+      featured: false,
+    };
+  };
+
+  const mapExperienceFilterToApi = (value: string): string | undefined => {
+    if (value === '0-2') return 'Entry (0-2 yrs)';
+    if (value === '3-5') return 'Mid (3-5 yrs)';
+    if (value === '6+') return 'Senior (6+ yrs)';
+    return undefined;
+  };
+
+  const mapSalaryFilterToBounds = (value: string): { min?: number; max?: number } => {
+    if (value === 'under80k') return { max: 80000 };
+    if (value === '80k-120k') return { min: 80000, max: 120000 };
+    if (value === 'over120k') return { min: 120000 };
+    return {};
+  };
+
+  const mapSortToApi = (value: string): string | undefined => {
+    if (value === 'newest') return 'Newest';
+    if (value === 'salary') return 'Salary';
+    if (value === 'company') return 'CompanyName';
+    if (value === 'applicants') return 'Applicants';
+    return undefined;
+  };
+
+  useEffect(() => {
+    const loadSkills = async () => {
+      if (!isAuthenticated) {
+        setApiSkills([]);
+        setSkillsLoadError('');
+        return;
+      }
+
+      try {
+        const skills = await getJobSkills();
+        setApiSkills(skills);
+        setSkillsLoadError('');
+      } catch (err: unknown) {
+        setApiSkills([]);
+        setSkillsLoadError(err instanceof Error ? err.message : 'Failed to load skills from API.');
+      }
+    };
+
+    loadSkills();
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setJobsFromApi([]);
+      setJobsError('Please sign in to load jobs from API.');
+      return;
+    }
+
+    const timeoutId = window.setTimeout(async () => {
+      setJobsLoading(true);
+      setJobsError('');
+
+      try {
+        const mappedSkillIds = selectedSkills
+          .map((selected) => {
+            const matched = apiSkills.find(
+              (skill) => skill.name.trim().toLowerCase() === selected.trim().toLowerCase()
+            );
+            return matched?.id;
+          })
+          .filter((id): id is number => typeof id === 'number');
+
+        const salaryBounds = mapSalaryFilterToBounds(salaryFilter);
+        const result = await getJobPosts({
+          SearchTerm: searchQuery.trim() || undefined,
+          JobType: typeFilter !== 'all' ? typeFilter : undefined,
+          ExperienceLevel: mapExperienceFilterToApi(experienceFilter),
+          MinSalary: salaryBounds.min,
+          MaxSalary: salaryBounds.max,
+          SkillIds: mappedSkillIds,
+          SortBy: mapSortToApi(sortBy),
+        });
+
+        setJobsFromApi(result.items.map(mapApiJobToUi));
+      } catch (err: unknown) {
+        setJobsFromApi([]);
+        setJobsError(err instanceof Error ? err.message : 'Failed to load jobs from API.');
+      } finally {
+        setJobsLoading(false);
+      }
+    }, 350);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [isAuthenticated, searchQuery, typeFilter, experienceFilter, salaryFilter, selectedSkills, sortBy, apiSkills]);
 
   const allSkills = [
     'JavaScript', 'React', 'Python', 'Java', 'Node.js', 'TypeScript',
@@ -272,6 +436,7 @@ const JobOffers = () => {
       setShowRoleGateModal(true);
       return;
     }
+    setJobSubmitError('');
     setShowPostJobModal(true);
   };
 
@@ -280,7 +445,9 @@ const JobOffers = () => {
     setShowReportModal(true);
   };
 
-  const filteredJobs = jobs.filter(job => {
+  const sourceJobs = isAuthenticated ? jobsFromApi : jobs;
+
+  const filteredJobs = sourceJobs.filter(job => {
     const matchesSearch = job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          job.company.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          job.skills.some(skill => skill.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -399,6 +566,18 @@ const JobOffers = () => {
                 </div>
 
                 <form onSubmit={handlePostJobSubmit} className="space-y-5">
+                  {jobSubmitError && (
+                    <div className={`p-3 rounded-lg text-sm border ${isLightMode ? 'bg-red-50 border-red-200 text-red-700' : 'bg-red-500/10 border-red-500/30 text-red-300'}`}>
+                      {jobSubmitError}
+                    </div>
+                  )}
+
+                  {skillsLoadError && (
+                    <div className={`p-3 rounded-lg text-sm border ${isLightMode ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-amber-500/10 border-amber-500/30 text-amber-300'}`}>
+                      {skillsLoadError}
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className={`block font-medium mb-2 text-sm ${labelCls}`}>{t('jobs.jobTitle')} *</label>
@@ -470,8 +649,12 @@ const JobOffers = () => {
                     <button type="button" onClick={() => setShowPostJobModal(false)} className={`flex-1 px-5 py-3 font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${isLightMode ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' : 'bg-white/5 text-white hover:bg-white/10'}`}>
                       {t('common.cancel')}
                     </button>
-                    <button type="submit" className="flex-1 px-5 py-3 bg-teal-500 text-white font-semibold rounded-lg hover:bg-teal-600 transition-colors whitespace-nowrap cursor-pointer">
-                      <i className="ri-send-plane-line mr-2"></i>{t('jobs.postJob')}
+                    <button type="submit" disabled={isPostingJob} className="flex-1 px-5 py-3 bg-teal-500 text-white font-semibold rounded-lg hover:bg-teal-600 transition-colors whitespace-nowrap cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed">
+                      {isPostingJob ? (
+                        <><i className="ri-loader-4-line mr-2 animate-spin"></i>Posting...</>
+                      ) : (
+                        <><i className="ri-send-plane-line mr-2"></i>{t('jobs.postJob')}</>
+                      )}
                     </button>
                   </div>
                 </form>
@@ -616,6 +799,12 @@ const JobOffers = () => {
                   {showFilters ? t('jobs.hideFiltersLink') : t('jobs.showFiltersLink')}
                 </button>
               </div>
+
+              {(jobsLoading || jobsError) && isAuthenticated && (
+                <div className={`mb-4 p-3 rounded-lg border text-sm ${isLightMode ? 'bg-white border-gray-200 text-gray-700' : 'bg-white/5 border-white/10 text-gray-300'}`}>
+                  {jobsLoading ? 'Loading jobs from API...' : jobsError}
+                </div>
+              )}
 
               {/* Featured Jobs */}
               {featuredJobs.length > 0 && (
