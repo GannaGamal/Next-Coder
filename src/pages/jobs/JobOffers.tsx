@@ -63,6 +63,7 @@ const JobOffers = () => {
   const [jobsFromApi, setJobsFromApi] = useState<Job[]>([]);
   const [jobsLoading, setJobsLoading] = useState(false);
   const [jobsError, setJobsError] = useState('');
+  const [jobsRefreshKey, setJobsRefreshKey] = useState(0);
 
   const toggleJobFormSkill = (skill: string) => {
     setJobFormSkills(prev =>
@@ -98,6 +99,7 @@ const JobOffers = () => {
       };
 
       await createJobPost(payload);
+      setJobsRefreshKey((prev) => prev + 1);
 
       setJobSubmitted(true);
       setTimeout(() => {
@@ -241,7 +243,7 @@ const JobOffers = () => {
     }, 350);
 
     return () => window.clearTimeout(timeoutId);
-  }, [isAuthenticated, searchQuery, typeFilter, experienceFilter, salaryFilter, selectedSkills, sortBy, apiSkills]);
+  }, [isAuthenticated, searchQuery, typeFilter, experienceFilter, salaryFilter, selectedSkills, sortBy, apiSkills, jobsRefreshKey]);
 
   const allSkills = [
     'JavaScript', 'React', 'Python', 'Java', 'Node.js', 'TypeScript',
@@ -253,168 +255,7 @@ const JobOffers = () => {
 
   const jobTypes = ['Full-time', 'Part-time', 'Contract', 'Remote', 'Internship'];
 
-  const jobs: Job[] = [
-    {
-      id: '1',
-      title: 'Senior Frontend Developer',
-      company: 'TechCorp Inc.',
-      companyLogo: 'https://readdy.ai/api/search-image?query=modern%20tech%20company%20logo%20minimalist%20design%20with%20letter%20T%20in%20teal%20gradient%20on%20white%20background%20clean%20corporate%20branding&width=100&height=100&seq=job1&orientation=squarish',
-      employerId: '5',
-      location: 'San Francisco, CA',
-      type: 'Full-time',
-      salary: '$120k - $160k',
-      experience: '5+ years',
-      skills: ['React', 'TypeScript', 'Node.js', 'AWS'],
-      postedDate: '2 days ago',
-      description: 'We are looking for a Senior Frontend Developer to join our growing team. You will be responsible for building and maintaining our web applications using React and TypeScript.',
-      applicants: 45,
-      featured: true
-    },
-    {
-      id: '2',
-      title: 'Full Stack Engineer',
-      company: 'StartupXYZ',
-      companyLogo: 'https://readdy.ai/api/search-image?query=startup%20company%20logo%20modern%20minimalist%20design%20with%20geometric%20shapes%20in%20orange%20gradient%20on%20white%20background%20innovative%20branding&width=100&height=100&seq=job2&orientation=squarish',
-      employerId: '2',
-      location: 'Remote',
-      type: 'Remote',
-      salary: '$100k - $140k',
-      experience: '3+ years',
-      skills: ['JavaScript', 'React', 'Node.js', 'MongoDB', 'Docker'],
-      postedDate: '1 day ago',
-      description: 'Join our fast-paced startup as a Full Stack Engineer. Work on exciting projects and help shape the future of our product.',
-      applicants: 78,
-      featured: true
-    },
-    {
-      id: '3',
-      title: 'Backend Developer',
-      company: 'DataFlow Systems',
-      companyLogo: 'https://readdy.ai/api/search-image?query=data%20company%20logo%20minimalist%20design%20with%20flowing%20lines%20in%20blue%20gradient%20on%20white%20background%20professional%20tech%20branding&width=100&height=100&seq=job3&orientation=squarish',
-      employerId: '2',
-      location: 'New York, NY',
-      type: 'Full-time',
-      salary: '$110k - $150k',
-      experience: '4+ years',
-      skills: ['Python', 'Django', 'PostgreSQL', 'AWS', 'Docker'],
-      postedDate: '3 days ago',
-      description: 'Looking for an experienced Backend Developer to design and implement scalable APIs and microservices.',
-      applicants: 32,
-      featured: false
-    },
-    {
-      id: '4',
-      title: 'Junior React Developer',
-      company: 'WebAgency Pro',
-      companyLogo: 'https://readdy.ai/api/search-image?query=web%20agency%20logo%20modern%20minimalist%20design%20with%20W%20letter%20in%20pink%20gradient%20on%20white%20background%20creative%20digital%20branding&width=100&height=100&seq=job4&orientation=squarish',
-      employerId: '5',
-      location: 'Austin, TX',
-      type: 'Full-time',
-      salary: '$60k - $80k',
-      experience: '0-2 years',
-      skills: ['React', 'JavaScript', 'CSS', 'Git'],
-      postedDate: '1 week ago',
-      description: 'Great opportunity for junior developers to grow their skills in a supportive environment. Mentorship provided.',
-      applicants: 120,
-      featured: false
-    },
-    {
-      id: '5',
-      title: 'DevOps Engineer',
-      company: 'CloudNine Tech',
-      companyLogo: 'https://readdy.ai/api/search-image?query=cloud%20technology%20company%20logo%20minimalist%20design%20with%20cloud%20icon%20in%20cyan%20gradient%20on%20white%20background%20modern%20tech%20branding&width=100&height=100&seq=job5&orientation=squarish',
-      employerId: '8',
-      location: 'Seattle, WA',
-      type: 'Full-time',
-      salary: '$130k - $170k',
-      experience: '5+ years',
-      skills: ['AWS', 'Kubernetes', 'Docker', 'Terraform', 'Python'],
-      postedDate: '4 days ago',
-      description: 'Join our infrastructure team to build and maintain cloud-native solutions at scale.',
-      applicants: 28,
-      featured: true
-    },
-    {
-      id: '6',
-      title: 'Mobile Developer (React Native)',
-      company: 'AppMakers Co.',
-      companyLogo: 'https://readdy.ai/api/search-image?query=mobile%20app%20company%20logo%20minimalist%20design%20with%20smartphone%20icon%20in%20green%20gradient%20on%20white%20background%20app%20development%20branding&width=100&height=100&seq=job6&orientation=squarish',
-      employerId: '5',
-      location: 'Los Angeles, CA',
-      type: 'Contract',
-      salary: '$80/hr - $100/hr',
-      experience: '3+ years',
-      skills: ['React Native', 'JavaScript', 'TypeScript', 'Firebase'],
-      postedDate: '5 days ago',
-      description: 'Contract position for an experienced React Native developer to build cross-platform mobile applications.',
-      applicants: 41,
-      featured: false
-    },
-    {
-      id: '7',
-      title: 'Data Engineer',
-      company: 'Analytics Hub',
-      companyLogo: 'https://readdy.ai/api/search-image?query=analytics%20company%20logo%20minimalist%20design%20with%20chart%20icon%20in%20purple%20gradient%20on%20white%20background%20data%20science%20branding&width=100&height=100&seq=job7&orientation=squarish',
-      employerId: '2',
-      location: 'Chicago, IL',
-      type: 'Full-time',
-      salary: '$115k - $145k',
-      experience: '4+ years',
-      skills: ['Python', 'SQL', 'Spark', 'AWS', 'Airflow'],
-      postedDate: '2 days ago',
-      description: 'Build and maintain data pipelines that power our analytics platform serving millions of users.',
-      applicants: 35,
-      featured: false
-    },
-    {
-      id: '8',
-      title: 'UI/UX Developer',
-      company: 'DesignFirst Studio',
-      companyLogo: 'https://readdy.ai/api/search-image?query=design%20studio%20logo%20minimalist%20with%20pen%20tool%20icon%20in%20coral%20gradient%20on%20white%20background%20creative%20agency%20branding&width=100&height=100&seq=job8&orientation=squarish',
-      employerId: '5',
-      location: 'Boston, MA',
-      type: 'Full-time',
-      salary: '$90k - $120k',
-      experience: '3+ years',
-      skills: ['React', 'CSS', 'Figma', 'JavaScript', 'Tailwind'],
-      postedDate: '6 days ago',
-      description: 'Looking for a developer with strong design sensibilities to create beautiful, user-friendly interfaces.',
-      applicants: 52,
-      featured: false
-    },
-    {
-      id: '9',
-      title: 'Software Engineering Intern',
-      company: 'TechGiant Corp',
-      companyLogo: 'https://readdy.ai/api/search-image?query=large%20tech%20corporation%20logo%20minimalist%20design%20with%20abstract%20G%20letter%20in%20indigo%20gradient%20on%20white%20background%20enterprise%20branding&width=100&height=100&seq=job9&orientation=squarish',
-      employerId: '8',
-      location: 'Denver, CO',
-      type: 'Internship',
-      salary: '$35/hr - $45/hr',
-      experience: '0-1 years',
-      skills: ['Java', 'Python', 'Git', 'SQL'],
-      postedDate: '1 week ago',
-      description: 'Summer internship program for students passionate about software development. Learn from industry experts.',
-      applicants: 200,
-      featured: false
-    },
-    {
-      id: '10',
-      title: 'Lead Backend Architect',
-      company: 'Enterprise Solutions',
-      companyLogo: 'https://readdy.ai/api/search-image?query=enterprise%20software%20company%20logo%20minimalist%20design%20with%20building%20blocks%20icon%20in%20navy%20gradient%20on%20white%20background%20corporate%20tech%20branding&width=100&height=100&seq=job10&orientation=squarish',
-      employerId: '5',
-      location: 'New York, NY',
-      type: 'Full-time',
-      salary: '$180k - $220k',
-      experience: '8+ years',
-      skills: ['Java', 'Spring Boot', 'Microservices', 'AWS', 'Kubernetes'],
-      postedDate: '3 days ago',
-      description: 'Lead our backend architecture team in designing and implementing enterprise-grade solutions.',
-      applicants: 18,
-      featured: true
-    }
-  ];
+  const jobs: Job[] = jobsFromApi;
 
   const toggleSkill = (skill: string) => {
     setSelectedSkills(prev =>
@@ -445,9 +286,7 @@ const JobOffers = () => {
     setShowReportModal(true);
   };
 
-  const sourceJobs = isAuthenticated ? jobsFromApi : jobs;
-
-  const filteredJobs = sourceJobs.filter(job => {
+  const filteredJobs = jobs.filter(job => {
     const matchesSearch = job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          job.company.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          job.skills.some(skill => skill.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -800,9 +639,15 @@ const JobOffers = () => {
                 </button>
               </div>
 
-              {(jobsLoading || jobsError) && isAuthenticated && (
-                <div className={`mb-4 p-3 rounded-lg border text-sm ${isLightMode ? 'bg-white border-gray-200 text-gray-700' : 'bg-white/5 border-white/10 text-gray-300'}`}>
-                  {jobsLoading ? 'Loading jobs from API...' : jobsError}
+              {jobsLoading && (
+                <div className={`mb-4 p-3 rounded-lg text-sm border ${isLightMode ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-blue-500/10 border-blue-500/30 text-blue-300'}`}>
+                  Loading jobs from database...
+                </div>
+              )}
+
+              {jobsError && (
+                <div className={`mb-4 p-3 rounded-lg text-sm border ${isLightMode ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-amber-500/10 border-amber-500/30 text-amber-300'}`}>
+                  {jobsError}
                 </div>
               )}
 

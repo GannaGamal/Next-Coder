@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import Navbar from '../../components/feature/Navbar';
@@ -6,12 +6,15 @@ import Footer from '../../components/feature/Footer';
 import ProfilePhotoModal from '../../components/feature/ProfilePhotoModal';
 import ContactInfoModal, { ContactInfo } from '../../components/feature/ContactInfoModal';
 import useProfilePhoto from '../../hooks/useProfilePhoto';
+import { getJobSeekerProfile } from '../../services/job-seeker-profile.service';
 
 const ApplicantProfile = () => {
   const { user, updateUser } = useAuth();
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileError, setProfileError] = useState('');
   
   const [originalCv] = useState({
     name: 'John_Doe_Resume_2024.pdf',
@@ -35,6 +38,56 @@ const ApplicantProfile = () => {
   });
 
   const [newSkill, setNewSkill] = useState('');
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      if (!user?.id) return;
+
+      setProfileLoading(true);
+      setProfileError('');
+
+      try {
+        const data = await getJobSeekerProfile(user.id, user.jobSeekerId);
+
+        const nextSkills = Array.isArray(data.skills)
+          ? data.skills
+          : Array.isArray(data.skillNames)
+            ? data.skillNames
+            : [];
+
+        if (nextSkills.length > 0) {
+          setProfile((prev) => ({ ...prev, skills: nextSkills }));
+        }
+
+        setContactInfo((prev) => ({
+          ...prev,
+          phone: data.phone ?? prev.phone,
+          location: data.location ?? prev.location,
+          website: data.website ?? prev.website,
+          linkedin: data.linkedin ?? data.linkedIn ?? prev.linkedin,
+          github: data.github ?? prev.github,
+          twitter: data.twitter ?? prev.twitter,
+          experience: data.experience ?? prev.experience,
+          education: data.education ?? prev.education,
+        }));
+
+        const updatedName = (data.fullName ?? data.name ?? '').trim();
+        const updatedEmail = (data.email ?? '').trim();
+        if (updatedName || updatedEmail) {
+          updateUser({
+            ...(updatedName ? { name: updatedName } : {}),
+            ...(updatedEmail ? { email: updatedEmail } : {}),
+          });
+        }
+      } catch (err: unknown) {
+        setProfileError(err instanceof Error ? err.message : 'Failed to load profile from API.');
+      } finally {
+        setProfileLoading(false);
+      }
+    };
+
+    loadProfile();
+  }, [user?.id, user?.jobSeekerId]);
 
   const handleAddSkill = () => {
     if (newSkill.trim() && !profile.skills.includes(newSkill.trim())) {
@@ -64,6 +117,11 @@ const ApplicantProfile = () => {
         <div className="max-w-7xl mx-auto">
           {/* Profile Header */}
           <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 sm:p-6 lg:p-8 mb-6 sm:mb-8 border border-white/10">
+            {(profileLoading || profileError) && (
+              <div className={`mb-4 p-3 rounded-lg text-sm border ${profileError ? 'bg-red-500/10 border-red-500/30 text-red-300' : 'bg-cyan-500/10 border-cyan-500/30 text-cyan-300'}`}>
+                {profileLoading ? 'Loading profile from API...' : profileError}
+              </div>
+            )}
             <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-6">
               <div 
                 onClick={() => setShowPhotoModal(true)}
