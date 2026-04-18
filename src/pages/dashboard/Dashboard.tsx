@@ -14,6 +14,27 @@ const Dashboard = () => {
   const [activeRole, setActiveRole] = useState('');
   const { t } = useTranslation();
 
+  const userRoles = Array.isArray(user?.roles) ? user.roles : [];
+  const hasFreelancerRole = userRoles.includes('freelancer');
+  const hasClientRole = userRoles.includes('client');
+  const hasEmployerRole = userRoles.includes('employer');
+  const hasApplicantRole = userRoles.includes('applicant');
+
+  const availableRoles = [
+    ...(hasFreelancerRole ? ['freelancer'] : []),
+    ...(hasClientRole ? ['client'] : []),
+    ...(hasEmployerRole ? ['employer'] : []),
+    ...(hasApplicantRole ? ['applicant'] : []),
+  ];
+
+  useEffect(() => {
+    if (!isAuthReady || !isAuthenticated || !user) return;
+    if (!availableRoles.length) return;
+    if (!availableRoles.includes(activeRole)) {
+      setActiveRole(availableRoles[0]);
+    }
+  }, [isAuthReady, isAuthenticated, user, availableRoles, activeRole]);
+
   if (!isAuthReady) {
     return (
       <div className="min-h-screen bg-navy-900 flex items-center justify-center text-white/70">
@@ -26,29 +47,9 @@ const Dashboard = () => {
     return <Navigate to="/login" replace />;
   }
 
-  const userRoles = Array.isArray(user.roles) ? user.roles : [];
-  const hasFreelancerRole = userRoles.includes('freelancer');
-  const hasClientRole = userRoles.includes('client');
-  const hasEmployerRole = userRoles.includes('employer');
-  const hasApplicantRole = userRoles.includes('applicant');
-
   if (!hasFreelancerRole && !hasClientRole && !hasEmployerRole && !hasApplicantRole) {
     return <Navigate to="/" replace />;
   }
-
-  const availableRoles = [
-    ...(hasFreelancerRole ? ['freelancer'] : []),
-    ...(hasClientRole ? ['client'] : []),
-    ...(hasEmployerRole ? ['employer'] : []),
-    ...(hasApplicantRole ? ['applicant'] : []),
-  ];
-
-  useEffect(() => {
-    if (!availableRoles.length) return;
-    if (!availableRoles.includes(activeRole)) {
-      setActiveRole(availableRoles[0]);
-    }
-  }, [availableRoles, activeRole]);
 
   const hasMultipleRoles = availableRoles.length > 1;
   const effectiveRole = hasMultipleRoles

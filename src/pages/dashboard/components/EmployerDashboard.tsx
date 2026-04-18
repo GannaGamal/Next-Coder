@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../../contexts/ThemeContext';
-import { getEmployerDashboard, type EmployerDashboardJobPostItem } from '../../../services/job-post.service';
+import { closeJobPost, deleteJobPost, getEmployerDashboard, getJobPostDetails, rejectJobApplicant, scheduleInterviewForApplicant, type EmployerDashboardJobPostItem } from '../../../services/job-post.service';
 
 interface Applicant {
   id: string;
@@ -125,6 +125,26 @@ const EmployerDashboard = () => {
   const [selectedApplicant, setSelectedApplicant] = useState<Applicant | null>(null);
   const [interviewDetails, setInterviewDetails] = useState({ date: '', time: '' });
   const [rejectionReason, setRejectionReason] = useState('');
+  const [closingJobId, setClosingJobId] = useState<string | null>(null);
+  const [closeJobError, setCloseJobError] = useState('');
+  const [deletingJobId, setDeletingJobId] = useState<string | null>(null);
+  const [deleteJobError, setDeleteJobError] = useState('');
+  const [isLoadingJobDetails, setIsLoadingJobDetails] = useState(false);
+  const [jobDetailsError, setJobDetailsError] = useState('');
+  const [rejectApplicantError, setRejectApplicantError] = useState('');
+  const [rejectingApplicantId, setRejectingApplicantId] = useState<string | null>(null);
+  const [scheduleInterviewError, setScheduleInterviewError] = useState('');
+  const [schedulingApplicantId, setSchedulingApplicantId] = useState<string | null>(null);
+
+  const getTodayLocalDate = (): string => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const todayDate = getTodayLocalDate();
 
   const stats = {
     activeJobs: dashboardStats?.activeJobs ?? jobs.filter(j => j.status === 'active').length,
@@ -206,38 +226,199 @@ const EmployerDashboard = () => {
     }
   };
 
-  const handleScheduleInterview = () => {
+  const handleScheduleInterview = async () => {
     if (!selectedApplicant || !interviewDetails.date || !interviewDetails.time || !selectedJob) return;
-    const updatedApplicants = selectedJob.applicants.map(app =>
-      app.id === selectedApplicant.id
-        ? { ...app, status: 'interview_scheduled' as const, interviewDate: interviewDetails.date, interviewTime: interviewDetails.time }
-        : app
-    );
-    setJobs(prev => prev.map(j => j.id === selectedJob.id ? { ...j, applicants: updatedApplicants } : j));
-    setSelectedJob({ ...selectedJob, applicants: updatedApplicants });
-    setShowInterviewModal(false);
-    setSelectedApplicant(null);
-    setInterviewDetails({ date: '', time: '' });
+
+    if (interviewDetails.date < todayDate) {
+      setScheduleInterviewError('Interview date must be today or a future date.');
+      return;
+    }
+
+    const interviewDateTime = new Date(`${interviewDetails.date}T${interviewDetails.time}`);
+    if (Number.isNaN(interviewDateTime.getTime())) {
+      setScheduleInterviewError('Invalid interview date or time.');
+      return;
+    }
+
+    setScheduleInterviewError('');
+    setSchedulingApplicantId(selectedApplicant.id);
+
+    try {
+      await scheduleInterviewForApplicant(Number(selectedApplicant.id), interviewDateTime.toISOString());
+
+      const updatedApplicants = selectedJob.applicants.map((app) => (
+        app.id === selectedApplicant.id
+          ? { ...app, status: 'interview_scheduled' as const, interviewDate: interviewDetails.date, interviewTime: interviewDetails.time }
+          : app
+      ));
+
+      setJobs((prev) => prev.map((j) => (j.id === selectedJob.id ? { ...j, applicants: updatedApplicants } : j)));
+      setSelectedJob({ ...selectedJob, applicants: updatedApplicants });
+      setShowInterviewModal(false);
+      setSelectedApplicant(null);
+      setInterviewDetails({ date: '', time: '' });
+    } catch (err: unknown) {
+      setScheduleInterviewError(err instanceof Error ? err.message : 'Failed to schedule interview.');
+    } finally {
+      setSchedulingApplicantId(null);
+    }
   };
 
-  const handleRejectApplicant = () => {
+  const handleRejectApplicant = async () => {
     if (!selectedApplicant || !selectedJob) return;
-    const updatedApplicants = selectedJob.applicants.map(app =>
-      app.id === selectedApplicant.id
-        ? { ...app, status: 'rejected' as const, rejectionReason: rejectionReason || 'Application not selected' }
-        : app
-    );
-    setJobs(prev => prev.map(j => j.id === selectedJob.id ? { ...j, applicants: updatedApplicants } : j));
-    setSelectedJob({ ...selectedJob, applicants: updatedApplicants });
-    setShowRejectModal(false);
-    setSelectedApplicant(null);
-    setRejectionReason('');
+
+    setRejectApplicantError('');
+    setRejectingApplicantId(selectedApplicant.id);
+
+    try {
+      await rejectJobApplicant(Number(selectedApplicant.id), rejectionReason || undefined);
+
+      const updatedApplicants = selectedJob.applicants.map((app) => (
+        app.id === selectedApplicant.id
+          ? { ...app, status: 'rejected' as const, rejectionReason: rejectionReason || 'Application not selected' }
+          : app
+      ));
+
+      setJobs((prev) => prev.map((j) => (j.id === selectedJob.id ? { ...j, applicants: updatedApplicants } : j)));
+      setSelectedJob({ ...selectedJob, applicants: updatedApplicants });
+      setShowRejectModal(false);
+      setSelectedApplicant(null);
+      setRejectionReason('');
+    } catch (err: unknown) {
+      setRejectApplicantError(err instanceof Error ? err.message : 'Failed to reject applicant.');
+    } finally {
+      setRejectingApplicantId(null);
+    }
   };
 
   const handleRemoveJob = (id: string) => {
+    const targetJob = jobs.find((j) => j.id === id);
+    if (!targetJob) {
+      setJobToDelete(null);
+      return;
+    }
+
     setJobs(prev => prev.filter(j => j.id !== id));
     if (selectedJob?.id === id) setSelectedJob(null);
+    setDashboardStats((prev) => {
+      if (!prev) return prev;
+
+      return {
+        ...prev,
+        activeJobs: targetJob.status === 'active' ? Math.max(0, prev.activeJobs - 1) : prev.activeJobs,
+        closedJobs: targetJob.status === 'closed' ? Math.max(0, prev.closedJobs - 1) : prev.closedJobs,
+        totalApplicants: Math.max(0, prev.totalApplicants - targetJob.applicantsCount),
+      };
+    });
     setJobToDelete(null);
+  };
+
+  const handleDeleteJob = async (jobId: string) => {
+    setDeleteJobError('');
+    setDeletingJobId(jobId);
+
+    try {
+      await deleteJobPost(Number(jobId));
+      handleRemoveJob(jobId);
+    } catch (err: unknown) {
+      setDeleteJobError(err instanceof Error ? err.message : 'Failed to delete this job post.');
+    } finally {
+      setDeletingJobId(null);
+    }
+  };
+
+  const handleCloseJob = async (jobId: string) => {
+    setCloseJobError('');
+    setClosingJobId(jobId);
+
+    try {
+      await closeJobPost(Number(jobId));
+
+      setJobs((prev) => prev.map((job) => (
+        job.id === jobId ? { ...job, status: 'closed' } : job
+      )));
+
+      setSelectedJob((prev) => {
+        if (!prev || prev.id !== jobId) return prev;
+        return { ...prev, status: 'closed' };
+      });
+
+      setDashboardStats((prev) => {
+        if (!prev) return prev;
+        const nextActive = Math.max(0, prev.activeJobs - 1);
+        const nextClosed = prev.closedJobs + 1;
+        return {
+          ...prev,
+          activeJobs: nextActive,
+          closedJobs: nextClosed,
+        };
+      });
+    } catch (err: unknown) {
+      setCloseJobError(err instanceof Error ? err.message : 'Failed to close this job post.');
+    } finally {
+      setClosingJobId(null);
+    }
+  };
+
+  const openJobDetails = async (job: Job) => {
+    setApplicantFilter('all');
+    setSelectedJob(job);
+    setJobDetailsError('');
+    setIsLoadingJobDetails(true);
+
+    try {
+      const details = await getJobPostDetails(Number(job.id));
+
+      const mappedApplicants: Applicant[] = details.applicants.map((applicant) => ({
+        id: String(applicant.id),
+        name: applicant.name,
+        avatar: applicant.avatar,
+        title: applicant.title,
+        experience: applicant.experience,
+        matchScore: applicant.matchScore,
+        appliedDate: applicant.appliedDate,
+        status: applicant.status,
+        interviewDate: applicant.interviewDate,
+        interviewTime: applicant.interviewTime,
+        rejectionReason: applicant.rejectionReason,
+      }));
+
+      const nextApplicantsCount = details.counts.all;
+      const hasMatching = mappedApplicants.some((applicant) => applicant.matchScore !== null);
+
+      setJobs((prev) => prev.map((item) => (
+        item.id === job.id
+          ? {
+            ...item,
+            applicants: mappedApplicants,
+            applicantsCount: nextApplicantsCount,
+            matchingCalculated: hasMatching,
+          }
+          : item
+      )));
+
+      setSelectedJob((prev) => {
+        if (!prev || prev.id !== job.id) return prev;
+        return {
+          ...prev,
+          applicants: mappedApplicants,
+          applicantsCount: nextApplicantsCount,
+          matchingCalculated: hasMatching,
+        };
+      });
+
+      setDashboardStats((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          totalApplicants: Math.max(0, prev.totalApplicants - job.applicantsCount + nextApplicantsCount),
+        };
+      });
+    } catch (err: unknown) {
+      setJobDetailsError(err instanceof Error ? err.message : 'Failed to load job details.');
+    } finally {
+      setIsLoadingJobDetails(false);
+    }
   };
 
   const { isLightMode } = useTheme();
@@ -311,8 +492,20 @@ const EmployerDashboard = () => {
             </div>
           )}
 
+          {closeJobError && (
+            <div className={`rounded-lg p-3 text-sm border ${isLightMode ? 'bg-red-50 border-red-200 text-red-700' : 'bg-red-500/10 border-red-500/30 text-red-300'}`}>
+              {closeJobError}
+            </div>
+          )}
+
+          {deleteJobError && (
+            <div className={`rounded-lg p-3 text-sm border ${isLightMode ? 'bg-red-50 border-red-200 text-red-700' : 'bg-red-500/10 border-red-500/30 text-red-300'}`}>
+              {deleteJobError}
+            </div>
+          )}
+
           {filteredJobs.map(job => (
-            <div key={job.id} onClick={() => { setSelectedJob(job); setApplicantFilter('all'); }}
+            <div key={job.id} onClick={() => { void openJobDetails(job); }}
               className={`bg-white/5 rounded-xl p-4 sm:p-5 border transition-all cursor-pointer ${selectedJob?.id === job.id ? 'border-violet-500' : 'border-white/10 hover:border-violet-500/50'}`}>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex-1">
@@ -332,6 +525,19 @@ const EmployerDashboard = () => {
                     <div className="text-2xl font-bold text-white">{job.applicantsCount}</div>
                     <div className="text-xs text-gray-400">{t('employerDashboard.applicants')}</div>
                   </div>
+                  {job.status === 'active' && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void handleCloseJob(job.id);
+                      }}
+                      disabled={closingJobId === job.id}
+                      className="px-3 py-2 rounded-lg bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap text-sm font-medium"
+                      title={t('common.close')}
+                    >
+                      {closingJobId === job.id ? 'Closing...' : t('common.close')}
+                    </button>
+                  )}
                   <div className={`w-10 h-10 flex items-center justify-center rounded-lg ${job.matchingCalculated ? 'bg-emerald-500/20' : 'bg-amber-500/20'}`}>
                     <i className={`text-xl ${job.matchingCalculated ? 'ri-check-line text-emerald-400' : 'ri-time-line text-amber-400'}`}></i>
                   </div>
@@ -371,6 +577,18 @@ const EmployerDashboard = () => {
                 <span className="flex items-center gap-1"><i className="ri-money-dollar-circle-line"></i>{selectedJob.salary}</span>
               </div>
             </div>
+
+            {isLoadingJobDetails && (
+              <div className={`rounded-lg p-3 text-sm border mb-4 ${isLightMode ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-blue-500/10 border-blue-500/30 text-blue-300'}`}>
+                Loading job details from API...
+              </div>
+            )}
+
+            {jobDetailsError && (
+              <div className={`rounded-lg p-3 text-sm border mb-4 ${isLightMode ? 'bg-red-50 border-red-200 text-red-700' : 'bg-red-500/10 border-red-500/30 text-red-300'}`}>
+                {jobDetailsError}
+              </div>
+            )}
 
             {selectedJob.matchingCalculated ? (
               <div>
@@ -508,18 +726,23 @@ const EmployerDashboard = () => {
             <button onClick={() => setShowInterviewModal(false)} className={`absolute top-4 right-4 w-8 h-8 flex items-center justify-center cursor-pointer ${isLightMode ? 'text-gray-400 hover:text-gray-800' : 'text-gray-400 hover:text-white'}`}><i className="ri-close-line text-xl"></i></button>
             <h3 className={`text-xl font-bold mb-2 ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{t('employerDashboard.scheduleInterview')}</h3>
             <p className={`text-sm mb-6 ${isLightMode ? 'text-gray-500' : 'text-gray-400'}`}>{t('employerDashboard.scheduleWith')} {selectedApplicant.name}</p>
+            {scheduleInterviewError && (
+              <div className={`rounded-lg p-3 text-sm border mb-4 ${isLightMode ? 'bg-red-50 border-red-200 text-red-700' : 'bg-red-500/10 border-red-500/30 text-red-300'}`}>
+                {scheduleInterviewError}
+              </div>
+            )}
             <div className="space-y-4">
               <div>
                 <label className={`block text-sm mb-2 ${isLightMode ? 'text-gray-600' : 'text-gray-400'}`}>{t('employerDashboard.interviewDate')}</label>
-                <input type="date" value={interviewDetails.date} onChange={(e) => setInterviewDetails({ ...interviewDetails, date: e.target.value })} className={`w-full border rounded-lg px-4 py-3 focus:outline-none focus:border-violet-500 ${isLightMode ? 'bg-gray-100 border-gray-200 text-gray-900' : 'bg-white/5 border-white/10 text-white'}`} />
+                <input type="date" min={todayDate} value={interviewDetails.date} onChange={(e) => setInterviewDetails({ ...interviewDetails, date: e.target.value })} className={`w-full border rounded-lg px-4 py-3 focus:outline-none focus:border-violet-500 ${isLightMode ? 'bg-gray-100 border-gray-200 text-gray-900' : 'bg-white/5 border-white/10 text-white'}`} />
               </div>
               <div>
                 <label className={`block text-sm mb-2 ${isLightMode ? 'text-gray-600' : 'text-gray-400'}`}>{t('employerDashboard.interviewTime')}</label>
                 <input type="time" value={interviewDetails.time} onChange={(e) => setInterviewDetails({ ...interviewDetails, time: e.target.value })} className={`w-full border rounded-lg px-4 py-3 focus:outline-none focus:border-violet-500 ${isLightMode ? 'bg-gray-100 border-gray-200 text-gray-900' : 'bg-white/5 border-white/10 text-white'}`} />
               </div>
               <div className="flex gap-3 pt-2">
-                <button onClick={() => setShowInterviewModal(false)} className={`flex-1 px-4 py-3 font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap ${isLightMode ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' : 'bg-white/5 text-white hover:bg-white/10'}`}>{t('employerDashboard.cancel')}</button>
-                <button onClick={handleScheduleInterview} disabled={!interviewDetails.date || !interviewDetails.time} className="flex-1 px-4 py-3 bg-sky-500 text-white font-semibold rounded-lg hover:bg-sky-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap">{t('employerDashboard.schedule')}</button>
+                <button onClick={() => setShowInterviewModal(false)} disabled={schedulingApplicantId === selectedApplicant.id} className={`flex-1 px-4 py-3 font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed ${isLightMode ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' : 'bg-white/5 text-white hover:bg-white/10'}`}>{t('employerDashboard.cancel')}</button>
+                <button onClick={() => void handleScheduleInterview()} disabled={!interviewDetails.date || !interviewDetails.time || schedulingApplicantId === selectedApplicant.id} className="flex-1 px-4 py-3 bg-sky-500 text-white font-semibold rounded-lg hover:bg-sky-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap">{schedulingApplicantId === selectedApplicant.id ? 'Scheduling...' : t('employerDashboard.schedule')}</button>
               </div>
             </div>
           </div>
@@ -534,14 +757,19 @@ const EmployerDashboard = () => {
             <button onClick={() => setShowRejectModal(false)} className={`absolute top-4 right-4 w-8 h-8 flex items-center justify-center cursor-pointer ${isLightMode ? 'text-gray-400 hover:text-gray-800' : 'text-gray-400 hover:text-white'}`}><i className="ri-close-line text-xl"></i></button>
             <h3 className={`text-xl font-bold mb-2 ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{t('employerDashboard.rejectApplicant')}</h3>
             <p className={`text-sm mb-6 ${isLightMode ? 'text-gray-500' : 'text-gray-400'}`}>{t('employerDashboard.rejectConfirm')} {selectedApplicant.name}&apos;s {t('employerDashboard.application')}</p>
+            {rejectApplicantError && (
+              <div className={`rounded-lg p-3 text-sm border mb-4 ${isLightMode ? 'bg-red-50 border-red-200 text-red-700' : 'bg-red-500/10 border-red-500/30 text-red-300'}`}>
+                {rejectApplicantError}
+              </div>
+            )}
             <div className="space-y-4">
               <div>
                 <label className={`block text-sm mb-2 ${isLightMode ? 'text-gray-600' : 'text-gray-400'}`}>{t('employerDashboard.rejectionReason')}</label>
                 <textarea value={rejectionReason} onChange={(e) => setRejectionReason(e.target.value)} className={`w-full border rounded-lg px-4 py-3 focus:outline-none focus:border-red-500 resize-none ${isLightMode ? 'bg-gray-100 border-gray-200 text-gray-900 placeholder-gray-400' : 'bg-white/5 border-white/10 text-white'}`} rows={3} placeholder={t('employerDashboard.rejectionPlaceholder')} maxLength={500} />
               </div>
               <div className="flex gap-3 pt-2">
-                <button onClick={() => setShowRejectModal(false)} className={`flex-1 px-4 py-3 font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap ${isLightMode ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' : 'bg-white/5 text-white hover:bg-white/10'}`}>{t('employerDashboard.cancel')}</button>
-                <button onClick={handleRejectApplicant} className="flex-1 px-4 py-3 bg-red-500 text-white font-semibold rounded-lg hover:bg-red-600 transition-colors cursor-pointer whitespace-nowrap">{t('employerDashboard.reject')}</button>
+                <button onClick={() => setShowRejectModal(false)} disabled={rejectingApplicantId === selectedApplicant.id} className={`flex-1 px-4 py-3 font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed ${isLightMode ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' : 'bg-white/5 text-white hover:bg-white/10'}`}>{t('employerDashboard.cancel')}</button>
+                <button onClick={() => void handleRejectApplicant()} disabled={rejectingApplicantId === selectedApplicant.id} className="flex-1 px-4 py-3 bg-red-500 text-white font-semibold rounded-lg hover:bg-red-600 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">{rejectingApplicantId === selectedApplicant.id ? 'Rejecting...' : t('employerDashboard.reject')}</button>
               </div>
             </div>
           </div>
@@ -565,8 +793,12 @@ const EmployerDashboard = () => {
             </div>
             <div className="flex gap-3">
               <button onClick={() => setJobToDelete(null)} className={`flex-1 px-5 py-3 font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap ${isLightMode ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' : 'bg-white/5 text-white hover:bg-white/10'}`}>{t('employerDashboard.cancel')}</button>
-              <button onClick={() => handleRemoveJob(jobToDelete.id)} className="flex-1 px-5 py-3 bg-red-500 text-white font-semibold rounded-lg hover:bg-red-600 transition-colors cursor-pointer whitespace-nowrap">
-                <i className="ri-delete-bin-line mr-2"></i>{t('employerDashboard.remove')}
+              <button
+                onClick={() => void handleDeleteJob(jobToDelete.id)}
+                disabled={deletingJobId === jobToDelete.id}
+                className="flex-1 px-5 py-3 bg-red-500 text-white font-semibold rounded-lg hover:bg-red-600 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <i className="ri-delete-bin-line mr-2"></i>{deletingJobId === jobToDelete.id ? 'Removing...' : t('employerDashboard.remove')}
               </button>
             </div>
           </div>

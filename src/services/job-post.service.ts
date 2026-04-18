@@ -68,6 +68,33 @@ export interface EmployerDashboardResult {
   jobPostings: EmployerDashboardJobPostItem[];
 }
 
+export type EmployerJobApplicationStatus = 'pending' | 'reviewed' | 'shortlisted' | 'rejected' | 'interview_scheduled';
+
+export interface EmployerJobApplicantItem {
+  id: number;
+  name: string;
+  avatar: string;
+  title: string;
+  experience: string;
+  matchScore: number | null;
+  appliedDate: string;
+  status: EmployerJobApplicationStatus;
+  interviewDate?: string;
+  interviewTime?: string;
+  rejectionReason?: string;
+}
+
+export interface EmployerJobPostDetailsResult {
+  applicants: EmployerJobApplicantItem[];
+  counts: {
+    all: number;
+    pending: number;
+    shortlisted: number;
+    rejected: number;
+    interviewScheduled: number;
+  };
+}
+
 const buildAuthHeader = (): Record<string, string> => {
   const token = localStorage.getItem('authToken') ?? '';
   return token ? { Authorization: `Bearer ${token}` } : {};
@@ -89,6 +116,27 @@ const fetchWithNetworkError = async (url: string, init?: RequestInit): Promise<R
   } catch {
     throw new Error('Network error: cannot reach API. Check internet connection, CORS policy, and backend availability.');
   }
+};
+
+const formatDateOnly = (value: unknown): string => {
+  if (!value) return '-';
+  const raw = String(value);
+  return raw.includes('T') ? raw.split('T')[0] : raw;
+};
+
+const mapApplicantStatus = (status: unknown): EmployerJobApplicationStatus => {
+  const value = String(status ?? '').trim().toLowerCase();
+
+  if (value.includes('interview')) return 'interview_scheduled';
+  if (value.includes('short')) return 'shortlisted';
+  if (value.includes('reject')) return 'rejected';
+  if (value.includes('review')) return 'reviewed';
+  return 'pending';
+};
+
+const getDefaultAvatar = (name: string): string => {
+  const normalized = encodeURIComponent(name || 'User');
+  return `https://ui-avatars.com/api/?name=${normalized}&background=6366f1&color=ffffff&size=100`;
 };
 
 export const getJobSkills = async (): Promise<JobSkill[]> => {
@@ -249,4 +297,200 @@ export const getEmployerDashboard = async (): Promise<EmployerDashboardResult> =
     closedJobsCount: Number(data?.closedJobsCount ?? data?.ClosedJobsCount ?? 0),
     jobPostings,
   };
+};
+
+export const closeJobPost = async (id: number): Promise<void> => {
+  const token = localStorage.getItem('authToken') ?? '';
+  if (!token) {
+    throw new Error('You must be signed in to close a job post.');
+  }
+
+  let response = await fetchWithNetworkError(`${API_BASE}/JobPost/${id}/close`, {
+    method: 'PATCH',
+    headers: {
+      ...buildAuthHeader(),
+    },
+  });
+
+  if (response.status === 405) {
+    response = await fetchWithNetworkError(`${API_BASE}/JobPost/${id}/close`, {
+      method: 'POST',
+      headers: {
+        ...buildAuthHeader(),
+      },
+    });
+  }
+
+  if (!response.ok) {
+    throw new Error(await parseAuthAwareError(response));
+  }
+};
+
+export const deleteJobPost = async (id: number): Promise<void> => {
+  const token = localStorage.getItem('authToken') ?? '';
+  if (!token) {
+    throw new Error('You must be signed in to delete a job post.');
+  }
+
+  const response = await fetchWithNetworkError(`${API_BASE}/JobPost/${id}`, {
+    method: 'DELETE',
+    headers: {
+      ...buildAuthHeader(),
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseAuthAwareError(response));
+  }
+};
+
+export const getJobPostDetails = async (jobPostId: number): Promise<EmployerJobPostDetailsResult> => {
+  const token = localStorage.getItem('authToken') ?? '';
+  if (!token) {
+    throw new Error('You must be signed in to view job post details.');
+  }
+
+  const response = await fetchWithNetworkError(`${API_BASE}/JobPost/${jobPostId}/jobPostDetails`, {
+    method: 'GET',
+    headers: {
+      ...buildAuthHeader(),
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseAuthAwareError(response));
+  }
+
+  const data = await response.json();
+  const rawApplicants: unknown[] = Array.isArray(data)
+    ? data
+    : Array.isArray(data?.applicants)
+      ? data.applicants
+      : Array.isArray(data?.jobApplications)
+        ? data.jobApplications
+        : Array.isArray(data?.applications)
+          ? data.applications
+          : Array.isArray(data?.items)
+            ? data.items
+            : [];
+
+  const applicants: EmployerJobApplicantItem[] = rawApplicants
+    .map((item: unknown) => {
+      const raw = item as Record<string, unknown>;
+      const id = Number(raw.id ?? raw.jobApplicationId ?? raw.applicationId ?? raw.Id ?? raw.JobApplicationId ?? 0);
+      const score = Number(raw.matchScore ?? raw.MatchScore);
+      const years = Number(raw.yearsOfExperience ?? raw.yearsofExperience ?? raw.YearsOfExperience ?? raw.YearsofExperience);
+      const interviewAtRaw = raw.interviewScheduledAt ?? raw.InterviewScheduledAt;
+      const interviewDateObj = interviewAtRaw ? new Date(String(interviewAtRaw)) : null;
+      const hasInterview = interviewDateObj && !Number.isNaN(interviewDateObj.getTime());
+      const name = String(raw.name ?? raw.fullName ?? raw.seekerName ?? raw.jobSeekerName ?? raw.Name ?? raw.FullName ?? 'Job Seeker');
+
+      return {
+        id,
+        name,
+        avatar: String(raw.avatar ?? raw.profileImageUrl ?? raw.imageUrl ?? raw.Avatar ?? raw.ProfileImageUrl ?? raw.ImageUrl ?? getDefaultAvatar(name)),
+        title: String(raw.title ?? raw.seekerTitle ?? raw.jobTitle ?? raw.Title ?? raw.SeekerTitle ?? 'Job Seeker'),
+        experience: Number.isFinite(years) ? `${years} years` : String(raw.experience ?? raw.Experience ?? 'Not specified'),
+        matchScore: Number.isFinite(score) ? Math.max(0, Math.min(100, score)) : null,
+        appliedDate: formatDateOnly(raw.appliedDate ?? raw.appliedAt ?? raw.createdAt ?? raw.AppliedDate ?? raw.AppliedAt ?? raw.CreatedAt),
+        status: mapApplicantStatus(raw.status ?? raw.Status),
+        interviewDate: hasInterview ? interviewDateObj.toLocaleDateString() : undefined,
+        interviewTime: hasInterview ? interviewDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : undefined,
+        rejectionReason: String(raw.rejectionReason ?? raw.reason ?? raw.RejectionReason ?? raw.Reason ?? ''),
+      };
+    })
+    .filter((applicant) => applicant.id > 0);
+
+  const countAllRaw = Number(data?.allApplicantsCount ?? data?.allCount ?? data?.AllApplicantsCount ?? data?.AllCount);
+  const countPendingRaw = Number(data?.pendingCount ?? data?.PendingCount);
+  const countShortlistedRaw = Number(data?.shortlistedCount ?? data?.ShortlistedCount);
+  const countRejectedRaw = Number(data?.rejectedCount ?? data?.RejectedCount);
+  const countInterviewRaw = Number(data?.interviewScheduledCount ?? data?.InterviewScheduledCount);
+
+  const computed = {
+    all: applicants.length,
+    pending: applicants.filter((a) => a.status === 'pending').length,
+    shortlisted: applicants.filter((a) => a.status === 'shortlisted').length,
+    rejected: applicants.filter((a) => a.status === 'rejected').length,
+    interviewScheduled: applicants.filter((a) => a.status === 'interview_scheduled').length,
+  };
+
+  return {
+    applicants,
+    counts: {
+      all: Number.isFinite(countAllRaw) ? countAllRaw : computed.all,
+      pending: Number.isFinite(countPendingRaw) ? countPendingRaw : computed.pending,
+      shortlisted: Number.isFinite(countShortlistedRaw) ? countShortlistedRaw : computed.shortlisted,
+      rejected: Number.isFinite(countRejectedRaw) ? countRejectedRaw : computed.rejected,
+      interviewScheduled: Number.isFinite(countInterviewRaw) ? countInterviewRaw : computed.interviewScheduled,
+    },
+  };
+};
+
+export const rejectJobApplicant = async (jobApplicationId: number, reason?: string): Promise<void> => {
+  const token = localStorage.getItem('authToken') ?? '';
+  if (!token) {
+    throw new Error('You must be signed in to reject an applicant.');
+  }
+
+  const endpoint = `${API_BASE}/JobPost/${jobApplicationId}/reject`;
+  const payload = { reason: (reason ?? '').trim() };
+
+  let response = await fetchWithNetworkError(endpoint, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...buildAuthHeader(),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (response.status === 405) {
+    response = await fetchWithNetworkError(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...buildAuthHeader(),
+      },
+      body: JSON.stringify(payload),
+    });
+  }
+
+  if (!response.ok) {
+    throw new Error(await parseAuthAwareError(response));
+  }
+};
+
+export const scheduleInterviewForApplicant = async (jobApplicationId: number, interviewScheduledAt: string): Promise<void> => {
+  const token = localStorage.getItem('authToken') ?? '';
+  if (!token) {
+    throw new Error('You must be signed in to schedule an interview.');
+  }
+
+  const endpoint = `${API_BASE}/JobPost/${jobApplicationId}/scheduleInterview`;
+  const payload = { interviewScheduledAt };
+
+  let response = await fetchWithNetworkError(endpoint, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...buildAuthHeader(),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (response.status === 405) {
+    response = await fetchWithNetworkError(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...buildAuthHeader(),
+      },
+      body: JSON.stringify(payload),
+    });
+  }
+
+  if (!response.ok) {
+    throw new Error(await parseAuthAwareError(response));
+  }
 };
