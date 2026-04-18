@@ -49,6 +49,25 @@ export interface CreateJobPostPayload {
   skillIds: number[];
 }
 
+export interface EmployerDashboardJobPostItem {
+  id: number;
+  title: string;
+  companyName: string;
+  location: string;
+  minSalary?: number;
+  maxSalary?: number;
+  postedDate?: string;
+  status?: string;
+  jobSeekersCount?: number;
+}
+
+export interface EmployerDashboardResult {
+  totalJobSeekersCount: number;
+  activeJobsCount: number;
+  closedJobsCount: number;
+  jobPostings: EmployerDashboardJobPostItem[];
+}
+
 const buildAuthHeader = (): Record<string, string> => {
   const token = localStorage.getItem('authToken') ?? '';
   return token ? { Authorization: `Bearer ${token}` } : {};
@@ -59,9 +78,17 @@ const parseAuthAwareError = async (response: Response): Promise<string> => {
     return 'You are not authorized. Please sign in again.';
   }
   if (response.status === 403) {
-    return 'Access denied by backend policy (403). Your account cannot post jobs for this endpoint.';
+    return 'Access denied by backend policy (403). Your account cannot access this endpoint.';
   }
   return parseApiError(response);
+};
+
+const fetchWithNetworkError = async (url: string, init?: RequestInit): Promise<Response> => {
+  try {
+    return await fetch(url, init);
+  } catch {
+    throw new Error('Network error: cannot reach API. Check internet connection, CORS policy, and backend availability.');
+  }
 };
 
 export const getJobSkills = async (): Promise<JobSkill[]> => {
@@ -174,4 +201,52 @@ export const getJobPosts = async (params: GetJobPostsParams = {}): Promise<GetJo
   const count = Number.isFinite(countCandidate) ? countCandidate : items.length;
 
   return { items, count };
+};
+
+export const getEmployerDashboard = async (): Promise<EmployerDashboardResult> => {
+  const token = localStorage.getItem('authToken') ?? '';
+  if (!token) {
+    throw new Error('You must be signed in to view employer dashboard.');
+  }
+
+  const response = await fetchWithNetworkError(`${API_BASE}/JobPost/employerDashboard`, {
+    method: 'GET',
+    headers: {
+      ...buildAuthHeader(),
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseAuthAwareError(response));
+  }
+
+  const data = await response.json();
+  const rawJobPostings: unknown[] = Array.isArray(data?.jobPostings) ? data.jobPostings : [];
+
+  const jobPostings: EmployerDashboardJobPostItem[] = rawJobPostings
+    .map((item: unknown) => {
+      const raw = item as Record<string, unknown>;
+      const minSalary = Number(raw.minSalary ?? raw.MinSalary);
+      const maxSalary = Number(raw.maxSalary ?? raw.MaxSalary);
+
+      return {
+        id: Number(raw.id ?? raw.Id ?? 0),
+        title: String(raw.title ?? raw.Title ?? ''),
+        companyName: String(raw.companyName ?? raw.CompanyName ?? ''),
+        location: String(raw.location ?? raw.Location ?? ''),
+        minSalary: Number.isFinite(minSalary) ? minSalary : undefined,
+        maxSalary: Number.isFinite(maxSalary) ? maxSalary : undefined,
+        postedDate: raw.postedDate ? String(raw.postedDate) : raw.PostedDate ? String(raw.PostedDate) : undefined,
+        status: raw.status ? String(raw.status) : raw.Status ? String(raw.Status) : undefined,
+        jobSeekersCount: Number(raw.jobSeekersCount ?? raw.JobSeekersCount ?? 0),
+      };
+    })
+    .filter((item: EmployerDashboardJobPostItem) => item.id > 0 && item.title.length > 0);
+
+  return {
+    totalJobSeekersCount: Number(data?.totalJobSeekersCount ?? data?.TotalJobSeekersCount ?? 0),
+    activeJobsCount: Number(data?.activeJobsCount ?? data?.ActiveJobsCount ?? 0),
+    closedJobsCount: Number(data?.closedJobsCount ?? data?.ClosedJobsCount ?? 0),
+    jobPostings,
+  };
 };

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -10,9 +10,17 @@ import EmployerDashboard from './components/EmployerDashboard';
 import ApplicantDashboard from './components/ApplicantDashboard';
 
 const Dashboard = () => {
-  const { user, isAuthenticated } = useAuth();
-  const [activeRole, setActiveRole] = useState('freelancer');
+  const { user, isAuthenticated, isAuthReady } = useAuth();
+  const [activeRole, setActiveRole] = useState('');
   const { t } = useTranslation();
+
+  if (!isAuthReady) {
+    return (
+      <div className="min-h-screen bg-navy-900 flex items-center justify-center text-white/70">
+        Loading your session...
+      </div>
+    );
+  }
 
   if (!isAuthenticated || !user) {
     return <Navigate to="/login" replace />;
@@ -35,8 +43,17 @@ const Dashboard = () => {
     ...(hasApplicantRole ? ['applicant'] : []),
   ];
 
+  useEffect(() => {
+    if (!availableRoles.length) return;
+    if (!availableRoles.includes(activeRole)) {
+      setActiveRole(availableRoles[0]);
+    }
+  }, [availableRoles, activeRole]);
+
   const hasMultipleRoles = availableRoles.length > 1;
-  const effectiveRole = hasMultipleRoles ? activeRole : availableRoles[0];
+  const effectiveRole = hasMultipleRoles
+    ? (availableRoles.includes(activeRole) ? activeRole : availableRoles[0])
+    : availableRoles[0];
 
   const roleConfig: Record<string, { label: string; icon: string; color: string }> = {
     freelancer: { label: t('dashboard.freelancer'), icon: 'ri-briefcase-line', color: 'bg-teal-500' },

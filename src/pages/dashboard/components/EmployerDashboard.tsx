@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import ReportModal from '../../../components/feature/ReportModal';
 import { useTheme } from '../../../contexts/ThemeContext';
+import { getEmployerDashboard, type EmployerDashboardJobPostItem } from '../../../services/job-post.service';
 
 interface Applicant {
   id: string;
@@ -33,76 +33,88 @@ interface Job {
 }
 
 const EmployerDashboard = () => {
-  const [jobs, setJobs] = useState<Job[]>([
-    {
-      id: '1',
-      title: 'Senior Frontend Developer',
-      company: 'Tech Solutions Inc.',
-      companyId: '1',
-      location: 'San Francisco, CA',
-      type: 'Full-time',
-      salary: '$120k - $160k',
-      postedDate: '2024-01-10',
-      status: 'active',
-      applicantsCount: 45,
-      matchingCalculated: true,
-      applicants: [
-        { id: '1', name: 'Sarah Johnson', avatar: 'https://readdy.ai/api/search-image?query=professional%20female%20software%20developer%20portrait%20confident%20smile%20clean%20white%20background%20business%20casual&width=100&height=100&seq=app1&orientation=squarish', title: 'Full Stack Developer', experience: '5 years', matchScore: 95, appliedDate: '2024-01-12', status: 'shortlisted' },
-        { id: '2', name: 'Michael Chen', avatar: 'https://readdy.ai/api/search-image?query=professional%20male%20frontend%20developer%20portrait%20friendly%20smile%20clean%20white%20background%20casual%20professional&width=100&height=100&seq=app2&orientation=squarish', title: 'Frontend Developer', experience: '3 years', matchScore: 88, appliedDate: '2024-01-13', status: 'interview_scheduled', interviewDate: '2024-01-25', interviewTime: '10:00 AM' },
-        { id: '3', name: 'Emily Rodriguez', avatar: 'https://readdy.ai/api/search-image?query=professional%20female%20backend%20engineer%20portrait%20confident%20clean%20white%20background%20business%20casual&width=100&height=100&seq=app3&orientation=squarish', title: 'React Developer', experience: '4 years', matchScore: 82, appliedDate: '2024-01-14', status: 'rejected', rejectionReason: 'Insufficient experience with required technologies' },
-        { id: '4', name: 'David Kim', avatar: 'https://readdy.ai/api/search-image?query=professional%20male%20developer%20portrait%20friendly%20modern%20office%20clean%20white%20background&width=100&height=100&seq=app4&orientation=squarish', title: 'UI Developer', experience: '2 years', matchScore: 75, appliedDate: '2024-01-15', status: 'pending' }
-      ]
-    },
-    {
-      id: '2',
-      title: 'Backend Engineer',
-      company: 'Tech Solutions Inc.',
-      companyId: '1',
-      location: 'Remote',
-      type: 'Full-time',
-      salary: '$100k - $140k',
-      postedDate: '2024-01-08',
-      status: 'active',
-      applicantsCount: 32,
-      matchingCalculated: false,
-      applicants: [
-        { id: '5', name: 'James Wilson', avatar: 'https://readdy.ai/api/search-image?query=professional%20male%20full%20stack%20developer%20portrait%20confident%20clean%20white%20background%20business%20casual&width=100&height=100&seq=app5&orientation=squarish', title: 'Backend Developer', experience: '6 years', matchScore: null, appliedDate: '2024-01-09', status: 'pending' },
-        { id: '6', name: 'Amanda Foster', avatar: 'https://readdy.ai/api/search-image?query=professional%20female%20cloud%20architect%20portrait%20confident%20smile%20clean%20white%20background%20elegant%20business&width=100&height=100&seq=app6&orientation=squarish', title: 'Python Developer', experience: '4 years', matchScore: null, appliedDate: '2024-01-10', status: 'pending' },
-        { id: '7', name: 'Ryan Thompson', avatar: 'https://readdy.ai/api/search-image?query=professional%20male%20developer%20portrait%20friendly%20smile%20modern%20workspace%20clean%20white%20background&width=100&height=100&seq=app7&orientation=squarish', title: 'Node.js Developer', experience: '3 years', matchScore: null, appliedDate: '2024-01-11', status: 'pending' }
-      ]
-    },
-    {
-      id: '3',
-      title: 'Digital Marketing Manager',
-      company: 'Digital Marketing Pro',
-      companyId: '2',
-      location: 'New York, NY',
-      type: 'Full-time',
-      salary: '$80k - $110k',
-      postedDate: '2024-01-05',
-      status: 'active',
-      applicantsCount: 28,
-      matchingCalculated: true,
-      applicants: [
-        { id: '8', name: 'Rachel Green', avatar: 'https://readdy.ai/api/search-image?query=professional%20female%20marketing%20manager%20portrait%20creative%20smile%20clean%20white%20background%20stylish%20casual&width=100&height=100&seq=app8&orientation=squarish', title: 'Marketing Specialist', experience: '5 years', matchScore: 91, appliedDate: '2024-01-06', status: 'interview_scheduled', interviewDate: '2024-01-28', interviewTime: '2:00 PM' },
-        { id: '9', name: 'Alex Martinez', avatar: 'https://readdy.ai/api/search-image?query=professional%20marketing%20professional%20portrait%20friendly%20smile%20clean%20white%20background%20business%20casual&width=100&height=100&seq=app9&orientation=squarish', title: 'Digital Marketer', experience: '4 years', matchScore: 85, appliedDate: '2024-01-07', status: 'rejected', rejectionReason: 'Position filled by another candidate' }
-      ]
-    },
-    {
-      id: '4',
-      title: 'UI/UX Designer',
-      company: 'Tech Solutions Inc.',
-      companyId: '1',
-      location: 'San Francisco, CA',
-      type: 'Contract',
-      salary: '$70/hr - $90/hr',
-      postedDate: '2024-01-02',
-      status: 'closed',
-      applicantsCount: 56,
-      matchingCalculated: true,
-      applicants: []
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [isLoadingDashboard, setIsLoadingDashboard] = useState(false);
+  const [dashboardError, setDashboardError] = useState('');
+  const [dashboardStats, setDashboardStats] = useState<{ activeJobs: number; totalApplicants: number; closedJobs: number } | null>(null);
+
+  const mapStatusToUi = (status?: string): Job['status'] => {
+    const value = String(status ?? '').trim().toLowerCase();
+    if (value === 'closed') return 'closed';
+    if (value === 'draft') return 'draft';
+    return 'active';
+  };
+
+  const formatSalary = (minSalary?: number, maxSalary?: number): string => {
+    if (typeof minSalary === 'number' && typeof maxSalary === 'number') {
+      return `$${minSalary.toLocaleString()} - $${maxSalary.toLocaleString()}`;
     }
-  ]);
+    if (typeof minSalary === 'number') {
+      return `From $${minSalary.toLocaleString()}`;
+    }
+    if (typeof maxSalary === 'number') {
+      return `Up to $${maxSalary.toLocaleString()}`;
+    }
+    return 'Not specified';
+  };
+
+  const mapApiJobToUi = (item: EmployerDashboardJobPostItem): Job => {
+    const postedDate = item.postedDate ? String(item.postedDate).split('T')[0] : '-';
+
+    return {
+      id: String(item.id),
+      title: item.title,
+      company: item.companyName,
+      companyId: '0',
+      location: item.location,
+      type: 'Not specified',
+      salary: formatSalary(item.minSalary, item.maxSalary),
+      postedDate,
+      status: mapStatusToUi(item.status),
+      applicantsCount: item.jobSeekersCount ?? 0,
+      applicants: [],
+      matchingCalculated: false,
+    };
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadEmployerDashboard = async () => {
+      setIsLoadingDashboard(true);
+      setDashboardError('');
+
+      try {
+        const data = await getEmployerDashboard();
+        if (!isMounted) return;
+
+        const mappedJobs = data.jobPostings.map(mapApiJobToUi);
+        setJobs(mappedJobs);
+        setDashboardStats({
+          activeJobs: data.activeJobsCount,
+          totalApplicants: data.totalJobSeekersCount,
+          closedJobs: data.closedJobsCount,
+        });
+        setSelectedJob((prev) => (prev ? mappedJobs.find((j) => j.id === prev.id) ?? null : null));
+      } catch (err: unknown) {
+        if (!isMounted) return;
+
+        setJobs([]);
+        setDashboardStats(null);
+        setDashboardError(err instanceof Error ? err.message : 'Failed to load employer dashboard data.');
+      } finally {
+        if (isMounted) {
+          setIsLoadingDashboard(false);
+        }
+      }
+    };
+
+    loadEmployerDashboard();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [jobToDelete, setJobToDelete] = useState<Job | null>(null);
@@ -115,10 +127,10 @@ const EmployerDashboard = () => {
   const [rejectionReason, setRejectionReason] = useState('');
 
   const stats = {
-    activeJobs: jobs.filter(j => j.status === 'active').length,
-    totalApplicants: jobs.reduce((sum, j) => sum + j.applicantsCount, 0),
+    activeJobs: dashboardStats?.activeJobs ?? jobs.filter(j => j.status === 'active').length,
+    totalApplicants: dashboardStats?.totalApplicants ?? jobs.reduce((sum, j) => sum + j.applicantsCount, 0),
     interviewsScheduled: jobs.reduce((sum, j) => sum + j.applicants.filter(a => a.status === 'interview_scheduled').length, 0),
-    closedJobs: jobs.filter(j => j.status === 'closed').length,
+    closedJobs: dashboardStats?.closedJobs ?? jobs.filter(j => j.status === 'closed').length,
   };
 
   const filteredJobs = jobs.filter(job => {
@@ -287,6 +299,18 @@ const EmployerDashboard = () => {
         </div>
 
         <div className="space-y-4">
+          {isLoadingDashboard && (
+            <div className={`rounded-lg p-3 text-sm border ${isLightMode ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-blue-500/10 border-blue-500/30 text-blue-300'}`}>
+              Loading employer dashboard from API...
+            </div>
+          )}
+
+          {dashboardError && (
+            <div className={`rounded-lg p-3 text-sm border ${isLightMode ? 'bg-red-50 border-red-200 text-red-700' : 'bg-red-500/10 border-red-500/30 text-red-300'}`}>
+              {dashboardError}
+            </div>
+          )}
+
           {filteredJobs.map(job => (
             <div key={job.id} onClick={() => { setSelectedJob(job); setApplicantFilter('all'); }}
               className={`bg-white/5 rounded-xl p-4 sm:p-5 border transition-all cursor-pointer ${selectedJob?.id === job.id ? 'border-violet-500' : 'border-white/10 hover:border-violet-500/50'}`}>

@@ -1,6 +1,8 @@
-import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
-import { User, UserRole } from '../types';
-import { loginUser, AuthResponse, refreshToken, revokeToken } from '../services/auth.service';
+import { createContext, useContext, useState, useEffect, useRef } from 'react';
+import type { ReactNode } from 'react';
+import type { User, UserRole } from '../types';
+import { loginUser, refreshToken, revokeToken } from '../services/auth.service';
+import type { AuthResponse } from '../services/auth.service';
 import { getUserImage } from '../services/user.image.service';
 
 // Admin credentials
@@ -21,6 +23,7 @@ interface AuthContextType {
   addRole: (role: UserRole) => void;
   removeRole: (role: UserRole) => void;
   isAuthenticated: boolean;
+  isAuthReady: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -34,7 +37,17 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(() => {
+    try {
+      const storedUser = localStorage.getItem('user');
+      if (!storedUser) return null;
+      return JSON.parse(storedUser) as User;
+    } catch {
+      localStorage.removeItem('user');
+      return null;
+    }
+  });
+  const [isAuthReady, setIsAuthReady] = useState(false);
   const refreshTimerRef = useRef<number | null>(null);
 
   // ── Token refresh helpers ──────────────────────────────────────────────────
@@ -53,6 +66,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const scheduleTokenRefresh = (expiration: string) => {
     clearRefreshTimer();
     const expiresAt = new Date(expiration).getTime();
+    if (!Number.isFinite(expiresAt)) {
+      // Ignore malformed expiration values instead of triggering immediate logout.
+      return;
+    }
+
     const delay = Math.max(0, expiresAt - Date.now() - REFRESH_BUFFER_MS);
 
     refreshTimerRef.current = window.setTimeout(async () => {
@@ -72,8 +90,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           scheduleTokenRefresh(data.refreshTokenExpiration);
         }
       } catch {
-        // Refresh failed — token likely expired server-side, force logout
-        doLogout();
+        // Keep local session on refresh failures (method/cookie/CORS mismatches)
+        // and let normal API 401 flows handle a real expired session.
+        clearRefreshTimer();
       }
     }, delay);
   };
@@ -90,11 +109,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // ── On mount: restore session + schedule refresh ───────────────────────────
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    if (!storedUser) return;
-
-    const parsedUser = JSON.parse(storedUser) as User;
-    setUser(parsedUser);
+    if (!user) {
+      setIsAuthReady(true);
+      return () => clearRefreshTimer();
+    }
 
     const token = localStorage.getItem('authToken');
     if (token) {
@@ -102,7 +120,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       getUserImage()
         .then((url) => {
           if (url) {
-            const withPhoto = { ...parsedUser, avatar: url };
+            const withPhoto = { ...user, avatar: url };
             localStorage.setItem('user', JSON.stringify(withPhoto));
             setUser(withPhoto);
           }
@@ -110,14 +128,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         .catch(() => { /* keep cached avatar */ });
 
       // Schedule refresh if we know the expiration
-      if (parsedUser.refreshTokenExpiration) {
-        scheduleTokenRefresh(parsedUser.refreshTokenExpiration);
+      if (user.refreshTokenExpiration) {
+        scheduleTokenRefresh(user.refreshTokenExpiration);
       }
     }
 
+    setIsAuthReady(true);
+
     return () => clearRefreshTimer();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [user?.id, user?.refreshTokenExpiration]);
 
   // ── Login ──────────────────────────────────────────────────────────────────
 
@@ -260,7 +280,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <AuthContext.Provider
-      value={{ user, login, loginDirectly, logout, register, updateUser, addRole, removeRole, isAuthenticated: !!user }}
+      value={{ user, login, loginDirectly, logout, register, updateUser, addRole, removeRole, isAuthenticated: !!user, isAuthReady }}
     >
       {children}
     </AuthContext.Provider>

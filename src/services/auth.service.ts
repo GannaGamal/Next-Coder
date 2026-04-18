@@ -237,14 +237,29 @@ export const resetPassword = async (payload: ResetPasswordPayload): Promise<void
  */
 export const refreshToken = async (): Promise<Partial<AuthResponse>> => {
   const token = localStorage.getItem('authToken') ?? '';
-  const response = await fetch(`${API_BASE}/Auth/refreshToken`, {
-    method: 'POST',
+  const requestInit: RequestInit = {
     headers: {
-      'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
     credentials: 'include', // send HTTP-only refresh token cookie if used
+  };
+
+  // Swagger documents GET; keep POST fallback for backend variants.
+  let response = await fetch(`${API_BASE}/Auth/refreshToken`, {
+    ...requestInit,
+    method: 'GET',
   });
+
+  if (response.status === 405) {
+    response = await fetch(`${API_BASE}/Auth/refreshToken`, {
+      ...requestInit,
+      method: 'POST',
+      headers: {
+        ...requestInit.headers,
+        'Content-Type': 'application/json',
+      },
+    });
+  }
 
   if (!response.ok) {
     const message = await parseApiError(response);

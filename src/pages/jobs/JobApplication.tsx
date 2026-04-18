@@ -1,42 +1,103 @@
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import Navbar from '../../components/feature/Navbar';
 import Footer from '../../components/feature/Footer';
+import { createJobApplication } from '../../services/job-application.service';
+import { getJobPosts, type JobPostItem } from '../../services/job-post.service';
+
+interface JobSummary {
+  id: string;
+  title: string;
+  company: string;
+  companyLogo: string;
+  location: string;
+  type: string;
+  salary: string;
+  experience: string;
+  applicants: number;
+}
 
 const JobApplication = () => {
   const { jobId } = useParams();
+  const todayLocalIso = new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
+    .toISOString()
+    .split('T')[0];
   const [uploadedCV, setUploadedCV] = useState<File | null>(null);
   const [coverLetter, setCoverLetter] = useState('');
   const [dragActive, setDragActive] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const [fileError, setFileError] = useState('');
+  const [job, setJob] = useState<JobSummary | null>(null);
+  const [isLoadingJob, setIsLoadingJob] = useState(true);
+  const [jobLoadError, setJobLoadError] = useState('');
   const [formData, setFormData] = useState({
-    fullName: '',
-    email: '',
-    phone: '',
-    linkedin: '',
-    portfolio: '',
-    expectedSalary: '',
+    seekerTitle: '',
     availableDate: '',
-    yearsExperience: ''
+    yearsExperience: '',
+    minExpectedSalary: '',
+    maxExpectedSalary: '',
   });
 
-  // Mock job data
-  const job = {
-    id: jobId || '1',
-    title: 'Senior Frontend Developer',
-    company: 'TechCorp Inc.',
-    companyLogo: 'https://readdy.ai/api/search-image?query=modern%20tech%20company%20logo%20minimalist%20design%20with%20letter%20T%20in%20teal%20gradient%20on%20white%20background%20clean%20corporate%20branding&width=100&height=100&seq=jobapp1&orientation=squarish',
-    location: 'San Francisco, CA',
-    type: 'Full-time',
-    salary: '$120k - $160k',
-    experience: '5+ years',
-    skills: ['React', 'TypeScript', 'Node.js', 'AWS'],
-    postedDate: '2 days ago',
-    description: 'We are looking for a Senior Frontend Developer to join our growing team. You will be responsible for building and maintaining our web applications using React and TypeScript.',
-    applicants: 45
+  const mapApiJobToSummary = (item: JobPostItem): JobSummary => {
+    const hasMin = typeof item.minSalary === 'number';
+    const hasMax = typeof item.maxSalary === 'number';
+    const salary = hasMin && hasMax
+      ? `$${item.minSalary!.toLocaleString()} - $${item.maxSalary!.toLocaleString()}`
+      : hasMin
+        ? `From $${item.minSalary!.toLocaleString()}`
+        : hasMax
+          ? `Up to $${item.maxSalary!.toLocaleString()}`
+          : 'Not specified';
+
+    return {
+      id: String(item.id),
+      title: item.title,
+      company: item.companyName,
+      companyLogo: 'https://readdy.ai/api/search-image?query=modern%20company%20logo%20minimalist%20clean%20branding%20on%20white%20background&width=100&height=100&seq=job-app-real&orientation=squarish',
+      location: item.location || 'Remote',
+      type: item.jobType || 'Not specified',
+      salary,
+      experience: item.experienceLevel || 'Not specified',
+      applicants: item.jobSeekersCount ?? 0,
+    };
   };
+
+  useEffect(() => {
+    const loadJob = async () => {
+      setIsLoadingJob(true);
+      setJobLoadError('');
+
+      const numericJobId = Number(jobId);
+      if (!Number.isFinite(numericJobId) || numericJobId <= 0) {
+        setJob(null);
+        setJobLoadError('Invalid job id in URL. Please open application from the jobs list.');
+        setIsLoadingJob(false);
+        return;
+      }
+
+      try {
+        const result = await getJobPosts();
+        const matched = result.items.find((item) => item.id === numericJobId);
+
+        if (!matched) {
+          setJob(null);
+          setJobLoadError('Job not found or no longer available.');
+        } else {
+          setJob(mapApiJobToSummary(matched));
+        }
+      } catch (err: unknown) {
+        setJob(null);
+        setJobLoadError(err instanceof Error ? err.message : 'Failed to load job details from API.');
+      } finally {
+        setIsLoadingJob(false);
+      }
+    };
+
+    loadJob();
+  }, [jobId]);
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -54,15 +115,40 @@ const JobApplication = () => {
     setDragActive(false);
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const file = e.dataTransfer.files[0];
-      if (file.type === 'application/pdf' || file.name.endsWith('.doc') || file.name.endsWith('.docx')) {
-        setUploadedCV(file);
+      const isSupported = file.type === 'application/pdf' || file.name.endsWith('.doc') || file.name.endsWith('.docx');
+      if (!isSupported) {
+        setFileError('Please upload PDF, DOC, or DOCX file only.');
+        return;
       }
+
+      const maxSizeInBytes = 5 * 1024 * 1024;
+      if (file.size > maxSizeInBytes) {
+        setFileError('CV file is too large. Maximum allowed size is 5MB.');
+        return;
+      }
+
+      setFileError('');
+      setUploadedCV(file);
     }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setUploadedCV(e.target.files[0]);
+      const file = e.target.files[0];
+      const isSupported = file.type === 'application/pdf' || file.name.endsWith('.doc') || file.name.endsWith('.docx');
+      if (!isSupported) {
+        setFileError('Please upload PDF, DOC, or DOCX file only.');
+        return;
+      }
+
+      const maxSizeInBytes = 5 * 1024 * 1024;
+      if (file.size > maxSizeInBytes) {
+        setFileError('CV file is too large. Maximum allowed size is 5MB.');
+        return;
+      }
+
+      setFileError('');
+      setUploadedCV(file);
     }
   };
 
@@ -73,13 +159,70 @@ const JobApplication = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!uploadedCV) return;
+    setSubmitError('');
+    if (!uploadedCV) {
+      setFileError('CV file is required.');
+      return;
+    }
+
+    const numericJobId = Number(jobId);
+    if (!Number.isFinite(numericJobId) || numericJobId <= 0) {
+      setSubmitError('Invalid job id. Please open this page from a valid job offer.');
+      return;
+    }
+
+    if (!job) {
+      setSubmitError('Cannot submit because job details are not loaded.');
+      return;
+    }
+
+    const yearsOfExperience = Number(formData.yearsExperience);
+    if (!Number.isFinite(yearsOfExperience) || yearsOfExperience < 0 || !Number.isInteger(yearsOfExperience)) {
+      setSubmitError('Years of experience must be a non-negative whole number.');
+      return;
+    }
+
+    const minExpectedSalary = formData.minExpectedSalary ? Number(formData.minExpectedSalary) : undefined;
+    const maxExpectedSalary = formData.maxExpectedSalary ? Number(formData.maxExpectedSalary) : undefined;
+
+    if (typeof minExpectedSalary === 'number' && !Number.isFinite(minExpectedSalary)) {
+      setSubmitError('Minimum expected salary must be a valid number.');
+      return;
+    }
+
+    if (typeof maxExpectedSalary === 'number' && !Number.isFinite(maxExpectedSalary)) {
+      setSubmitError('Maximum expected salary must be a valid number.');
+      return;
+    }
+
+    if (
+      typeof minExpectedSalary === 'number' &&
+      typeof maxExpectedSalary === 'number' &&
+      minExpectedSalary > maxExpectedSalary
+    ) {
+      setSubmitError('Minimum expected salary cannot be greater than maximum expected salary.');
+      return;
+    }
 
     setIsSubmitting(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    setIsSubmitting(false);
-    setIsSubmitted(true);
+    try {
+      await createJobApplication({
+        jobPostId: numericJobId,
+        yearsOfExperience,
+        availableStartDate: formData.availableDate ? new Date(formData.availableDate).toISOString() : undefined,
+        minExpectedSalary,
+        maxExpectedSalary,
+        coverLetter: coverLetter.trim() || undefined,
+        seekerTitle: formData.seekerTitle.trim() || undefined,
+        cvFile: uploadedCV,
+      });
+
+      setIsSubmitted(true);
+    } catch (err: unknown) {
+      setSubmitError(err instanceof Error ? err.message : 'Failed to submit job application.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const getTypeColor = (type: string) => {
@@ -105,8 +248,8 @@ const JobApplication = () => {
               </div>
               <h1 className="text-2xl sm:text-3xl font-bold text-white mb-4">Application Submitted!</h1>
               <p className="text-gray-400 mb-8">
-                Your application for <span className="text-white font-semibold">{job.title}</span> at{' '}
-                <span className="text-purple-400">{job.company}</span> has been successfully submitted.
+                Your application for <span className="text-white font-semibold">{job?.title ?? 'this job'}</span> at{' '}
+                <span className="text-purple-400">{job?.company ?? 'this company'}</span> has been successfully submitted.
               </p>
               <div className="bg-white/5 rounded-xl p-6 mb-8 text-left">
                 <h3 className="text-white font-semibold mb-4">What happens next?</h3>
@@ -170,42 +313,58 @@ const JobApplication = () => {
 
           {/* Job Summary Card */}
           <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6 mb-8">
-            <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
-              <div className="w-16 h-16 rounded-xl overflow-hidden bg-white/10 flex-shrink-0 mx-auto sm:mx-0">
-                <img src={job.companyLogo} alt={job.company} className="w-full h-full object-cover" />
-              </div>
-              <div className="flex-1 text-center sm:text-left">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
-                  <h1 className="text-xl sm:text-2xl font-bold text-white">{job.title}</h1>
-                  <span className={`px-2.5 py-1 rounded-lg text-xs font-medium border ${getTypeColor(job.type)} mx-auto sm:mx-0`}>
-                    {job.type}
-                  </span>
+            {isLoadingJob && (
+              <p className="text-sm text-blue-300">Loading real job details...</p>
+            )}
+
+            {!isLoadingJob && jobLoadError && (
+              <p className="text-sm text-red-300">{jobLoadError}</p>
+            )}
+
+            {!isLoadingJob && !jobLoadError && job && (
+              <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
+                <div className="w-16 h-16 rounded-xl overflow-hidden bg-white/10 flex-shrink-0 mx-auto sm:mx-0">
+                  <img src={job.companyLogo} alt={job.company} className="w-full h-full object-cover" />
                 </div>
-                <p className="text-purple-400 font-medium mb-3">{job.company}</p>
-                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-4 text-sm text-gray-400">
-                  <span className="flex items-center gap-1">
-                    <i className="ri-map-pin-line"></i>
-                    {job.location}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <i className="ri-money-dollar-circle-line"></i>
-                    {job.salary}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <i className="ri-briefcase-line"></i>
-                    {job.experience}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <i className="ri-user-line"></i>
-                    {job.applicants} job seekers
-                  </span>
+                <div className="flex-1 text-center sm:text-left">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
+                    <h1 className="text-xl sm:text-2xl font-bold text-white">{job.title}</h1>
+                    <span className={`px-2.5 py-1 rounded-lg text-xs font-medium border ${getTypeColor(job.type)} mx-auto sm:mx-0`}>
+                      {job.type}
+                    </span>
+                  </div>
+                  <p className="text-purple-400 font-medium mb-3">{job.company}</p>
+                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-4 text-sm text-gray-400">
+                    <span className="flex items-center gap-1">
+                      <i className="ri-map-pin-line"></i>
+                      {job.location}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <i className="ri-money-dollar-circle-line"></i>
+                      {job.salary}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <i className="ri-briefcase-line"></i>
+                      {job.experience}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <i className="ri-user-line"></i>
+                      {job.applicants} job seekers
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Application Form */}
           <form onSubmit={handleSubmit} className="space-y-6">
+            {submitError && (
+              <div className="bg-red-500/10 border border-red-500/30 text-red-300 rounded-lg p-3 text-sm">
+                {submitError}
+              </div>
+            )}
+
             {/* CV Upload Section */}
             <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
               <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
@@ -264,80 +423,28 @@ const JobApplication = () => {
                   </>
                 )}
               </div>
+              {fileError && (
+                <p className="text-red-300 text-xs mt-3">{fileError}</p>
+              )}
             </div>
 
-            {/* Personal Information */}
+            {/* API Parameters */}
             <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
               <h2 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
                 <i className="ri-user-3-line text-purple-400"></i>
-                Personal Information
+                Application Details
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-white text-sm font-medium mb-2">
-                    Full Name <span className="text-red-400">*</span>
+                    Professional Title
                   </label>
                   <input
                     type="text"
-                    name="fullName"
-                    value={formData.fullName}
+                    name="seekerTitle"
+                    value={formData.seekerTitle}
                     onChange={handleInputChange}
-                    required
-                    placeholder="John Doe"
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-white text-sm font-medium mb-2">
-                    Email Address <span className="text-red-400">*</span>
-                  </label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    required
-                    placeholder="john@example.com"
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-white text-sm font-medium mb-2">
-                    Phone Number <span className="text-red-400">*</span>
-                  </label>
-                  <input
-                    type="tel"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleInputChange}
-                    required
-                    placeholder="+1 (555) 123-4567"
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-white text-sm font-medium mb-2">
-                    LinkedIn Profile
-                  </label>
-                  <input
-                    type="url"
-                    name="linkedin"
-                    value={formData.linkedin}
-                    onChange={handleInputChange}
-                    placeholder="linkedin.com/in/johndoe"
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-white text-sm font-medium mb-2">
-                    Portfolio Website
-                  </label>
-                  <input
-                    type="url"
-                    name="portfolio"
-                    value={formData.portfolio}
-                    onChange={handleInputChange}
-                    placeholder="www.johndoe.com"
+                    placeholder="e.g., Frontend Developer"
                     className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
                   />
                 </div>
@@ -345,35 +452,45 @@ const JobApplication = () => {
                   <label className="block text-white text-sm font-medium mb-2">
                     Years of Experience <span className="text-red-400">*</span>
                   </label>
-                  <select
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
                     name="yearsExperience"
                     value={formData.yearsExperience}
                     onChange={handleInputChange}
                     required
-                    className="w-full bg-[#1a1f37] border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-purple-500 cursor-pointer"
-                  >
-                    <option value="" className="bg-[#1a1f37]">Select experience</option>
-                    <option value="0-1" className="bg-[#1a1f37]">0-1 years</option>
-                    <option value="1-3" className="bg-[#1a1f37]">1-3 years</option>
-                    <option value="3-5" className="bg-[#1a1f37]">3-5 years</option>
-                    <option value="5-7" className="bg-[#1a1f37]">5-7 years</option>
-                    <option value="7+" className="bg-[#1a1f37]">7+ years</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-white text-sm font-medium mb-2">
-                    Expected Salary
-                  </label>
-                  <input
-                    type="text"
-                    name="expectedSalary"
-                    value={formData.expectedSalary}
-                    onChange={handleInputChange}
-                    placeholder="$120,000 - $150,000"
+                    placeholder="e.g., 3"
                     className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
                   />
                 </div>
                 <div>
+                  <label className="block text-white text-sm font-medium mb-2">
+                    Minimum Expected Salary
+                  </label>
+                  <input
+                    type="number"
+                    name="minExpectedSalary"
+                    value={formData.minExpectedSalary}
+                    onChange={handleInputChange}
+                    placeholder="120000"
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-white text-sm font-medium mb-2">
+                    Maximum Expected Salary
+                  </label>
+                  <input
+                    type="number"
+                    name="maxExpectedSalary"
+                    value={formData.maxExpectedSalary}
+                    onChange={handleInputChange}
+                    placeholder="150000"
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+                <div className="sm:col-span-2">
                   <label className="block text-white text-sm font-medium mb-2">
                     Available Start Date
                   </label>
@@ -382,6 +499,7 @@ const JobApplication = () => {
                     name="availableDate"
                     value={formData.availableDate}
                     onChange={handleInputChange}
+                    min={todayLocalIso}
                     className="w-full bg-[#1a1f37] border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-purple-500 cursor-pointer"
                   />
                 </div>
@@ -418,9 +536,9 @@ const JobApplication = () => {
               </Link>
               <button
                 type="submit"
-                disabled={!uploadedCV || isSubmitting}
+                disabled={!uploadedCV || isSubmitting || isLoadingJob || !job || !!jobLoadError}
                 className={`px-8 py-3 font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap flex items-center justify-center gap-2 ${
-                  uploadedCV && !isSubmitting
+                  uploadedCV && !isSubmitting && !isLoadingJob && !!job && !jobLoadError
                     ? 'bg-purple-500 text-white hover:bg-purple-600'
                     : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                 }`}

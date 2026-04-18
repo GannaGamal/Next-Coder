@@ -1,105 +1,45 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../../contexts/ThemeContext';
+import {
+  getJobApplicationDashboard,
+  type JobApplicationDashboardItem,
+  withdrawJobApplication,
+} from '../../../services/job-application.service';
 
-interface AppliedJob {
-  id: number;
-  position: string;
-  company: string;
-  location: string;
-  salary: string;
-  appliedDate: string;
-  status: 'Under Review' | 'Interview Scheduled' | 'Rejected' | 'Accepted';
-  matchScore: number;
-  jobType: string;
-  interviewDate?: string;
-  interviewTime?: string;
-  notes?: string;
-}
+type AppliedJob = JobApplicationDashboardItem;
 
 const ApplicantDashboard = () => {
   const [statusFilter, setStatusFilter] = useState<'all' | 'Under Review' | 'Interview Scheduled' | 'Accepted' | 'Rejected'>('all');
   const [selectedJob, setSelectedJob] = useState<AppliedJob | null>(null);
   const [showWithdrawConfirm, setShowWithdrawConfirm] = useState<AppliedJob | null>(null);
+  const [isLoadingApplications, setIsLoadingApplications] = useState(false);
+  const [applicationsError, setApplicationsError] = useState('');
+  const [withdrawError, setWithdrawError] = useState('');
+  const [withdrawingApplicationId, setWithdrawingApplicationId] = useState<number | null>(null);
   const { isLightMode } = useTheme();
   const { t } = useTranslation();
 
-  const [appliedJobs, setAppliedJobs] = useState<AppliedJob[]>([
-    {
-      id: 1,
-      position: 'Senior React Developer',
-      company: 'TechCorp',
-      location: 'Remote',
-      salary: '$90k - $120k',
-      appliedDate: '2024-01-12',
-      status: 'Under Review',
-      matchScore: 95,
-      jobType: 'Full-time',
-      notes: 'Great culture fit, strong React experience required. 5+ years expected.',
-    },
-    {
-      id: 2,
-      position: 'Frontend Engineer',
-      company: 'StartupHub',
-      location: 'New York, NY',
-      salary: '$80k - $100k',
-      appliedDate: '2024-01-10',
-      status: 'Interview Scheduled',
-      matchScore: 88,
-      jobType: 'Full-time',
-      interviewDate: '2024-01-28',
-      interviewTime: '3:00 PM',
-      notes: 'Technical round + culture fit interview scheduled.',
-    },
-    {
-      id: 3,
-      position: 'Full Stack Developer',
-      company: 'DevSolutions',
-      location: 'San Francisco, CA',
-      salary: '$95k - $130k',
-      appliedDate: '2024-01-08',
-      status: 'Rejected',
-      matchScore: 72,
-      jobType: 'Full-time',
-      notes: 'Position filled internally.',
-    },
-    {
-      id: 4,
-      position: 'JavaScript Developer',
-      company: 'WebTech Inc',
-      location: 'Remote',
-      salary: '$85k - $110k',
-      appliedDate: '2024-01-05',
-      status: 'Accepted',
-      matchScore: 91,
-      jobType: 'Contract',
-      notes: 'Offer letter received. Start date: Feb 1, 2024.',
-    },
-    {
-      id: 5,
-      position: 'Software Engineer',
-      company: 'CodeLabs',
-      location: 'Austin, TX',
-      salary: '$100k - $140k',
-      appliedDate: '2024-01-03',
-      status: 'Under Review',
-      matchScore: 83,
-      jobType: 'Full-time',
-    },
-    {
-      id: 6,
-      position: 'React Native Developer',
-      company: 'MobileFirst',
-      location: 'Remote',
-      salary: '$88k - $115k',
-      appliedDate: '2023-12-28',
-      status: 'Interview Scheduled',
-      matchScore: 87,
-      jobType: 'Full-time',
-      interviewDate: '2024-01-30',
-      interviewTime: '11:00 AM',
-    },
-  ]);
+  const [appliedJobs, setAppliedJobs] = useState<AppliedJob[]>([]);
+
+  useEffect(() => {
+    const loadApplications = async () => {
+      setIsLoadingApplications(true);
+      setApplicationsError('');
+
+      try {
+        const dashboard = await getJobApplicationDashboard();
+        setAppliedJobs(dashboard.items);
+      } catch (err: unknown) {
+        setAppliedJobs([]);
+        setApplicationsError(err instanceof Error ? err.message : 'Failed to load applications from API.');
+      } finally {
+        setIsLoadingApplications(false);
+      }
+    };
+
+    loadApplications();
+  }, []);
 
   const stats = {
     total: appliedJobs.length,
@@ -140,10 +80,30 @@ const ApplicantDashboard = () => {
     return 'from-gray-400 to-gray-500';
   };
 
-  const handleWithdraw = (job: AppliedJob) => {
-    setAppliedJobs(prev => prev.filter(j => j.id !== job.id));
+  const handleWithdraw = async (job: AppliedJob) => {
+    setWithdrawError('');
+    setWithdrawingApplicationId(job.id);
+
+    try {
+      await withdrawJobApplication(job.id);
+      setAppliedJobs(prev => prev.filter(j => j.id !== job.id));
+      setShowWithdrawConfirm(null);
+      if (selectedJob?.id === job.id) setSelectedJob(null);
+    } catch (err: unknown) {
+      setWithdrawError(err instanceof Error ? err.message : 'Failed to withdraw application. Please try again.');
+    } finally {
+      setWithdrawingApplicationId(null);
+    }
+  };
+
+  const openWithdrawConfirm = (job: AppliedJob) => {
+    setWithdrawError('');
+    setShowWithdrawConfirm(job);
+  };
+
+  const closeWithdrawConfirm = () => {
+    setWithdrawError('');
     setShowWithdrawConfirm(null);
-    if (selectedJob?.id === job.id) setSelectedJob(null);
   };
 
   const filterButtons: { label: string; value: typeof statusFilter; color: string }[] = [
@@ -219,6 +179,18 @@ const ApplicantDashboard = () => {
           </div>
         </div>
 
+        {isLoadingApplications && (
+          <div className={`mb-4 p-3 rounded-lg text-sm border ${isLightMode ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-blue-500/10 border-blue-500/30 text-blue-300'}`}>
+            Loading your real applications from API...
+          </div>
+        )}
+
+        {applicationsError && (
+          <div className={`mb-4 p-3 rounded-lg text-sm border ${isLightMode ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-amber-500/10 border-amber-500/30 text-amber-300'}`}>
+            {applicationsError}
+          </div>
+        )}
+
         <div className="space-y-4">
           {filteredJobs.map(job => (
             <div
@@ -274,7 +246,7 @@ const ApplicantDashboard = () => {
                 </div>
                 {job.status === 'Under Review' && (
                   <button
-                    onClick={(e) => { e.stopPropagation(); setShowWithdrawConfirm(job); }}
+                    onClick={(e) => { e.stopPropagation(); openWithdrawConfirm(job); }}
                     className="text-xs text-red-400 hover:text-red-300 transition-colors cursor-pointer whitespace-nowrap"
                   >
                     <i className="ri-close-line mr-1"></i>{t('applicantDashboard.withdraw')}
@@ -386,7 +358,7 @@ const ApplicantDashboard = () => {
               <button onClick={() => setSelectedJob(null)} className={`flex-1 px-5 py-3 font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${isLightMode ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' : 'bg-white/5 text-white hover:bg-white/10'}`}>{t('applicantDashboard.close')}</button>
               {selectedJob.status === 'Under Review' && (
                 <button
-                  onClick={() => { setSelectedJob(null); setShowWithdrawConfirm(selectedJob); }}
+                  onClick={() => { setSelectedJob(null); openWithdrawConfirm(selectedJob); }}
                   className="flex-1 px-5 py-3 bg-red-500/20 text-red-400 font-semibold rounded-lg hover:bg-red-500/30 transition-colors whitespace-nowrap cursor-pointer"
                 >
                   <i className="ri-close-circle-line mr-2"></i>{t('applicantDashboard.withdrawApplication')}
@@ -400,7 +372,7 @@ const ApplicantDashboard = () => {
       {/* Withdraw Confirm Modal */}
       {showWithdrawConfirm && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowWithdrawConfirm(null)}></div>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeWithdrawConfirm}></div>
           <div className={`relative rounded-2xl border p-6 w-full max-w-md ${isLightMode ? 'bg-white border-gray-200' : 'bg-[#1e2442] border-white/10'}`}>
             <div className="text-center mb-6">
               <div className="w-14 h-14 flex items-center justify-center rounded-full bg-red-500/20 mx-auto mb-4">
@@ -411,9 +383,26 @@ const ApplicantDashboard = () => {
                 {t('applicantDashboard.withdrawConfirmText')} <span className={`font-semibold ${isLightMode ? 'text-gray-800' : 'text-white'}`}>{showWithdrawConfirm.position}</span> {t('applicantDashboard.at')} <span className={`font-semibold ${isLightMode ? 'text-gray-800' : 'text-white'}`}>{showWithdrawConfirm.company}</span>? {t('applicantDashboard.cannotUndo')}
               </p>
             </div>
+            {withdrawError && (
+              <div className={`mb-4 p-3 rounded-lg text-sm border ${isLightMode ? 'bg-red-50 border-red-200 text-red-700' : 'bg-red-500/10 border-red-500/30 text-red-300'}`}>
+                {withdrawError}
+              </div>
+            )}
             <div className="flex gap-3">
-              <button onClick={() => setShowWithdrawConfirm(null)} className={`flex-1 px-5 py-3 font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${isLightMode ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' : 'bg-white/5 text-white hover:bg-white/10'}`}>{t('applicantDashboard.cancel')}</button>
-              <button onClick={() => handleWithdraw(showWithdrawConfirm)} className="flex-1 px-5 py-3 bg-red-500 text-white font-semibold rounded-lg hover:bg-red-600 transition-colors whitespace-nowrap cursor-pointer">{t('applicantDashboard.withdraw')}</button>
+              <button
+                onClick={closeWithdrawConfirm}
+                disabled={withdrawingApplicationId === showWithdrawConfirm.id}
+                className={`flex-1 px-5 py-3 font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${isLightMode ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' : 'bg-white/5 text-white hover:bg-white/10'}`}
+              >
+                {t('applicantDashboard.cancel')}
+              </button>
+              <button
+                onClick={() => handleWithdraw(showWithdrawConfirm)}
+                disabled={withdrawingApplicationId === showWithdrawConfirm.id}
+                className="flex-1 px-5 py-3 bg-red-500 text-white font-semibold rounded-lg hover:bg-red-600 transition-colors whitespace-nowrap cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {withdrawingApplicationId === showWithdrawConfirm.id ? 'Withdrawing...' : t('applicantDashboard.withdraw')}
+              </button>
             </div>
           </div>
         </div>
