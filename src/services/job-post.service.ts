@@ -139,6 +139,18 @@ const getDefaultAvatar = (name: string): string => {
   return `https://ui-avatars.com/api/?name=${normalized}&background=6366f1&color=ffffff&size=100`;
 };
 
+const toArray = (value: unknown): unknown[] => {
+  if (Array.isArray(value)) return value;
+  if (!value || typeof value !== 'object') return [];
+
+  const raw = value as Record<string, unknown>;
+  if (Array.isArray(raw.$values)) return raw.$values as unknown[];
+  if (Array.isArray(raw.values)) return raw.values as unknown[];
+  if (Array.isArray(raw.items)) return raw.items as unknown[];
+
+  return [];
+};
+
 export const getJobSkills = async (): Promise<JobSkill[]> => {
   const response = await fetch(`${API_BASE}/JobSkill`, {
     method: 'GET',
@@ -362,17 +374,16 @@ export const getJobPostDetails = async (jobPostId: number): Promise<EmployerJobP
   }
 
   const data = await response.json();
-  const rawApplicants: unknown[] = Array.isArray(data)
-    ? data
-    : Array.isArray(data?.applicants)
-      ? data.applicants
-      : Array.isArray(data?.jobApplications)
-        ? data.jobApplications
-        : Array.isArray(data?.applications)
-          ? data.applications
-          : Array.isArray(data?.items)
-            ? data.items
-            : [];
+  const container = (data?.data ?? data?.result ?? data?.value ?? data) as Record<string, unknown>;
+  const rawApplicants: unknown[] = toArray(data)
+    .concat(toArray(container?.applicants))
+    .concat(toArray(container?.Applicants))
+    .concat(toArray(container?.jobApplications))
+    .concat(toArray(container?.JobApplications))
+    .concat(toArray(container?.applications))
+    .concat(toArray(container?.Applications))
+    .concat(toArray(container?.items))
+    .concat(toArray(container?.Items));
 
   const applicants: EmployerJobApplicantItem[] = rawApplicants
     .map((item: unknown) => {
@@ -401,11 +412,25 @@ export const getJobPostDetails = async (jobPostId: number): Promise<EmployerJobP
     })
     .filter((applicant) => applicant.id > 0);
 
-  const countAllRaw = Number(data?.allApplicantsCount ?? data?.allCount ?? data?.AllApplicantsCount ?? data?.AllCount);
-  const countPendingRaw = Number(data?.pendingCount ?? data?.PendingCount);
-  const countShortlistedRaw = Number(data?.shortlistedCount ?? data?.ShortlistedCount);
-  const countRejectedRaw = Number(data?.rejectedCount ?? data?.RejectedCount);
-  const countInterviewRaw = Number(data?.interviewScheduledCount ?? data?.InterviewScheduledCount);
+  const countAllRaw = Number(
+    container?.allApplicantsCount
+      ?? container?.allCount
+      ?? container?.AllApplicantsCount
+      ?? container?.AllCount
+      ?? data?.allApplicantsCount
+      ?? data?.allCount
+      ?? data?.AllApplicantsCount
+      ?? data?.AllCount
+  );
+  const countPendingRaw = Number(container?.pendingCount ?? container?.PendingCount ?? data?.pendingCount ?? data?.PendingCount);
+  const countShortlistedRaw = Number(container?.shortlistedCount ?? container?.ShortlistedCount ?? data?.shortlistedCount ?? data?.ShortlistedCount);
+  const countRejectedRaw = Number(container?.rejectedCount ?? container?.RejectedCount ?? data?.rejectedCount ?? data?.RejectedCount);
+  const countInterviewRaw = Number(
+    container?.interviewScheduledCount
+      ?? container?.InterviewScheduledCount
+      ?? data?.interviewScheduledCount
+      ?? data?.InterviewScheduledCount
+  );
 
   const computed = {
     all: applicants.length,

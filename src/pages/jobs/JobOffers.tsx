@@ -8,7 +8,7 @@ import CustomSelect from '../../components/base/CustomSelect';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useTranslation } from 'react-i18next';
-import { createJobPost, getJobPosts, getJobSkills } from '../../services/job-post.service';
+import { createJobPost, getJobPostDetails, getJobPosts, getJobSkills } from '../../services/job-post.service';
 import type { JobPostItem, JobSkill } from '../../services/job-post.service';
 
 interface Job {
@@ -233,7 +233,23 @@ const JobOffers = () => {
           SortBy: mapSortToApi(sortBy),
         });
 
-        setJobsFromApi(result.items.map(mapApiJobToUi));
+        const jobsWithRealCounts = await Promise.all(
+          result.items.map(async (item) => {
+            try {
+              const details = await getJobPostDetails(item.id);
+              const realCount = Number(details.counts?.all ?? details.applicants?.length ?? item.jobSeekersCount ?? 0);
+
+              return {
+                ...item,
+                jobSeekersCount: Number.isFinite(realCount) && realCount >= 0 ? realCount : (item.jobSeekersCount ?? 0),
+              };
+            } catch {
+              return item;
+            }
+          })
+        );
+
+        setJobsFromApi(jobsWithRealCounts.map(mapApiJobToUi));
       } catch (err: unknown) {
         setJobsFromApi([]);
         setJobsError(err instanceof Error ? err.message : 'Failed to load jobs from API.');

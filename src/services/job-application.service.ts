@@ -89,6 +89,18 @@ const mapApiStatus = (value: unknown): ApplicationStatus => {
   return 'Under Review';
 };
 
+const toArray = (value: unknown): unknown[] => {
+  if (Array.isArray(value)) return value;
+  if (!value || typeof value !== 'object') return [];
+
+  const raw = value as Record<string, unknown>;
+  if (Array.isArray(raw.$values)) return raw.$values as unknown[];
+  if (Array.isArray(raw.values)) return raw.values as unknown[];
+  if (Array.isArray(raw.items)) return raw.items as unknown[];
+
+  return [];
+};
+
 export const getJobApplicationDashboard = async (): Promise<JobApplicationDashboardResult> => {
   const token = localStorage.getItem('authToken') ?? '';
   if (!token) {
@@ -107,15 +119,16 @@ export const getJobApplicationDashboard = async (): Promise<JobApplicationDashbo
   }
 
   const data = await response.json();
-  const rawItems: unknown[] = Array.isArray(data)
-    ? data
-    : Array.isArray(data?.applications)
-      ? data.applications
-      : Array.isArray(data?.jobApplications)
-        ? data.jobApplications
-        : Array.isArray(data?.items)
-          ? data.items
-          : [];
+  const container = (data?.data ?? data?.result ?? data?.value ?? data) as Record<string, unknown>;
+  const rawItems: unknown[] = toArray(data)
+    .concat(toArray(container?.appliedJobs))
+    .concat(toArray(container?.AppliedJobs))
+    .concat(toArray(container?.applications))
+    .concat(toArray(container?.Applications))
+    .concat(toArray(container?.jobApplications))
+    .concat(toArray(container?.JobApplications))
+    .concat(toArray(container?.items))
+    .concat(toArray(container?.Items));
 
   const items: JobApplicationDashboardItem[] = rawItems
     .map((item: unknown) => {
@@ -126,7 +139,18 @@ export const getJobApplicationDashboard = async (): Promise<JobApplicationDashbo
       const score = Number(raw.matchScore ?? raw.MatchScore ?? raw.fitScore ?? raw.FitScore ?? 0);
       const interviewAtRaw = raw.interviewScheduledAt ?? raw.InterviewScheduledAt;
       const interviewDateObj = interviewAtRaw ? new Date(String(interviewAtRaw)) : null;
-      const hasInterviewDate = interviewDateObj && !Number.isNaN(interviewDateObj.getTime());
+      const interviewIso = interviewAtRaw ? String(interviewAtRaw) : '';
+      const hasInterviewDate = Boolean(
+        interviewDateObj
+        && !Number.isNaN(interviewDateObj.getTime())
+        && !interviewIso.startsWith('0001-01-01')
+      );
+      const interviewDate = hasInterviewDate && interviewDateObj
+        ? interviewDateObj.toLocaleDateString()
+        : undefined;
+      const interviewTime = hasInterviewDate && interviewDateObj
+        ? interviewDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        : undefined;
 
       return {
         id,
@@ -141,9 +165,9 @@ export const getJobApplicationDashboard = async (): Promise<JobApplicationDashbo
         status: mapApiStatus(raw.status ?? raw.Status),
         matchScore: Number.isFinite(score) ? Math.max(0, Math.min(100, score)) : 0,
         jobType: String(raw.jobType ?? raw.JobType ?? 'Not specified'),
-        interviewDate: hasInterviewDate ? interviewDateObj.toLocaleDateString() : undefined,
-        interviewTime: hasInterviewDate ? interviewDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : undefined,
-        notes: String(raw.notes ?? raw.note ?? raw.rejectionReason ?? raw.Notes ?? raw.Note ?? raw.RejectionReason ?? ''),
+        interviewDate,
+        interviewTime,
+        notes: String(raw.notes ?? raw.note ?? raw.reason ?? raw.rejectionReason ?? raw.Notes ?? raw.Note ?? raw.Reason ?? raw.RejectionReason ?? ''),
       };
     })
     .filter((item) => item.id > 0 && item.position.length > 0);
