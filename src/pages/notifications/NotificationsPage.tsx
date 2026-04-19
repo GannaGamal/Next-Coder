@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import Navbar from '../../components/feature/Navbar';
 import Footer from '../../components/feature/Footer';
-import { useNotifications, Notification } from '../../contexts/NotificationContext';
+import { useNotifications } from '../../contexts/NotificationContext';
+import type { Notification } from '../../contexts/NotificationContext';
 import { useTheme } from '../../contexts/ThemeContext';
 
 type FilterType = 'all' | 'unread' | Notification['type'];

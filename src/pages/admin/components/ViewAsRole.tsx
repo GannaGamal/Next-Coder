@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useViewAs } from '../../../contexts/ViewAsContext';
-import { UserRole } from '../../../types';
+import type { UserRole } from '../../../types';
 
 interface RoleOption {
   id: UserRole;

@@ -51,24 +51,15 @@ export const loginUser = async (
 
   const rawText = await response.text();
   try {
-    return JSON.parse(rawText) as AuthResponse;
+    const parsed = JSON.parse(rawText) as Partial<AuthResponse>;
+
+    if (!parsed?.isAuthenticated || !parsed?.token) {
+      throw new Error('Login response is missing authentication token.');
+    }
+
+    return parsed as AuthResponse;
   } catch {
-    // Empty or non-JSON success body — return minimal shape
-    return {
-      message: null,
-      isAuthenticated: true,
-      email,
-      roles: [],
-      token: '',
-      fullName: '',
-      userId: '',
-      jobSeekerId: null,
-      employerId: null,
-      learnerId: null,
-      clientId: null,
-      freeLancerId: null,
-      refreshTokenExpiration: null,
-    };
+    throw new Error('Login failed: invalid response from server. Please try again.');
   }
 };
 

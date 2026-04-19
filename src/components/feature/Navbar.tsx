@@ -4,7 +4,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { useViewAs } from "../../contexts/ViewAsContext";
 import { useTheme } from "../../contexts/ThemeContext";
 import { useTranslation } from "react-i18next";
-import { UserRole } from "../../types";
+import type { UserRole } from "../../types";
 import NotificationDropdown from "./NotificationDropdown";
 import LanguageSwitcher from "./LanguageSwitcher";
 import rocketImage from "../../assets/space-rocket.png";
@@ -280,9 +280,10 @@ const Navbar = () => {
   };
 
   const userRoles = Array.isArray(user?.roles) ? user.roles : [];
+  const roleAwareRoles = isAuthenticated ? userRoles : [];
 
   // When viewing as a role, use that role for navigation visibility
-  const effectiveRoles = isViewingAs && viewingAs ? [viewingAs] : userRoles;
+  const effectiveRoles = isViewingAs && viewingAs ? [viewingAs] : roleAwareRoles;
   const isAdmin = userRoles.includes("admin");
 
   const rolesNotAdded = availableRoles.filter(
@@ -294,9 +295,9 @@ const Navbar = () => {
   const showMarketplace =
     effectiveRoles.includes("freelancer") || effectiveRoles.includes("client");
   const showJobsAndCVs =
-    effectiveRoles.includes("applicant") || effectiveRoles.includes("employer");
-  const showAdmin = isAdmin && !isViewingAs;
-  const showDashboard = isAdmin || effectiveRoles.some((r) => r !== "learner");
+    isAuthenticated && (effectiveRoles.includes("applicant") || effectiveRoles.includes("employer"));
+  const showAdmin = isAuthenticated && isAdmin && !isViewingAs;
+  const showDashboard = isAuthenticated && (isAdmin || effectiveRoles.some((r) => r !== "learner"));
 
   const isActive = (path: string) => location.pathname === path;
 

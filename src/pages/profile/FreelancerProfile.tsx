@@ -3,7 +3,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import Navbar from '../../components/feature/Navbar';
 import Footer from '../../components/feature/Footer';
 import ProfilePhotoModal from '../../components/feature/ProfilePhotoModal';
-import FreelancerEditModal, { FreelancerEditData } from '../../components/feature/FreelancerEditModal';
+import FreelancerEditModal from '../../components/feature/FreelancerEditModal';
+import type { FreelancerEditData } from '../../components/feature/FreelancerEditModal';
 import useProfilePhoto from '../../hooks/useProfilePhoto';
 
 interface PortfolioItem {

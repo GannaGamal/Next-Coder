@@ -1,4 +1,4 @@
-import { AdminTopic, AdminSubtopic } from '../../../services/admin.roadmap.service';
+import type { AdminTopic, AdminSubtopic } from '../../../services/admin.roadmap.service';
 import LinkEditor from './LinkEditor';
 import SubtopicEditor from './SubtopicEditor';
 

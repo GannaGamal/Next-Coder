@@ -1,7 +1,8 @@
 
 import * as React from "react";
-import { RouteObject } from "react-router-dom";
+import type { RouteObject } from "react-router";
 import { lazy } from "react";
+import { RequireAuth, RequireRole } from './RouteGuards';
 
 const HomePage = lazy(() => import("../pages/home/page"));
 const Login = lazy(() => import("../pages/auth/Login"));
@@ -36,6 +37,13 @@ const NotificationsPage = lazy(() => import("../pages/notifications/Notification
 const Settings = lazy(() => import("../pages/settings/Settings"));
 import Contact from "../pages/contact/Contact";
 
+const withAuth = (element: React.ReactNode) => <RequireAuth>{element}</RequireAuth>;
+const withRole = (element: React.ReactNode, allowedRoles: string[]) => (
+  <RequireAuth>
+    <RequireRole allowedRoles={allowedRoles}>{element}</RequireRole>
+  </RequireAuth>
+);
+
 const routes: RouteObject[] = [
   {
     path: "/",
@@ -55,31 +63,31 @@ const routes: RouteObject[] = [
   },
   {
     path: "/dashboard",
-    element: <Dashboard />,
+    element: withAuth(<Dashboard />),
   },
   {
     path: "/admin",
-    element: <AdminDashboard />,
+    element: withRole(<AdminDashboard />, ['admin']),
   },
   {
     path: "/profile/freelancer",
-    element: <FreelancerProfile />,
+    element: withAuth(<FreelancerProfile />),
   },
   {
     path: "/profile/client",
-    element: <ClientProfile />,
+    element: withAuth(<ClientProfile />),
   },
   {
     path: "/profile/employer",
-    element: <EmployerProfile />,
+    element: withAuth(<EmployerProfile />),
   },
   {
     path: "/profile/job-seeker",
-    element: <ApplicantProfile />,
+    element: withAuth(<ApplicantProfile />),
   },
   {
     path: "/profile/learner",
-    element: <LearnerProfile />,
+    element: withAuth(<LearnerProfile />),
   },
   {
     path: "/cvs",
@@ -103,7 +111,7 @@ const routes: RouteObject[] = [
   },
   {
     path: "/job/:jobId",
-    element: <JobApplication />,
+    element: withAuth(<JobApplication />),
   },
   {
     path: "/marketplace",
@@ -155,11 +163,11 @@ const routes: RouteObject[] = [
   },
   {
     path: "/notifications",
-    element: <NotificationsPage />,
+    element: withAuth(<NotificationsPage />),
   },
   {
     path: "/settings",
-    element: <Settings />,
+    element: withAuth(<Settings />),
   },
   {
     path: "*",

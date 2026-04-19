@@ -4,8 +4,8 @@ import {
   fetchTrackEnrollmentCount,
   enrollInTrack,
   clearRoadmapCache,
-  RoadmapTrack,
 } from '../../../services/roadmap.service';
+import type { RoadmapTrack } from '../../../services/roadmap.service';
 import TrackDetailModal from './TrackDetailModal';
 
 // ─── Accent palette (deterministic per track name) ───────────────────────────

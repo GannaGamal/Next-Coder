@@ -9,8 +9,8 @@ import BrowsePaths from './components/BrowsePaths';
 import {
   getUserEnrollments,
   unenrollFromTrack,
-  EnrollmentDetail,
 } from '../../services/roadmap.service';
+import type { EnrollmentDetail } from '../../services/roadmap.service';
 
 // ─── Accent palette (deterministic per track name) ────────────────────────────
 const ACCENT_COLORS = [

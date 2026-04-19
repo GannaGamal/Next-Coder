@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { AdminTrack, AdminTopic } from '../../../services/admin.roadmap.service';
+import type { AdminTrack, AdminTopic } from '../../../services/admin.roadmap.service';
 import TopicEditor from './TopicEditor';
 
 interface TrackFormModalProps {

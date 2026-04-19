@@ -1,11 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
-  AdminTrack,
-  AdminTopic,
   adminCreateTrack,
   adminUpdateTrack,
   adminDeleteTrack,
 } from '../../../services/admin.roadmap.service';
+import type { AdminTrack, AdminTopic } from '../../../services/admin.roadmap.service';
 import { fetchRoadmapTracks, clearRoadmapCache } from '../../../services/roadmap.service';
 import TrackFormModal from './TrackFormModal';
 

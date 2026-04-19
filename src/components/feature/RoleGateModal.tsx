@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
-import { UserRole } from '../../types';
+import type { UserRole } from '../../types';
 
 interface RoleGateModalProps {
   isOpen: boolean;

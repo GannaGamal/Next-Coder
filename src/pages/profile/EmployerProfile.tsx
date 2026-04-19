@@ -4,7 +4,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import Navbar from '../../components/feature/Navbar';
 import Footer from '../../components/feature/Footer';
 import ProfilePhotoModal from '../../components/feature/ProfilePhotoModal';
-import EmployerEditModal, { EmployerEditData } from '../../components/feature/EmployerEditModal';
+import EmployerEditModal from '../../components/feature/EmployerEditModal';
+import type { EmployerEditData } from '../../components/feature/EmployerEditModal';
 import useProfilePhoto from '../../hooks/useProfilePhoto';
 
 interface Company {

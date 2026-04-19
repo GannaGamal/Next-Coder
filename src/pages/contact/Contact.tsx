@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next';
 import Navbar from '../../components/feature/Navbar';
 import Footer from '../../components/feature/Footer';
 import { useTheme } from '../../contexts/ThemeContext';
-import { submitContactForm, ContactFormData } from '../../services/form.service';
+import { submitContactForm } from '../../services/form.service';
+import type { ContactFormData } from '../../services/form.service';
 
 const Contact = () => {
   const { isLightMode } = useTheme();

@@ -1,6 +1,7 @@
 
-import { createContext, useContext, useState, ReactNode } from 'react';
-import { UserRole } from '../types';
+import { createContext, useContext, useState } from 'react';
+import type { ReactNode } from 'react';
+import type { UserRole } from '../types';
 
 interface ViewAsContextType {
   viewingAs: UserRole | null;

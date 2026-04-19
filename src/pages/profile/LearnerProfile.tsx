@@ -3,7 +3,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import Navbar from '../../components/feature/Navbar';
 import Footer from '../../components/feature/Footer';
 import ProfilePhotoModal from '../../components/feature/ProfilePhotoModal';
-import LearnerEditModal, { LearnerEditData } from '../../components/feature/LearnerEditModal';
+import LearnerEditModal from '../../components/feature/LearnerEditModal';
+import type { LearnerEditData } from '../../components/feature/LearnerEditModal';
 import useProfilePhoto from '../../hooks/useProfilePhoto';
 
 interface Roadmap {

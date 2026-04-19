@@ -3,7 +3,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import Navbar from '../../components/feature/Navbar';
 import Footer from '../../components/feature/Footer';
 import ProfilePhotoModal from '../../components/feature/ProfilePhotoModal';
-import ClientEditModal, { ClientEditData } from '../../components/feature/ClientEditModal';
+import ClientEditModal from '../../components/feature/ClientEditModal';
+import type { ClientEditData } from '../../components/feature/ClientEditModal';
 import useProfilePhoto from '../../hooks/useProfilePhoto';
 
 const ClientProfile = () => {

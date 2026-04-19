@@ -5,11 +5,6 @@ import { loginUser, refreshToken, revokeToken } from '../services/auth.service';
 import type { AuthResponse } from '../services/auth.service';
 import { getUserImage } from '../services/user.image.service';
 
-// Admin credentials
-const ADMIN_EMAIL = 'admin123@gmail.com';
-const ADMIN_PASSWORD = 'admin123';
-const ADMIN_NAME = 'admin';
-
 // Refresh buffer: refresh 90 seconds before expiry
 const REFRESH_BUFFER_MS = 90_000;
 
@@ -37,6 +32,30 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  const hasValidToken = (): boolean => {
+    const token = localStorage.getItem('authToken') ?? '';
+    if (!token) return false;
+
+    const parts = token.split('.');
+    if (parts.length !== 3) {
+      return false;
+    }
+
+    try {
+      const payloadBase64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+      const padded = payloadBase64.padEnd(payloadBase64.length + ((4 - (payloadBase64.length % 4)) % 4), '=');
+      const payload = JSON.parse(atob(padded)) as { exp?: number };
+
+      if (typeof payload.exp === 'number') {
+        return payload.exp * 1000 > Date.now();
+      }
+
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   const [user, setUser] = useState<User | null>(() => {
     try {
       const storedUser = localStorage.getItem('user');
@@ -114,8 +133,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return () => clearRefreshTimer();
     }
 
-    const token = localStorage.getItem('authToken');
-    if (token) {
+    const tokenIsValid = hasValidToken();
+
+    if (!tokenIsValid) {
+      doLogout();
+      setIsAuthReady(true);
+      return () => clearRefreshTimer();
+    }
+
+    if (tokenIsValid) {
       // Fetch the real profile photo
       getUserImage()
         .then((url) => {
@@ -139,25 +165,36 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, user?.refreshTokenExpiration]);
 
+  useEffect(() => {
+    const syncSessionWithToken = () => {
+      if (user && !hasValidToken()) {
+        doLogout();
+      }
+    };
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === 'authToken' || event.key === 'user') {
+        syncSessionWithToken();
+      }
+    };
+
+    window.addEventListener('focus', syncSessionWithToken);
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      window.removeEventListener('focus', syncSessionWithToken);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, [user]);
+
   // ── Login ──────────────────────────────────────────────────────────────────
 
   const login = async (email: string, password: string, rememberMe = false) => {
-    // Admin shortcut
-    if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
-      const adminUser: User = {
-        id: 'admin-001',
-        email: ADMIN_EMAIL,
-        name: ADMIN_NAME,
-        roles: ['admin'],
-        avatar: 'https://readdy.ai/api/search-image?query=professional%20admin%20user%20avatar%20icon%20with%20shield%20badge%20modern%20minimal%20design%20dark%20background&width=200&height=200&seq=admin1&orientation=squarish',
-        createdAt: new Date().toISOString(),
-      };
-      localStorage.setItem('user', JSON.stringify(adminUser));
-      setUser(adminUser);
-      return;
-    }
-
     const data: AuthResponse = await loginUser(email, password, rememberMe);
+
+    if (!data.isAuthenticated || !data.token) {
+      throw new Error('Login failed: missing or invalid authentication token from server.');
+    }
 
     if (data.token) localStorage.setItem('authToken', data.token);
 
@@ -226,21 +263,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // ── Register ───────────────────────────────────────────────────────────────
 
-  const register = async (email: string, password: string, name: string, roles: UserRole[]) => {
-    if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD && name.toLowerCase() === ADMIN_NAME) {
-      const adminUser: User = {
-        id: 'admin-001',
-        email: ADMIN_EMAIL,
-        name: ADMIN_NAME,
-        roles: ['admin'],
-        avatar: 'https://readdy.ai/api/search-image?query=professional%20admin%20user%20avatar%20icon%20with%20shield%20badge%20modern%20minimal%20design%20dark%20background&width=200&height=200&seq=admin1&orientation=squarish',
-        createdAt: new Date().toISOString(),
-      };
-      localStorage.setItem('user', JSON.stringify(adminUser));
-      setUser(adminUser);
-      return;
-    }
-
+  const register = async (email: string, _password: string, name: string, roles: UserRole[]) => {
     const newUser: User = {
       id: Date.now().toString(),
       email,
@@ -280,7 +303,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <AuthContext.Provider
-      value={{ user, login, loginDirectly, logout, register, updateUser, addRole, removeRole, isAuthenticated: !!user, isAuthReady }}
+      value={{ user, login, loginDirectly, logout, register, updateUser, addRole, removeRole, isAuthenticated: !!user && hasValidToken(), isAuthReady }}
     >
       {children}
     </AuthContext.Provider>

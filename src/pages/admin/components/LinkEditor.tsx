@@ -1,4 +1,4 @@
-import { AdminLink } from '../../../services/admin.roadmap.service';
+import type { AdminLink } from '../../../services/admin.roadmap.service';
 
 const LINK_TYPES = ['article', 'video', 'documentation', 'course', 'github', 'other'];
 

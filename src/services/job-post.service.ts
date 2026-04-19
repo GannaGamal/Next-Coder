@@ -281,6 +281,7 @@ export const getEmployerDashboard = async (): Promise<EmployerDashboardResult> =
   }
 
   const data = await response.json();
+
   const rawJobPostings: unknown[] = Array.isArray(data?.jobPostings) ? data.jobPostings : [];
 
   const jobPostings: EmployerDashboardJobPostItem[] = rawJobPostings

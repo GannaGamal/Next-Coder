@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AdminSubtopic } from '../../../services/admin.roadmap.service';
+import type { AdminSubtopic } from '../../../services/admin.roadmap.service';
 import LinkEditor from './LinkEditor';
 
 interface SubtopicEditorProps {

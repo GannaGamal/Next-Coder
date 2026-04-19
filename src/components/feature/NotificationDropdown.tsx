@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useNotifications, Notification } from '../../contexts/NotificationContext';
+import { useNotifications } from '../../contexts/NotificationContext';
+import type { Notification } from '../../contexts/NotificationContext';
 import { useTheme } from '../../contexts/ThemeContext';
 
 const NotificationDropdown = () => {

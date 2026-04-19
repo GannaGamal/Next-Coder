@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
-import { RoadmapTrack, getLinkTypeIcon, getLinkTypeColor } from '../../../services/roadmap.service';
+import { getLinkTypeIcon, getLinkTypeColor } from '../../../services/roadmap.service';
+import type { RoadmapTrack } from '../../../services/roadmap.service';
 
 interface TrackDetailModalProps {
   track: RoadmapTrack;

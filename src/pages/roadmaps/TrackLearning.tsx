@@ -5,12 +5,10 @@ import Footer from '../../components/feature/Footer';
 import {
   getTrackEnrollmentDetail,
   fetchRoadmapTracks,
-  EnrollmentDetail,
-  RoadmapTrack,
-  RoadmapLink,
   getLinkTypeIcon,
   getLinkTypeColor,
 } from '../../services/roadmap.service';
+import type { EnrollmentDetail, RoadmapTrack, RoadmapLink } from '../../services/roadmap.service';
 import { API_BASE } from '../../services/api.config';
 
 type Section = 'checklist' | 'project' | 'rate';

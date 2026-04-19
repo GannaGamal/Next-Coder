@@ -4,7 +4,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import Navbar from '../../components/feature/Navbar';
 import Footer from '../../components/feature/Footer';
 import ProfilePhotoModal from '../../components/feature/ProfilePhotoModal';
-import ContactInfoModal, { ContactInfo } from '../../components/feature/ContactInfoModal';
+import ContactInfoModal from '../../components/feature/ContactInfoModal';
+import type { ContactInfo } from '../../components/feature/ContactInfoModal';
 import useProfilePhoto from '../../hooks/useProfilePhoto';
 import { getJobSeekerProfile } from '../../services/job-seeker-profile.service';
 
