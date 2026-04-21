@@ -101,7 +101,7 @@ const EmployerDashboard = () => {
 
         setJobs([]);
         setDashboardStats(null);
-        setDashboardError(err instanceof Error ? err.message : 'Failed to load employer dashboard data.');
+        setDashboardError(err instanceof Error ? err.message : 'We could not load your dashboard right now. Please try again.');
       } finally {
         if (isMounted) {
           setIsLoadingDashboard(false);
@@ -258,7 +258,7 @@ const EmployerDashboard = () => {
       setSelectedApplicant(null);
       setInterviewDetails({ date: '', time: '' });
     } catch (err: unknown) {
-      setScheduleInterviewError(err instanceof Error ? err.message : 'Failed to schedule interview.');
+      setScheduleInterviewError(err instanceof Error ? err.message : 'We could not schedule the interview right now. Please try again.');
     } finally {
       setSchedulingApplicantId(null);
     }
@@ -285,7 +285,7 @@ const EmployerDashboard = () => {
       setSelectedApplicant(null);
       setRejectionReason('');
     } catch (err: unknown) {
-      setRejectApplicantError(err instanceof Error ? err.message : 'Failed to reject applicant.');
+      setRejectApplicantError(err instanceof Error ? err.message : 'We could not reject this applicant right now. Please try again.');
     } finally {
       setRejectingApplicantId(null);
     }
@@ -321,7 +321,7 @@ const EmployerDashboard = () => {
       await deleteJobPost(Number(jobId));
       handleRemoveJob(jobId);
     } catch (err: unknown) {
-      setDeleteJobError(err instanceof Error ? err.message : 'Failed to delete this job post.');
+      setDeleteJobError(err instanceof Error ? err.message : 'We could not delete this job post right now. Please try again.');
     } finally {
       setDeletingJobId(null);
     }
@@ -354,7 +354,7 @@ const EmployerDashboard = () => {
         };
       });
     } catch (err: unknown) {
-      setCloseJobError(err instanceof Error ? err.message : 'Failed to close this job post.');
+      setCloseJobError(err instanceof Error ? err.message : 'We could not close this job post right now. Please try again.');
     } finally {
       setClosingJobId(null);
     }
@@ -415,7 +415,7 @@ const EmployerDashboard = () => {
         };
       });
     } catch (err: unknown) {
-      setJobDetailsError(err instanceof Error ? err.message : 'Failed to load job details.');
+      setJobDetailsError(err instanceof Error ? err.message : 'We could not load job details right now. Please try again.');
     } finally {
       setIsLoadingJobDetails(false);
     }

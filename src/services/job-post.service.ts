@@ -20,6 +20,7 @@ export interface JobPostItem {
   skills: string[];
   employerId?: string;
   jobSeekersCount?: number;
+  companyLogoUrl?: string | null;
 }
 
 export interface GetJobPostsParams {
@@ -102,10 +103,10 @@ const buildAuthHeader = (): Record<string, string> => {
 
 const parseAuthAwareError = async (response: Response): Promise<string> => {
   if (response.status === 401) {
-    return 'You are not authorized. Please sign in again.';
+    return 'Your session has expired. Please sign in again.';
   }
   if (response.status === 403) {
-    return 'Access denied by backend policy (403). Your account cannot access this endpoint.';
+    return 'You do not have permission to perform this action.';
   }
   return parseApiError(response);
 };
@@ -114,7 +115,7 @@ const fetchWithNetworkError = async (url: string, init?: RequestInit): Promise<R
   try {
     return await fetch(url, init);
   } catch {
-    throw new Error('Network error: cannot reach API. Check internet connection, CORS policy, and backend availability.');
+    throw new Error('Network connection issue. Please check your internet and try again.');
   }
 };
 
@@ -254,6 +255,7 @@ export const getJobPosts = async (params: GetJobPostsParams = {}): Promise<GetJo
       skills: Array.isArray(raw.skills) ? raw.skills.map((s) => String(s)) : [],
       employerId: raw.employerId ? String(raw.employerId) : raw.EmployerId ? String(raw.EmployerId) : undefined,
       jobSeekersCount: Number(raw.jobSeekersCount ?? raw.JobSeekersCount ?? 0),
+      companyLogoUrl: raw.companyLogoUrl ? String(raw.companyLogoUrl) : raw.CompanyLogoUrl ? String(raw.CompanyLogoUrl) : raw.logoUrl ? String(raw.logoUrl) : raw.LogoUrl ? String(raw.LogoUrl) : null,
     };
   }).filter((item) => item.id > 0 && item.title.length > 0);
 

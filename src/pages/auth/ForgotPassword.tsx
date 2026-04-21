@@ -66,7 +66,7 @@ const ForgotPassword = () => {
       startCooldown(60);
       setTimeout(() => otpRefs.current[0]?.focus(), 100);
     } catch (err: unknown) {
-      setEmailError(err instanceof Error ? err.message : 'Network error. Please check your connection.');
+      setEmailError(err instanceof Error ? err.message : 'We could not send a reset code right now. Please try again.');
     } finally {
       setEmailLoading(false);
     }
@@ -110,7 +110,7 @@ const ForgotPassword = () => {
       startCooldown(60);
       setTimeout(() => otpRefs.current[0]?.focus(), 50);
     } catch (err: unknown) {
-      setResetError(err instanceof Error ? err.message : 'Network error. Please try again.');
+      setResetError(err instanceof Error ? err.message : 'We could not resend the code right now. Please try again.');
     } finally {
       setResendLoading(false);
     }
@@ -139,7 +139,7 @@ const ForgotPassword = () => {
       });
       setStage('success');
     } catch (err: unknown) {
-      setResetError(err instanceof Error ? err.message : 'Network error. Please try again.');
+      setResetError(err instanceof Error ? err.message : 'We could not reset your password right now. Please try again.');
     } finally {
       setResetLoading(false);
     }

@@ -35,7 +35,7 @@ const TrackManagement = () => {
       }));
       setTracks(mapped);
     } catch {
-      setLoadError('Failed to load tracks from API. Please try again.');
+      setLoadError('We could not load tracks right now. Please try again.');
     } finally {
       setLoading(false);
     }

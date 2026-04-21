@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import Navbar from '../../components/feature/Navbar';
@@ -7,6 +7,8 @@ import ProfilePhotoModal from '../../components/feature/ProfilePhotoModal';
 import EmployerEditModal from '../../components/feature/EmployerEditModal';
 import type { EmployerEditData } from '../../components/feature/EmployerEditModal';
 import useProfilePhoto from '../../hooks/useProfilePhoto';
+import { getEmployerProfile, updateEmployerProfile } from '../../services/employer.service';
+import { getEmployerCompanies } from '../../services/company.service';
 
 interface Company {
   id: string;
@@ -25,82 +27,96 @@ interface Document {
 
 const EmployerProfile = () => {
   const { user } = useAuth();
-  const logoInputRef = useRef<HTMLInputElement>(null);
   const { handlePhotoUpload, handlePhotoRemove } = useProfilePhoto();
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const [profileError, setProfileError] = useState('');
+  const [contactSaveMessage, setContactSaveMessage] = useState('');
+  
   const [contactInfo, setContactInfo] = useState<EmployerEditData>({
-    phone: '+1 234 567 8900',
-    location: 'San Francisco, CA',
-    website: 'techsolutions.example.com',
-    linkedin: 'linkedin.com/company/techsolutions',
-    github: '',
-    twitter: '',
+    phoneNumber: '',
+    address: '',
+    websiteUrl: '',
   });
-  const [companies, setCompanies] = useState<Company[]>([
-    {
-      id: '1',
-      name: 'Tech Solutions Inc.',
-      industry: 'Software Development',
-      logo: 'https://readdy.ai/api/search-image?query=modern%20tech%20company%20logo%20abstract%20geometric%20design%20gradient%20professional%20corporate%20branding%20clean%20white%20background&width=200&height=200&seq=company1&orientation=squarish',
-      documents: [
-        { id: '1', name: 'Business License.pdf', url: '#', uploadedAt: '2024-01-15' },
-        { id: '2', name: 'Tax Certificate.pdf', url: '#', uploadedAt: '2024-01-10' }
-      ]
-    },
-    {
-      id: '2',
-      name: 'Digital Marketing Pro',
-      industry: 'Marketing & Advertising',
-      logo: 'https://readdy.ai/api/search-image?query=marketing%20agency%20logo%20creative%20design%20colorful%20gradient%20modern%20professional%20branding%20clean%20white%20background%20digital%20media&width=200&height=200&seq=company2&orientation=squarish',
-      documents: [
-        { id: '3', name: 'Company Registration.pdf', url: '#', uploadedAt: '2023-12-20' }
-      ]
-    }
-  ]);
+  const [companies, setCompanies] = useState<Company[]>([]);
 
-  const [selectedCompany, setSelectedCompany] = useState<string | null>(companies[0]?.id || null);
-  const [showCompanyForm, setShowCompanyForm] = useState(false);
-  const [newCompany, setNewCompany] = useState({ name: '', industry: '', logo: '' as string });
-  const [newCompanyLogoFile, setNewCompanyLogoFile] = useState<File | null>(null);
+  const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
+
+  // Fetch employer profile from API on component mount
+  useEffect(() => {
+    const loadEmployerProfile = async () => {
+      if (!user?.employerId) {
+        setIsLoadingProfile(false);
+        return;
+      }
+
+      try {
+        setIsLoadingProfile(true);
+        setProfileError('');
+        const profile = await getEmployerProfile(user.employerId);
+
+        // Update contact info from API
+        setContactInfo({
+          phoneNumber: profile.phoneNumber || '',
+          address: profile.address || '',
+          websiteUrl: profile.websiteUrl || '',
+        });
+
+        const apiCompanies = await getEmployerCompanies(user.employerId);
+        const mappedCompanies: Company[] = apiCompanies.map((comp) => ({
+          id: comp.id,
+          name: comp.name,
+          industry: 'Not specified',
+          logo: comp.logoUrl || undefined,
+          documents: [],
+        }));
+
+        setCompanies(mappedCompanies);
+        setSelectedCompany(mappedCompanies[0]?.id || null);
+      } catch (err) {
+        setProfileError(err instanceof Error ? err.message : 'Failed to load employer profile.');
+        console.error('Error loading employer profile:', err);
+      } finally {
+        setIsLoadingProfile(false);
+      }
+    };
+
+    loadEmployerProfile();
+  }, [user?.employerId]);
+
+  const handleSaveContact = async (data: EmployerEditData) => {
+    if (!user?.roles?.includes('employer')) {
+      throw new Error('Only employers can update their own profile.');
+    }
+
+    const updated = await updateEmployerProfile({
+      phoneNumber: data.phoneNumber,
+      address: data.address,
+      websiteUrl: data.websiteUrl,
+    });
+
+    setContactInfo({
+      phoneNumber: updated.phoneNumber,
+      address: updated.address,
+      websiteUrl: updated.websiteUrl,
+    });
+
+    setContactSaveMessage('Contact details updated successfully.');
+    window.setTimeout(() => setContactSaveMessage(''), 2500);
+  };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>, companyId?: string) => {
     const file = e.target.files?.[0];
-    if (file) {
+    if (file && companyId) {
       const reader = new FileReader();
       reader.onloadend = () => {
         const logoUrl = reader.result as string;
-        if (companyId) {
-          setCompanies(companies.map(company =>
-            company.id === companyId ? { ...company, logo: logoUrl } : company
-          ));
-        } else {
-          setNewCompany({ ...newCompany, logo: logoUrl });
-          setNewCompanyLogoFile(file);
-        }
+        setCompanies(companies.map(company =>
+          company.id === companyId ? { ...company, logo: logoUrl } : company
+        ));
       };
       reader.readAsDataURL(file);
-    }
-  };
-
-  const handleAddCompany = () => {
-    if (newCompany.name && newCompany.industry) {
-      try {
-        const company: Company = {
-          id: Date.now().toString(),
-          name: newCompany.name,
-          industry: newCompany.industry,
-          logo: newCompany.logo || `https://readdy.ai/api/search-image?query=professional%20company%20logo%20$%7BencodeURIComponent%28newCompany.industry%29%7D%20modern%20design%20corporate%20branding%20clean%20white%20background&width=200&height=200&seq=company${Date.now()}&orientation=squarish`,
-          documents: []
-        };
-        setCompanies([...companies, company]);
-        setNewCompany({ name: '', industry: '', logo: '' });
-        setNewCompanyLogoFile(null);
-        setShowCompanyForm(false);
-        setSelectedCompany(company.id);
-      } catch (error) {
-        console.error('Error adding company:', error);
-      }
     }
   };
 
@@ -171,13 +187,19 @@ const EmployerProfile = () => {
                   </button>
                 </div>
                 <p className="text-sm sm:text-base text-gray-400 mb-2 break-all">{user?.email}</p>
+                {isLoadingProfile && (
+                  <p className="text-xs text-gray-400 mb-2">Loading profile details...</p>
+                )}
+                {profileError && (
+                  <p className="text-xs text-red-300 mb-2">{profileError}</p>
+                )}
+                {contactSaveMessage && (
+                  <p className="text-xs text-emerald-300 mb-2">{contactSaveMessage}</p>
+                )}
                 <div className="flex flex-wrap items-center gap-3 mb-3">
-                  {contactInfo.phone && <span className="flex items-center gap-1.5 text-xs text-gray-300"><i className="ri-phone-line text-violet-400"></i>{contactInfo.phone}</span>}
-                  {contactInfo.location && <span className="flex items-center gap-1.5 text-xs text-gray-300"><i className="ri-map-pin-line text-violet-400"></i>{contactInfo.location}</span>}
-                  {contactInfo.website && <span className="flex items-center gap-1.5 text-xs text-gray-300"><i className="ri-global-line text-violet-400"></i>{contactInfo.website}</span>}
-                  {contactInfo.linkedin && <span className="flex items-center gap-1.5 text-xs text-gray-300"><i className="ri-linkedin-box-line text-violet-400"></i>{contactInfo.linkedin}</span>}
-                  {contactInfo.github && <span className="flex items-center gap-1.5 text-xs text-gray-300"><i className="ri-github-fill text-violet-400"></i>{contactInfo.github}</span>}
-                  {contactInfo.twitter && <span className="flex items-center gap-1.5 text-xs text-gray-300"><i className="ri-twitter-x-line text-violet-400"></i>{contactInfo.twitter}</span>}
+                  {contactInfo.phoneNumber && <span className="flex items-center gap-1.5 text-xs text-gray-300"><i className="ri-phone-line text-violet-400"></i>{contactInfo.phoneNumber}</span>}
+                  {contactInfo.address && <span className="flex items-center gap-1.5 text-xs text-gray-300"><i className="ri-map-pin-line text-violet-400"></i>{contactInfo.address}</span>}
+                  {contactInfo.websiteUrl && <span className="flex items-center gap-1.5 text-xs text-gray-300"><i className="ri-global-line text-violet-400"></i>{contactInfo.websiteUrl}</span>}
                 </div>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-6">
                   <div className="flex items-center gap-2">
@@ -201,73 +223,7 @@ const EmployerProfile = () => {
           <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 sm:p-6 lg:p-8 mb-6 sm:mb-8 border border-white/10">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0 mb-4 sm:mb-6">
               <h2 className="text-xl sm:text-2xl font-bold text-white">My Companies</h2>
-              <button
-                onClick={() => setShowCompanyForm(!showCompanyForm)}
-                className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 bg-violet-500 text-white text-sm sm:text-base font-semibold rounded-lg hover:bg-violet-600 transition-colors whitespace-nowrap cursor-pointer"
-              >
-                <i className="ri-add-line mr-2"></i>Add Company
-              </button>
             </div>
-
-            {showCompanyForm && (
-              <div className="bg-white/5 rounded-lg p-4 sm:p-6 mb-4 sm:mb-6 border border-white/10">
-                <h3 className="text-lg sm:text-xl font-bold text-white mb-3 sm:mb-4">Add New Company</h3>
-                <div className="space-y-3 sm:space-y-4">
-                  <div className="flex flex-col items-center sm:items-start gap-3">
-                    <label className="text-sm text-gray-400">Company Logo</label>
-                    <div className="flex items-center gap-4">
-                      <div
-                        onClick={() => document.getElementById('new-company-logo')?.click()}
-                        className="w-20 h-20 sm:w-24 sm:h-24 flex items-center justify-center rounded-xl bg-white/10 border-2 border-dashed border-white/20 hover:border-violet-500 transition-colors cursor-pointer overflow-hidden group"
-                      >
-                        {newCompany.logo ? (
-                          <img src={newCompany.logo} alt="Company logo" className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="text-center">
-                            <i className="ri-image-add-line text-2xl sm:text-3xl text-gray-400 group-hover:text-violet-400 transition-colors"></i>
-                            <p className="text-xs text-gray-500 mt-1">Upload</p>
-                          </div>
-                        )}
-                      </div>
-                      <input type="file" id="new-company-logo" accept="image/*" onChange={(e) => handleLogoUpload(e)} className="hidden" />
-                      {newCompany.logo && (
-                        <button
-                          onClick={() => { setNewCompany({ ...newCompany, logo: '' }); setNewCompanyLogoFile(null); }}
-                          className="px-3 py-1.5 bg-red-500/20 text-red-400 text-sm rounded-lg hover:bg-red-500/30 transition-colors cursor-pointer whitespace-nowrap"
-                        >
-                          <i className="ri-delete-bin-line mr-1"></i>Remove
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <input
-                    type="text"
-                    value={newCompany.name}
-                    onChange={(e) => setNewCompany({ ...newCompany, name: e.target.value })}
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base text-white placeholder-gray-500 focus:outline-none focus:border-violet-500"
-                    placeholder="Company Name"
-                  />
-                  <input
-                    type="text"
-                    value={newCompany.industry}
-                    onChange={(e) => setNewCompany({ ...newCompany, industry: e.target.value })}
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base text-white placeholder-gray-500 focus:outline-none focus:border-violet-500"
-                    placeholder="Industry (e.g., Software Development)"
-                  />
-                  <div className="flex flex-col sm:flex-row gap-3">
-                    <button onClick={handleAddCompany} className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 bg-violet-500 text-white text-sm sm:text-base font-semibold rounded-lg hover:bg-violet-600 transition-colors whitespace-nowrap cursor-pointer">
-                      Add Company
-                    </button>
-                    <button
-                      onClick={() => { setShowCompanyForm(false); setNewCompany({ name: '', industry: '', logo: '' }); setNewCompanyLogoFile(null); }}
-                      className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 bg-white/5 text-white text-sm sm:text-base font-semibold rounded-lg hover:bg-white/10 transition-colors whitespace-nowrap cursor-pointer"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
               {companies.map((company) => (
@@ -397,7 +353,7 @@ const EmployerProfile = () => {
         isOpen={showContactModal}
         onClose={() => setShowContactModal(false)}
         data={contactInfo}
-        onSave={setContactInfo}
+        onSave={handleSaveContact}
         accentColor="violet"
       />
     </div>

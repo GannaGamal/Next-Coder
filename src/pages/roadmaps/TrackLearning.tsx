@@ -150,7 +150,7 @@ const TrackLearning = () => {
       );
       setTrack(found ?? null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load track details.');
+      setError(err instanceof Error ? err.message : 'We could not load track details right now. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -261,7 +261,7 @@ const TrackLearning = () => {
       setProjectUrl('');
       if (fileInputRef.current) fileInputRef.current.value = '';
     } catch (err) {
-      setProjectError(err instanceof Error ? err.message : 'Upload failed. Please try again.');
+      setProjectError(err instanceof Error ? err.message : 'We could not submit your project right now. Please try again.');
     } finally {
       setProjectLoading(false);
     }

@@ -38,11 +38,16 @@ export const loginUser = async (
   password: string,
   rememberMe = false
 ): Promise<AuthResponse> => {
-  const response = await fetch(`${API_BASE}/Auth/Login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password, rememberMe }),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}/Auth/Login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, rememberMe }),
+    });
+  } catch {
+    throw new Error('We could not sign you in right now. Please check your connection and try again.');
+  }
 
   if (!response.ok) {
     const message = await parseApiError(response);

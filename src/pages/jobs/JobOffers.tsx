@@ -5,6 +5,7 @@ import Footer from '../../components/feature/Footer';
 import RoleGateModal from '../../components/feature/RoleGateModal';
 import ReportModal from '../../components/feature/ReportModal';
 import CustomSelect from '../../components/base/CustomSelect';
+import CompanySelect from '../../components/base/CompanySelect';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useTranslation } from 'react-i18next';
@@ -138,11 +139,20 @@ const JobOffers = () => {
     const min = typeof item.minSalary === 'number' ? item.minSalary : 0;
     const max = typeof item.maxSalary === 'number' ? item.maxSalary : 0;
 
+    // Use company logo if available, otherwise use a fallback icon/placeholder
+    const getCompanyLogo = (): string => {
+      if (item.companyLogoUrl) {
+        return item.companyLogoUrl;
+      }
+      // Fallback: Generate a placeholder based on company name
+      return `https://ui-avatars.com/api/?name=${encodeURIComponent(item.companyName)}&background=6366f1&color=ffffff&size=100`;
+    };
+
     return {
       id: String(item.id),
       title: item.title,
       company: item.companyName,
-      companyLogo: 'https://readdy.ai/api/search-image?query=modern%20company%20logo%20minimalist%20clean%20branding%20on%20white%20background&width=100&height=100&seq=job-api&orientation=squarish',
+      companyLogo: getCompanyLogo(),
       employerId: item.employerId ?? '0',
       location: item.location,
       type: (['Full-time', 'Part-time', 'Contract', 'Remote', 'Internship'].includes(item.jobType)
@@ -194,7 +204,7 @@ const JobOffers = () => {
         setSkillsLoadError('');
       } catch (err: unknown) {
         setApiSkills([]);
-        setSkillsLoadError(err instanceof Error ? err.message : 'Failed to load skills from API.');
+        setSkillsLoadError(err instanceof Error ? err.message : 'We could not load skills right now. Please try again.');
       }
     };
 
@@ -204,7 +214,7 @@ const JobOffers = () => {
   useEffect(() => {
     if (!isAuthenticated) {
       setJobsFromApi([]);
-      setJobsError('Please sign in to load jobs from API.');
+      setJobsError('Please sign in to view available jobs.');
       return;
     }
 
@@ -252,7 +262,7 @@ const JobOffers = () => {
         setJobsFromApi(jobsWithRealCounts.map(mapApiJobToUi));
       } catch (err: unknown) {
         setJobsFromApi([]);
-        setJobsError(err instanceof Error ? err.message : 'Failed to load jobs from API.');
+        setJobsError(err instanceof Error ? err.message : 'We could not load jobs right now. Please try again.');
       } finally {
         setJobsLoading(false);
       }
@@ -440,7 +450,13 @@ const JobOffers = () => {
                     </div>
                     <div>
                       <label className={`block font-medium mb-2 text-sm ${labelCls}`}>{t('jobs.companyName')} *</label>
-                      <input type="text" required value={jobCompany} onChange={e => setJobCompany(e.target.value)} placeholder={t('jobs.companyPlaceholder')} className={`w-full border rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-teal-500 ${inputCls}`} />
+                      <CompanySelect 
+                        employerId={user?.employerId}
+                        value={jobCompany}
+                        onChange={(companyName) => setJobCompany(companyName)}
+                        isLightMode={isLightMode}
+                        placeholder={t('jobs.companyPlaceholder')}
+                      />
                     </div>
                   </div>
 

@@ -32,7 +32,7 @@ const ApplicantDashboard = () => {
         setAppliedJobs(dashboard.items);
       } catch (err: unknown) {
         setAppliedJobs([]);
-        setApplicationsError(err instanceof Error ? err.message : 'Failed to load applications from API.');
+        setApplicationsError(err instanceof Error ? err.message : 'We could not load your applications right now. Please try again.');
       } finally {
         setIsLoadingApplications(false);
       }
@@ -90,7 +90,7 @@ const ApplicantDashboard = () => {
       setShowWithdrawConfirm(null);
       if (selectedJob?.id === job.id) setSelectedJob(null);
     } catch (err: unknown) {
-      setWithdrawError(err instanceof Error ? err.message : 'Failed to withdraw application. Please try again.');
+      setWithdrawError(err instanceof Error ? err.message : 'We could not withdraw this application right now. Please try again.');
     } finally {
       setWithdrawingApplicationId(null);
     }

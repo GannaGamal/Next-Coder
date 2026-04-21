@@ -78,7 +78,7 @@ const ContinueLearningModal = ({ trackName, onClose, onProgressUpdate }: Props) 
         );
         setTrack(found ?? null);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load track details.');
+        setError(err instanceof Error ? err.message : 'We could not load track details right now. Please try again.');
       } finally {
         setLoading(false);
       }
@@ -144,7 +144,7 @@ const ContinueLearningModal = ({ trackName, onClose, onProgressUpdate }: Props) 
       setProjectUrl('');
       if (fileInputRef.current) fileInputRef.current.value = '';
     } catch {
-      setProjectError('Upload failed. Please try again.');
+      setProjectError('We could not submit your project right now. Please try again.');
     } finally {
       setProjectLoading(false);
     }
@@ -163,7 +163,7 @@ const ContinueLearningModal = ({ trackName, onClose, onProgressUpdate }: Props) 
       setRating(0);
       setRateComment('');
     } catch {
-      setRateError('Submission failed. Please try again.');
+      setRateError('We could not submit your rating right now. Please try again.');
     } finally {
       setRateLoading(false);
     }

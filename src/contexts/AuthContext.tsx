@@ -4,6 +4,7 @@ import type { User, UserRole } from '../types';
 import { loginUser, refreshToken, revokeToken } from '../services/auth.service';
 import type { AuthResponse } from '../services/auth.service';
 import { getUserImage } from '../services/user.image.service';
+import { AUTH_EXPIRED_EVENT } from '../services/api.utils';
 
 // Refresh buffer: refresh 90 seconds before expiry
 const REFRESH_BUFFER_MS = 90_000;
@@ -181,9 +182,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     window.addEventListener('focus', syncSessionWithToken);
     window.addEventListener('storage', handleStorage);
 
+    const handleAuthExpired = () => {
+      if (localStorage.getItem('authToken')) {
+        doLogout();
+      }
+    };
+
+    window.addEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired as EventListener);
+
     return () => {
       window.removeEventListener('focus', syncSessionWithToken);
       window.removeEventListener('storage', handleStorage);
+      window.removeEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired as EventListener);
     };
   }, [user]);
 

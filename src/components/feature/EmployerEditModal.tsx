@@ -2,19 +2,16 @@ import { useState, useEffect } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 
 export interface EmployerEditData {
-  phone: string;
-  location: string;
-  website: string;
-  linkedin: string;
-  github: string;
-  twitter: string;
+  phoneNumber: string;
+  address: string;
+  websiteUrl: string;
 }
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   data: EmployerEditData;
-  onSave: (data: EmployerEditData) => void;
+  onSave: (data: EmployerEditData) => Promise<void>;
   accentColor?: 'violet' | 'purple' | 'pink' | 'orange' | 'emerald' | 'teal';
 }
 
@@ -28,28 +25,38 @@ const colorConfig = {
 };
 
 const contactFields = [
-  { key: 'phone' as keyof EmployerEditData,    label: 'Phone',       icon: 'ri-phone-line',        placeholder: '+1 234 567 8900',         type: 'tel'  },
-  { key: 'location' as keyof EmployerEditData, label: 'Location',    icon: 'ri-map-pin-line',       placeholder: 'City, State / Country'               },
-  { key: 'website' as keyof EmployerEditData,  label: 'Website',     icon: 'ri-global-line',        placeholder: 'https://yourwebsite.com'             },
-  { key: 'linkedin' as keyof EmployerEditData, label: 'LinkedIn',    icon: 'ri-linkedin-box-line',  placeholder: 'linkedin.com/in/username'            },
-  { key: 'github' as keyof EmployerEditData,   label: 'GitHub',      icon: 'ri-github-fill',        placeholder: 'github.com/username'                },
-  { key: 'twitter' as keyof EmployerEditData,  label: 'Twitter / X', icon: 'ri-twitter-x-line',     placeholder: '@username'                          },
+  { key: 'phoneNumber' as keyof EmployerEditData, label: 'Phone Number', icon: 'ri-phone-line', placeholder: '+1 234 567 8900', type: 'tel' },
+  { key: 'address' as keyof EmployerEditData, label: 'Address', icon: 'ri-map-pin-line', placeholder: 'City, State / Country' },
+  { key: 'websiteUrl' as keyof EmployerEditData, label: 'Website URL', icon: 'ri-global-line', placeholder: 'https://yourwebsite.com' },
 ];
 
 const EmployerEditModal = ({ isOpen, onClose, data, onSave, accentColor = 'violet' }: Props) => {
   const { isLightMode } = useTheme();
   const [form, setForm] = useState<EmployerEditData>({ ...data });
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const cfg = colorConfig[accentColor];
 
   useEffect(() => {
-    if (isOpen) setForm({ ...data });
+    if (isOpen) {
+      setForm({ ...data });
+      setSaveError('');
+    }
   }, [isOpen, data]);
 
   if (!isOpen) return null;
 
-  const handleSave = () => {
-    onSave(form);
-    onClose();
+  const handleSave = async () => {
+    setIsSaving(true);
+    setSaveError('');
+    try {
+      await onSave(form);
+      onClose();
+    } catch (err: unknown) {
+      setSaveError(err instanceof Error ? err.message : 'We could not save your contact details right now. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const set = (key: keyof EmployerEditData, value: string) =>
@@ -71,10 +78,16 @@ const EmployerEditModal = ({ isOpen, onClose, data, onSave, accentColor = 'viole
             <i className={`ri-contacts-line text-xl ${cfg.icon}`}></i>
           </div>
           <div>
-            <h3 className={`text-xl font-bold ${isLightMode ? 'text-gray-900' : 'text-white'}`}>Edit Contact &amp; Links</h3>
-            <p className={`text-sm ${isLightMode ? 'text-gray-500' : 'text-gray-400'}`}>Update your contact info and social profiles</p>
+            <h3 className={`text-xl font-bold ${isLightMode ? 'text-gray-900' : 'text-white'}`}>Edit Contact Details</h3>
+            <p className={`text-sm ${isLightMode ? 'text-gray-500' : 'text-gray-400'}`}>Update your phone number, address, and website URL</p>
           </div>
         </div>
+
+        {saveError && (
+          <div className={`mb-4 rounded-lg border p-3 text-sm ${isLightMode ? 'bg-red-50 border-red-200 text-red-700' : 'bg-red-500/10 border-red-500/30 text-red-300'}`}>
+            {saveError}
+          </div>
+        )}
 
         <div className="space-y-4">
           {contactFields.map(field => (
@@ -103,9 +116,14 @@ const EmployerEditModal = ({ isOpen, onClose, data, onSave, accentColor = 'viole
           </button>
           <button
             onClick={handleSave}
-            className={`flex-1 px-5 py-3 ${cfg.btn} text-white font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap`}
+            disabled={isSaving}
+            className={`flex-1 px-5 py-3 ${cfg.btn} text-white font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed`}
           >
-            <i className="ri-save-line mr-2"></i>Save Changes
+            {isSaving ? (
+              <><i className="ri-loader-4-line mr-2 animate-spin"></i>Saving...</>
+            ) : (
+              <><i className="ri-save-line mr-2"></i>Save Changes</>
+            )}
           </button>
         </div>
       </div>

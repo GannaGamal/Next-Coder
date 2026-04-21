@@ -90,7 +90,7 @@ const JobApplication = () => {
         }
       } catch (err: unknown) {
         setJob(null);
-        setJobLoadError(err instanceof Error ? err.message : 'Failed to load job details from API.');
+        setJobLoadError(err instanceof Error ? err.message : 'We could not load job details right now. Please try again.');
       } finally {
         setIsLoadingJob(false);
       }
@@ -219,7 +219,7 @@ const JobApplication = () => {
 
       setIsSubmitted(true);
     } catch (err: unknown) {
-      setSubmitError(err instanceof Error ? err.message : 'Failed to submit job application.');
+      setSubmitError(err instanceof Error ? err.message : 'We could not submit your application right now. Please try again.');
     } finally {
       setIsSubmitting(false);
     }

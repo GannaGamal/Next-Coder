@@ -10,6 +10,7 @@ interface Company {
   id: string;
   name: string;
   industry: string;
+  image: File | null;
   documents: File[];
 }
 
@@ -39,6 +40,11 @@ const getPasswordStrength = (pw: string): { label: string; color: string; width:
 };
 
 const RESEND_COOLDOWN = 60; // seconds
+
+const toApiRoleName = (role: UserRole): string => {
+  if (role === 'applicant') return 'Job Seeker';
+  return role.charAt(0).toUpperCase() + role.slice(1);
+};
 
 const Register = () => {
   const [step, setStep] = useState(1);
@@ -70,7 +76,7 @@ const Register = () => {
 
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { loginDirectly } = useAuth();
+  const { login } = useAuth();
 
   /* ─── Resend cooldown timer ─── */
   useEffect(() => {
@@ -143,6 +149,10 @@ const Register = () => {
   const handleSubmitApi = async () => {
     if (formData.roles.includes('applicant') && !cvFile) { setError(t('auth.uploadCVRequired')); return; }
     if (formData.roles.includes('employer') && companies.length === 0) { setError(t('auth.uploadCompanyRequired')); return; }
+    if (formData.roles.includes('employer') && companies.some(c => !c.image)) {
+      setError('Please upload a company image for each company.');
+      return;
+    }
     setError('');
     setApiErrors([]);
     setLoading(true);
@@ -154,11 +164,18 @@ const Register = () => {
       payload.append('Password', formData.password);
       payload.append('ConfirmPassword', formData.confirmPassword);
       payload.append('RememberMe', 'false');
-      formData.roles.forEach(role => payload.append('Roles', role));
+      formData.roles.forEach((role) => payload.append('Roles', toApiRoleName(role)));
       if (cvFile) payload.append('CvFile', cvFile);
       companies.forEach((company, index) => {
         payload.append(`Companies[${index}].name`, company.name);
         payload.append(`Companies[${index}].industry`, company.industry);
+        if (company.image) {
+          // Backend currently validates LogoUrl as required; send the logo file under that key.
+          payload.append(`Companies[${index}].LogoUrl`, company.image);
+          // Keep compatibility keys for backend variants.
+          payload.append(`Companies[${index}].logoUrl`, company.image);
+          payload.append(`Companies[${index}].image`, company.image);
+        }
         company.documents.forEach(doc => payload.append(`Companies[${index}].documents`, doc));
       });
 
@@ -187,7 +204,7 @@ const Register = () => {
         }
         setApiErrors(collected);
       } else {
-        setApiErrors(['Network error. Please check your connection and try again.']);
+        setApiErrors(['We could not complete registration right now. Please try again.']);
       }
     } finally {
       setLoading(false);
@@ -240,37 +257,17 @@ const Register = () => {
     try {
       const apiUser = await confirmEmailOtp(formData.email.trim(), otpString);
 
-      // Persist token if present
-      if (apiUser.token) localStorage.setItem('authToken', apiUser.token);
+      // Some backend responses return a token here, but the reliable way to
+      // establish a session is to sign in with the verified credentials.
+      if (apiUser.token) {
+        localStorage.setItem('authToken', apiUser.token);
+      }
 
-      // Normalise roles from API response (e.g. ["Admin"] → ["admin"])
-      const rawRoles = (apiUser?.roles ?? formData.roles) as string[];
-      const normalizedRoles = rawRoles.map((r) =>
-        (r as string).toLowerCase()
-      ) as UserRole[];
-
-      const resolvedName = String(
-        apiUser?.fullName ?? apiUser?.fullName ?? formData.name.trim()
-      );
-
-      loginDirectly({
-        id: String(apiUser?.userId ?? Date.now()),
-        email: String(apiUser?.email ?? formData.email.trim()),
-        name: resolvedName || formData.name.trim(),
-        roles: normalizedRoles.length > 0 ? normalizedRoles : formData.roles,
-        avatar: '',
-        createdAt: new Date().toISOString(),
-        jobSeekerId: apiUser?.jobSeekerId ?? null,
-        employerId: apiUser?.employerId ?? null,
-        learnerId: apiUser?.learnerId ?? null,
-        clientId: apiUser?.clientId ?? null,
-        freeLancerId: apiUser?.freeLancerId ?? null,
-        refreshTokenExpiration: apiUser?.refreshTokenExpiration ?? null,
-      });
+      await login(formData.email.trim(), formData.password, false);
 
       setOtpSuccess(true);
     } catch (err: unknown) {
-      setOtpError(err instanceof Error ? err.message : 'Invalid or expired verification code. Please try again.');
+      setOtpError(err instanceof Error ? err.message : 'That verification code is invalid or expired. Please try again.');
     } finally {
       setOtpLoading(false);
     }
@@ -287,15 +284,16 @@ const Register = () => {
       setOtp(['', '', '', '', '', '']);
       otpRefs.current[0]?.focus();
     } catch (err: unknown) {
-      setOtpError(err instanceof Error ? err.message : 'Failed to resend code. Please try again.');
+      setOtpError(err instanceof Error ? err.message : 'We could not resend the code right now. Please try again.');
     } finally {
       setResendLoading(false);
     }
   };
 
   /* ─── Company helpers ─── */
-  const addCompany = () => setCompanies([...companies, { id: Date.now().toString(), name: '', industry: '', documents: [] }]);
+  const addCompany = () => setCompanies([...companies, { id: Date.now().toString(), name: '', industry: '', image: null, documents: [] }]);
   const updateCompany = (id: string, field: string, value: string) => setCompanies(companies.map(c => c.id === id ? { ...c, [field]: value } : c));
+  const updateCompanyImage = (id: string, file: File | null) => setCompanies(companies.map(c => c.id === id ? { ...c, image: file } : c));
   const addCompanyDocument = (id: string, file: File) => setCompanies(companies.map(c => c.id === id ? { ...c, documents: [...c.documents, file] } : c));
   const removeCompanyDocument = (companyId: string, docIndex: number) => setCompanies(companies.map(c => c.id === companyId ? { ...c, documents: c.documents.filter((_, i) => i !== docIndex) } : c));
   const removeCompany = (id: string) => setCompanies(companies.filter(c => c.id !== id));
@@ -612,6 +610,17 @@ const Register = () => {
                             className="w-full mb-3 px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/40 focus:ring-2 focus:ring-purple-500 focus:outline-none" />
                           <input type="text" placeholder={t('auth.industryPlaceholder')} value={company.industry} onChange={(e) => updateCompany(company.id, 'industry', e.target.value)}
                             className="w-full mb-3 px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/40 focus:ring-2 focus:ring-purple-500 focus:outline-none" />
+                          <input type="file" id={`company-image-${company.id}`} accept="image/*" onChange={(e) => updateCompanyImage(company.id, e.target.files?.[0] || null)} className="hidden" />
+                          <label htmlFor={`company-image-${company.id}`} className="mb-3 flex items-center justify-center w-full p-3 border border-dashed border-white/20 rounded-lg cursor-pointer hover:border-purple-500/50 hover:bg-white/5 transition-all">
+                            {company.image ? (
+                              <div className="flex items-center justify-between w-full text-xs text-white">
+                                <div className="flex items-center"><i className="ri-image-line mr-2 text-purple-400"></i>{company.image.name}</div>
+                                <span className="text-white/60">{(company.image.size / 1024).toFixed(1)} KB</span>
+                              </div>
+                            ) : (
+                              <div className="text-xs text-white/60"><i className="ri-image-add-line mr-1"></i>Upload company image</div>
+                            )}
+                          </label>
                           <input type="file" id={`company-docs-${company.id}`} multiple accept=".pdf,.doc,.docx" onChange={(e) => { Array.from(e.target.files || []).forEach(f => addCompanyDocument(company.id, f)); }} className="hidden" />
                           <label htmlFor={`company-docs-${company.id}`} className="flex items-center justify-center w-full p-3 border border-dashed border-white/20 rounded-lg cursor-pointer hover:border-purple-500/50 hover:bg-white/5 transition-all">
                             <div className="text-xs text-white/60"><i className="ri-upload-line mr-1"></i>{t('auth.uploadCompanyDocs')}</div>

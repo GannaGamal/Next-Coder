@@ -183,7 +183,7 @@ const Roadmaps = () => {
       const data = await getUserEnrollments();
       setEnrollments(data);
     } catch (err) {
-      setEnrollError(err instanceof Error ? err.message : 'Failed to load your courses.');
+      setEnrollError(err instanceof Error ? err.message : 'We could not load your courses right now. Please try again.');
     } finally {
       setEnrollLoading(false);
     }

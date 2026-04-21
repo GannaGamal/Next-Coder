@@ -1,4 +1,5 @@
 import { API_BASE } from './api.config';
+import { parseApiError } from './api.utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -59,7 +60,7 @@ export const fetchRoadmapTracks = async (): Promise<RoadmapTrack[]> => {
   fetchPromise = (async () => {
     const response = await fetch(`${API_BASE}/roadmap/tracks-content`);
     if (!response.ok) {
-      throw new Error(`Failed to fetch roadmap tracks (${response.status})`);
+      throw new Error(await parseApiError(response));
     }
     const data: RoadmapTrack[] = await response.json();
     cachedTracks = data;
@@ -96,7 +97,7 @@ export const fetchTrackEnrollmentCount = async (trackName: string): Promise<numb
   const encoded = encodeURIComponent(trackName);
   const response = await fetch(`${API_BASE}/roadmap/enrollments/${encoded}/count`);
   if (!response.ok) {
-    throw new Error(`Failed to fetch enrollment count for "${trackName}" (${response.status})`);
+    throw new Error(await parseApiError(response));
   }
   const data = await response.json();
   // API may return a plain number or { count: number }
@@ -121,13 +122,7 @@ export const enrollInTrack = async (trackName: string): Promise<void> => {
   });
 
   if (!response.ok) {
-    let message = `Enrollment failed (${response.status})`;
-    try {
-      const data = await response.json();
-      if (data?.message) message = data.message;
-      else if (typeof data === 'string') message = data;
-    } catch { /* ignore parse errors */ }
-    throw new Error(message);
+    throw new Error(await parseApiError(response));
   }
 
   // Optimistically bump the cached count
@@ -151,7 +146,7 @@ export const getUserEnrollments = async (): Promise<EnrollmentDetail[]> => {
     headers: { ...authHeaders() },
   });
   if (!response.ok) {
-    throw new Error(`Failed to fetch enrollments (${response.status})`);
+    throw new Error(await parseApiError(response));
   }
   return response.json();
 };
@@ -166,7 +161,7 @@ export const getTrackEnrollmentDetail = async (trackName: string): Promise<Enrol
     headers: { ...authHeaders() },
   });
   if (!response.ok) {
-    throw new Error(`Failed to fetch enrollment detail (${response.status})`);
+    throw new Error(await parseApiError(response));
   }
   return response.json();
 };
@@ -182,12 +177,7 @@ export const unenrollFromTrack = async (trackName: string): Promise<void> => {
     headers: { ...authHeaders() },
   });
   if (!response.ok) {
-    let message = `Failed to unenroll (${response.status})`;
-    try {
-      const data = await response.json();
-      if (data?.message) message = data.message;
-    } catch { /* ignore */ }
-    throw new Error(message);
+    throw new Error(await parseApiError(response));
   }
   // Decrement cached enrollment count
   const cur = enrollmentCountCache.get(trackName) ?? 0;

@@ -93,7 +93,7 @@ const Login = () => {
       await login(email, password, rememberMe);
       navigate('/dashboard');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Invalid email or password.';
+      const msg = err instanceof Error ? err.message : 'We could not sign you in. Please check your details and try again.';
       handleLoginApiError(msg);
     } finally {
       setLoading(false);
@@ -152,7 +152,7 @@ const Login = () => {
         }
       }, 1500);
     } catch (err: unknown) {
-      setOtpError(err instanceof Error ? err.message : 'Invalid or expired code.');
+      setOtpError(err instanceof Error ? err.message : 'That verification code is invalid or expired. Please try again.');
     } finally {
       setOtpLoading(false);
     }

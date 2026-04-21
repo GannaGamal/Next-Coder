@@ -44,7 +44,7 @@ const Settings = () => {
       setPasswordSuccess(t('settings.passwordUpdated'));
       setTimeout(() => setPasswordSuccess(''), 4000);
     } catch (err) {
-      setPasswordError(err instanceof Error ? err.message : t('settings.errorFillAllFields'));
+      setPasswordError(err instanceof Error ? err.message : 'We could not update your password right now. Please try again.');
     } finally {
       setPasswordSaving(false);
     }

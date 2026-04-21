@@ -88,7 +88,7 @@ const BrowsePaths = () => {
         return next;
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load roadmaps. Please try again.');
+      setError(err instanceof Error ? err.message : 'We could not load roadmap tracks right now. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -116,7 +116,7 @@ const BrowsePaths = () => {
         return next;
       });
     } catch {
-      setEnrollErrors(prev => new Map(prev).set(trackName, 'Enrollment failed. Try again.'));
+      setEnrollErrors(prev => new Map(prev).set(trackName, 'We could not enroll you right now. Please try again.'));
     } finally {
       setEnrollingSet(prev => { const s = new Set(prev); s.delete(trackName); return s; });
     }

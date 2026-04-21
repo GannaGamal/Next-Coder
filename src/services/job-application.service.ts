@@ -40,13 +40,13 @@ const buildAuthHeader = (): Record<string, string> => {
 
 const parseAuthAwareError = async (response: Response): Promise<string> => {
   if (response.status === 401) {
-    return 'You are not authorized. Please sign in again.';
+    return 'Your session has expired. Please sign in again.';
   }
   if (response.status === 403) {
-    return 'Access denied by backend policy (403). Your account cannot withdraw this application.';
+    return 'You do not have permission to perform this action.';
   }
   if (response.status === 404) {
-    return 'Application was not found. It may already be withdrawn or deleted.';
+    return 'This application could not be found. It may have already been removed.';
   }
   return parseApiError(response);
 };
@@ -55,7 +55,7 @@ const fetchWithNetworkError = async (url: string, init?: RequestInit): Promise<R
   try {
     return await fetch(url, init);
   } catch {
-    throw new Error('Network error: cannot reach API. Check internet connection, CORS policy, and backend availability.');
+    throw new Error('Network connection issue. Please check your internet and try again.');
   }
 };
 

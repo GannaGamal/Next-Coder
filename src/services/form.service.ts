@@ -1,4 +1,5 @@
 import { FORM_BASE } from './api.config';
+import { parseErrorText } from './api.utils';
 
 // ─────────────────────────────────────────────
 // Shared helper
@@ -13,7 +14,7 @@ const submitForm = async (url: string, data: Record<string, string>): Promise<vo
 
   if (!response.ok) {
     const text = await response.text().catch(() => '');
-    throw new Error(text || `Form submission failed (${response.status})`);
+    throw new Error(parseErrorText(text, response.status));
   }
 };
 

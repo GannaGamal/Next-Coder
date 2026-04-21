@@ -27,7 +27,7 @@ const isNumericId = (value: string) => /^\d+$/.test(value.trim());
 
 const getErrorMessage = (err: unknown): string => {
   if (err instanceof Error) return err.message;
-  return 'Failed to load job seeker profile.';
+  return 'We could not load your profile right now. Please try again.';
 };
 
 const fetchProfileByPathId = async (id: string): Promise<JobSeekerProfileDto> => {

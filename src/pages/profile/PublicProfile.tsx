@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import Navbar from '../../components/feature/Navbar';
 import Footer from '../../components/feature/Footer';
 import UserRatingModal from './components/UserRatingModal';
+import { getEmployerCompanies } from '../../services/company.service';
 
 interface PublicUserData {
   id: string;
@@ -27,7 +28,7 @@ interface PublicUserData {
   experienceLevel?: string;
   totalSpent?: number;
   activeProjects?: number;
-  companies?: { id: string; name: string; industry: string; logo: string }[];
+  companies?: { id: string; name: string; industry: string; logo?: string }[];
   portfolio?: { id: string; title: string; description: string; image: string; category: string; completedDate: string }[];
   completedWork?: { id: string; title: string; client: string; clientAvatar: string; description: string; budget: number; completedDate: string; rating: number; review: string; category: string }[];
   roadmaps?: { id: string; title: string; progress: number; totalSteps: number; completedSteps: number; category: string }[];
@@ -95,14 +96,6 @@ const mockPublicUsers: Record<string, PublicUserData> = {
     hourlyRate: 120,
     bio: 'AI/ML specialist helping companies leverage data for business growth. Also running a small AI consultancy.',
     email: 'michael.c@example.com',
-    companies: [
-      {
-        id: '1',
-        name: 'AI Solutions Lab',
-        industry: 'Artificial Intelligence',
-        logo: 'https://readdy.ai/api/search-image?query=modern%20tech%20company%20logo%20abstract%20geometric%20design%20teal%20gradient%20professional%20corporate%20branding%20clean%20white%20background&width=200&height=200&seq=pub-comp1&orientation=squarish'
-      }
-    ],
     portfolio: [
       {
         id: '1',
@@ -190,14 +183,6 @@ const mockPublicUsers: Record<string, PublicUserData> = {
     location: 'Toronto, Canada',
     bio: 'HR Director at TechCorp seeking top talent for our growing engineering team.',
     email: 'lisa.t@example.com',
-    companies: [
-      {
-        id: '1',
-        name: 'TechCorp',
-        industry: 'Software Development',
-        logo: 'https://readdy.ai/api/search-image?query=modern%20software%20company%20logo%20geometric%20design%20warm%20orange%20gradient%20professional%20corporate%20branding%20clean%20white%20background&width=200&height=200&seq=pub-comp2&orientation=squarish'
-      }
-    ]
   },
   '6': {
     id: '6',
@@ -390,6 +375,31 @@ const PublicProfile = () => {
       }
     }
   }, [userId, searchParams]);
+
+  useEffect(() => {
+    const loadEmployerCompanies = async () => {
+      if (activeRole !== 'employer') return;
+
+      const employerId = String(currentUser?.employerId ?? '').trim();
+      if (!employerId) return;
+
+      try {
+        const apiCompanies = await getEmployerCompanies(employerId);
+        const mapped = apiCompanies.map((company) => ({
+          id: company.id,
+          name: company.name,
+          industry: 'Not specified',
+          logo: company.logoUrl || undefined,
+        }));
+
+        setProfileUser((prev) => (prev ? { ...prev, companies: mapped } : prev));
+      } catch {
+        setProfileUser((prev) => (prev ? { ...prev, companies: [] } : prev));
+      }
+    };
+
+    loadEmployerCompanies();
+  }, [activeRole, currentUser?.employerId]);
 
   useEffect(() => {
     setActiveTab('overview');

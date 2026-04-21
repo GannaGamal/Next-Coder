@@ -37,7 +37,7 @@ const RateUs: React.FC = () => {
       });
       setSubmitted(true);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : t('rateUs.networkError'));
+      setError(err instanceof Error ? err.message : 'We could not submit your feedback right now. Please try again.');
     } finally {
       setSubmitting(false);
     }

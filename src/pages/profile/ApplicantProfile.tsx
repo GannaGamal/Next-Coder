@@ -81,7 +81,7 @@ const ApplicantProfile = () => {
           });
         }
       } catch (err: unknown) {
-        setProfileError(err instanceof Error ? err.message : 'Failed to load profile from API.');
+        setProfileError(err instanceof Error ? err.message : 'We could not load your profile right now. Please try again.');
       } finally {
         setProfileLoading(false);
       }
@@ -120,7 +120,7 @@ const ApplicantProfile = () => {
           <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 sm:p-6 lg:p-8 mb-6 sm:mb-8 border border-white/10">
             {(profileLoading || profileError) && (
               <div className={`mb-4 p-3 rounded-lg text-sm border ${profileError ? 'bg-red-500/10 border-red-500/30 text-red-300' : 'bg-cyan-500/10 border-cyan-500/30 text-cyan-300'}`}>
-                {profileLoading ? 'Loading profile from API...' : profileError}
+                {profileLoading ? 'Loading your profile...' : profileError}
               </div>
             )}
             <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-6">
