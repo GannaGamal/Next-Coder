@@ -2,9 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import {
   getTrackEnrollmentDetail,
   fetchRoadmapTracks,
-  EnrollmentDetail,
-  RoadmapTrack,
+  updateNodeProgress,
 } from '../../../services/roadmap.service';
+import type { EnrollmentDetail, RoadmapTrack } from '../../../services/roadmap.service';
 
 interface Props {
   trackName: string;
@@ -41,8 +41,14 @@ const ContinueLearningModal = ({ trackName, onClose, onProgressUpdate }: Props) 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  /**
+   * All completed node IDs (topics + subtopics) from the API.
+   * The modal only exposes topic-level checkboxes so only topic IDs are toggled here,
+   * but the full list is kept to avoid overwriting subtopic progress on re-render.
+   */
   const [completedNodeIds, setCompletedNodeIds] = useState<string[]>([]);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [toggleError, setToggleError] = useState<string | null>(null);
 
   const [activeSection, setActiveSection] = useState<Section>('checklist');
 
@@ -86,41 +92,57 @@ const ContinueLearningModal = ({ trackName, onClose, onProgressUpdate }: Props) 
     load();
   }, [trackName]);
 
+  // Count only topic-level completions for the progress ring
+  const completedCount = track
+    ? track.topics.filter((t) => completedNodeIds.includes(t.nodeId)).length
+    : (enrollment?.completedTopics ?? 0);
+
   const totalTopics = enrollment?.totalTopics ?? track?.topics.length ?? 0;
-  const completedCount = completedNodeIds.length;
   const progressPct = totalTopics > 0 ? Math.round((completedCount / totalTopics) * 100) : 0;
 
   const handleToggleTopic = async (nodeId: string) => {
     if (togglingId) return;
-    const isCompleted = completedNodeIds.includes(nodeId);
+    const wasCompleted = completedNodeIds.includes(nodeId);
+    const newIsCompleted = !wasCompleted;
+
     setTogglingId(nodeId);
+    setToggleError(null);
 
     // Optimistic update
     setCompletedNodeIds((prev) =>
-      isCompleted ? prev.filter((id) => id !== nodeId) : [...prev, nodeId]
+      wasCompleted ? prev.filter((id) => id !== nodeId) : [...prev, nodeId]
     );
 
     try {
-      // Fake API — replace with real endpoint when available
-      await new Promise<void>((res) => setTimeout(res, 350));
-      // Success — keep optimistic update
+      await updateNodeProgress(trackName, nodeId, newIsCompleted);
+
+      // Notify parent with updated enrollment snapshot
       if (enrollment && onProgressUpdate) {
-        const newCompleted = isCompleted
+        const newCompleted = wasCompleted
           ? completedNodeIds.filter((id) => id !== nodeId)
           : [...completedNodeIds, nodeId];
-        const newPct = totalTopics > 0 ? Math.round((newCompleted.length / totalTopics) * 100) : 0;
+        // Recalculate using only topic IDs for the count
+        const topicCompletedCount = track
+          ? track.topics.filter((t) => newCompleted.includes(t.nodeId)).length
+          : newCompleted.length;
+        const newPct = totalTopics > 0 ? Math.round((topicCompletedCount / totalTopics) * 100) : 0;
         onProgressUpdate({
           ...enrollment,
           completedNodeIds: newCompleted,
-          completedTopics: newCompleted.length,
+          completedTopics: topicCompletedCount,
           progressPercent: newPct,
           isCompleted: newPct >= 100,
         });
       }
-    } catch {
-      // Revert on failure
+    } catch (err) {
+      // Revert optimistic update
       setCompletedNodeIds((prev) =>
-        isCompleted ? [...prev, nodeId] : prev.filter((id) => id !== nodeId)
+        wasCompleted ? [...prev, nodeId] : prev.filter((id) => id !== nodeId)
+      );
+      setToggleError(
+        err instanceof Error
+          ? err.message
+          : 'Failed to update progress. Please try again.'
       );
     } finally {
       setTogglingId(null);
@@ -278,6 +300,21 @@ const ContinueLearningModal = ({ trackName, onClose, onProgressUpdate }: Props) 
               {/* ── CHECKLIST ── */}
               {activeSection === 'checklist' && (
                 <div className="p-4 space-y-2">
+
+                  {/* Toggle error banner */}
+                  {toggleError && (
+                    <div className="flex items-start gap-2.5 bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 mb-2">
+                      <i className="ri-error-warning-line text-red-400 mt-0.5 flex-shrink-0"></i>
+                      <p className="text-red-400 text-sm flex-1 min-w-0">{toggleError}</p>
+                      <button
+                        onClick={() => setToggleError(null)}
+                        className="text-red-400/50 hover:text-red-400 transition-colors cursor-pointer flex-shrink-0"
+                      >
+                        <i className="ri-close-line text-base"></i>
+                      </button>
+                    </div>
+                  )}
+
                   {!track ? (
                     <p className="text-white/40 text-sm text-center py-8">
                       No topic data available for this track.

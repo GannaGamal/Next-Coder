@@ -4,9 +4,10 @@ import { parseApiError } from './api.utils';
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface EnrollmentDetail {
-  id: number;
+  trackId: number;
   trackName: string;
   userId: string;
+  learnerId: number;
   enrolledAt: string;
   completedTopics: number;
   totalTopics: number;
@@ -38,32 +39,67 @@ export interface RoadmapTopic {
 }
 
 export interface RoadmapTrack {
+  id: number;
   trackName: string;
+  displayName: string;
+  imageUrl: string | null;
+  categoryDisplayName: string;
+  totalTopics: number;
+  enrolledUsersCount: number;
   topics: RoadmapTopic[];
+}
+
+export interface PaginationMeta {
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+
+export interface PaginatedRoadmapResponse {
+  items: RoadmapTrack[];
+  meta: PaginationMeta;
 }
 
 // ─── In-memory cache (heavy payload — fetch once per session) ─────────────────
 
 let cachedTracks: RoadmapTrack[] | null = null;
+let cachedPaginationMeta: PaginationMeta | null = null;
 let fetchPromise: Promise<RoadmapTrack[]> | null = null;
 
 /**
- * Fetches all roadmap tracks from the API.
+ * Fetches roadmap tracks from the API with pagination.
  * Results are cached in-memory so the heavy payload is only downloaded once.
+ * Default: Page 1, PageSize 100 to load all available tracks in one request
  */
-export const fetchRoadmapTracks = async (): Promise<RoadmapTrack[]> => {
+export const fetchRoadmapTracks = async (page: number = 1, pageSize: number = 100): Promise<RoadmapTrack[]> => {
   if (cachedTracks) return cachedTracks;
 
   // Deduplicate concurrent calls — return the same in-flight promise
   if (fetchPromise) return fetchPromise;
 
   fetchPromise = (async () => {
-    const response = await fetch(`${API_BASE}/roadmap/tracks-content`);
+    const response = await fetch(
+      `${API_BASE}/roadmap/tracks-content?Page=${page}&PageSize=${pageSize}`
+    );
     if (!response.ok) {
       throw new Error(await parseApiError(response));
     }
-    const data: RoadmapTrack[] = await response.json();
+    const responseData = await response.json();
+    
+    // Handle paginated response: extract items and pagination metadata
+    const paginatedData: PaginatedRoadmapResponse = responseData.data || {};
+    const data: RoadmapTrack[] = paginatedData.items || [];
+    
+    if (!Array.isArray(data)) {
+      throw new Error('Invalid roadmap tracks response format');
+    }
+    
     cachedTracks = data;
+    cachedPaginationMeta = paginatedData.meta || null;
+    
     return data;
   })();
 
@@ -75,9 +111,15 @@ export const fetchRoadmapTracks = async (): Promise<RoadmapTrack[]> => {
   }
 };
 
+/** Get pagination metadata from the last fetch */
+export const getRoadmapPaginationMeta = (): PaginationMeta | null => {
+  return cachedPaginationMeta;
+};
+
 /** Clears the in-memory cache (useful for manual refresh) */
 export const clearRoadmapCache = () => {
   cachedTracks = null;
+  cachedPaginationMeta = null;
   fetchPromise = null;
 };
 
@@ -132,9 +174,12 @@ export const enrollInTrack = async (trackName: string): Promise<void> => {
 
 // ─── User enrollment management ───────────────────────────────────────────────
 
-const authHeaders = () => {
+const authHeaders = (): Record<string, string> => {
   const token = localStorage.getItem('authToken');
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  if (token) {
+    return { Authorization: `Bearer ${token}` };
+  }
+  return {};
 };
 
 /**
@@ -148,12 +193,19 @@ export const getUserEnrollments = async (): Promise<EnrollmentDetail[]> => {
   if (!response.ok) {
     throw new Error(await parseApiError(response));
   }
-  return response.json();
+  const responseData = await response.json();
+  // Extract data array from wrapped response
+  const enrollments: EnrollmentDetail[] = responseData.data || [];
+  if (!Array.isArray(enrollments)) {
+    throw new Error('Invalid enrollments response format');
+  }
+  return enrollments;
 };
 
 /**
  * Fetches detailed progress for a specific enrolled track.
  * GET /roadmap/enrollments/{trackName}
+ * The API wraps the result in { success, message, data: EnrollmentDetail }.
  */
 export const getTrackEnrollmentDetail = async (trackName: string): Promise<EnrollmentDetail> => {
   const encoded = encodeURIComponent(trackName);
@@ -163,7 +215,35 @@ export const getTrackEnrollmentDetail = async (trackName: string): Promise<Enrol
   if (!response.ok) {
     throw new Error(await parseApiError(response));
   }
-  return response.json();
+  const responseData = await response.json();
+  // Unwrap the API envelope: { success, message, data: EnrollmentDetail }
+  return (responseData.data ?? responseData) as EnrollmentDetail;
+};
+
+/**
+ * Marks a node (topic or subtopic) as completed or uncompleted for the current user.
+ * POST /roadmap/enrollments/progress  { trackName, nodeId, isCompleted }
+ *
+ * The API rejects marking a topic complete if not all its subtopics are done first.
+ * Callers should catch the thrown error and display it to the user.
+ */
+export const updateNodeProgress = async (
+  trackName: string,
+  nodeId: string,
+  isCompleted: boolean
+): Promise<void> => {
+  const response = await fetch(`${API_BASE}/roadmap/enrollments/progress`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(),
+    },
+    body: JSON.stringify({ trackName, nodeId, isCompleted }),
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
 };
 
 /**
@@ -182,6 +262,103 @@ export const unenrollFromTrack = async (trackName: string): Promise<void> => {
   // Decrement cached enrollment count
   const cur = enrollmentCountCache.get(trackName) ?? 0;
   if (cur > 0) enrollmentCountCache.set(trackName, cur - 1);
+};
+
+// ─── Project submission ───────────────────────────────────────────────────────
+
+export interface ProjectSubmission {
+  id: number;
+  trackName: string;
+  userId: string;
+  title: string;
+  description: string;
+  fileUrl: string;
+  repoUrl: string;
+  submittedAt: string;
+}
+
+export interface SubmitProjectPayload {
+  trackName: string;
+  title: string;
+  description?: string;
+  repoUrl?: string;
+  /** Optional screenshot / cover image for the project */
+  file?: File | null;
+}
+
+/**
+ * Submits a project for a given track.
+ * POST /roadmap/projects/SubmitProject  (multipart/form-data)
+ * Fields: TrackName, Title, Description, RepoUrl, file (image)
+ */
+export const submitProject = async (payload: SubmitProjectPayload): Promise<ProjectSubmission> => {
+  const token = localStorage.getItem('authToken');
+
+  const formData = new FormData();
+  formData.append('TrackName', payload.trackName);
+  formData.append('Title', payload.title);
+  if (payload.description) formData.append('Description', payload.description);
+  if (payload.repoUrl)     formData.append('RepoUrl', payload.repoUrl);
+  if (payload.file)        formData.append('file', payload.file);
+
+  const response = await fetch(`${API_BASE}/roadmap/projects/SubmitProject`, {
+    method: 'POST',
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      // Do NOT set Content-Type — the browser sets it with the boundary for multipart
+    },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+
+  const responseData = await response.json();
+  // Unwrap API envelope: { success, message, data: ProjectSubmission }
+  return (responseData.data ?? responseData) as ProjectSubmission;
+};
+
+/**
+ * Fetches the submitted project for the current user on a given track.
+ * GET /roadmap/projects/MyProjects/{trackName}
+ * Returns null if the user has not submitted a project yet (404 treated as null).
+ */
+export const getMyProject = async (trackName: string): Promise<ProjectSubmission | null> => {
+  const token = localStorage.getItem('authToken');
+  const encoded = encodeURIComponent(trackName);
+  const response = await fetch(`${API_BASE}/roadmap/projects/MyProjects/${encoded}`, {
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+
+  if (response.status === 404) return null;
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+
+  const responseData = await response.json();
+  return (responseData.data ?? responseData) as ProjectSubmission;
+};
+
+/**
+ * Deletes the current user's submitted project for a given track.
+ * DELETE /roadmap/projects/MyProjects/{trackName}
+ */
+export const deleteMyProject = async (trackName: string): Promise<void> => {
+  const token = localStorage.getItem('authToken');
+  const encoded = encodeURIComponent(trackName);
+  const response = await fetch(`${API_BASE}/roadmap/projects/MyProjects/${encoded}`, {
+    method: 'DELETE',
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
 };
 
 /** Returns the link icon class for a given link type */

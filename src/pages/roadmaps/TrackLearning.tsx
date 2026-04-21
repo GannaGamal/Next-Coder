@@ -7,9 +7,12 @@ import {
   fetchRoadmapTracks,
   getLinkTypeIcon,
   getLinkTypeColor,
+  updateNodeProgress,
+  submitProject,
+  getMyProject,
+  deleteMyProject,
 } from '../../services/roadmap.service';
-import type { EnrollmentDetail, RoadmapTrack, RoadmapLink } from '../../services/roadmap.service';
-import { API_BASE } from '../../services/api.config';
+import type { EnrollmentDetail, RoadmapTrack, RoadmapLink, ProjectSubmission } from '../../services/roadmap.service';
 
 type Section = 'checklist' | 'project' | 'rate';
 
@@ -89,13 +92,17 @@ const TrackLearning = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Topic-level completions (synced with API)
+  /**
+   * Single source of truth for all completed node IDs (topics + subtopics).
+   * Initialised from the API response and kept in sync via optimistic updates.
+   */
   const [completedNodeIds, setCompletedNodeIds] = useState<string[]>([]);
+
+  // Which node is currently being toggled (shows spinner on its checkbox)
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
-  // Subtopic-level completions (local, fake API)
-  const [completedSubtopicIds, setCompletedSubtopicIds] = useState<string[]>([]);
-  const [togglingSubId, setTogglingSubId] = useState<string | null>(null);
+  // Inline error shown when the API rejects a toggle (e.g. subtopics not done)
+  const [toggleError, setToggleError] = useState<string | null>(null);
 
   // Which topic accordions are expanded
   const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set());
@@ -111,6 +118,11 @@ const TrackLearning = () => {
   const [projectLoading, setProjectLoading] = useState(false);
   const [projectSuccess, setProjectSuccess] = useState(false);
   const [projectError, setProjectError] = useState('');
+  const [submittedProject, setSubmittedProject] = useState<ProjectSubmission | null>(null);
+  const [existingProjectLoading, setExistingProjectLoading] = useState(false);
+  const [deleteProjectLoading, setDeleteProjectLoading] = useState(false);
+  const [deleteProjectError, setDeleteProjectError] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Rate state
   const [rating, setRating] = useState(0);
@@ -149,6 +161,19 @@ const TrackLearning = () => {
         (t) => t.trackName.toLowerCase() === trackName.toLowerCase()
       );
       setTrack(found ?? null);
+
+      // If the user already submitted a project, fetch its details
+      if (detail.hasSubmittedProject) {
+        setExistingProjectLoading(true);
+        try {
+          const existing = await getMyProject(trackName);
+          if (existing) setSubmittedProject(existing);
+        } catch {
+          // Non-fatal — just won't show the details card
+        } finally {
+          setExistingProjectLoading(false);
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'We could not load track details right now. Please try again.');
     } finally {
@@ -158,49 +183,73 @@ const TrackLearning = () => {
 
   useEffect(() => { load(); }, [load]);
 
-  const totalTopics = enrollment?.totalTopics ?? track?.topics.length ?? 0;
-  const completedCount = completedNodeIds.length;
-  const progressPct = totalTopics > 0 ? Math.round((completedCount / totalTopics) * 100) : 0;
-  const isCompleted = progressPct >= 100;
+  // ── Derived stats ──────────────────────────────────────────────────────────
 
-  // Toggle main topic
-  const handleToggleTopic = async (nodeId: string, e: React.MouseEvent) => {
+  // Count only top-level topic IDs so the progress ring matches the API's definition
+  const completedCount = track
+    ? track.topics.filter((t) => completedNodeIds.includes(t.nodeId)).length
+    : (enrollment?.completedTopics ?? 0);
+
+  const totalTopics = enrollment?.totalTopics ?? track?.topics.length ?? 0;
+  const progressPct = totalTopics > 0 ? Math.round((completedCount / totalTopics) * 100) : 0;
+  const isCompleted = totalTopics > 0 && completedCount >= totalTopics;
+
+  const totalSubtopics = track
+    ? track.topics.reduce((acc, t) => acc + t.subtopics.length, 0)
+    : 0;
+  const completedSubtopicsCount = track
+    ? track.topics
+        .flatMap((t) => t.subtopics)
+        .filter((s) => completedNodeIds.includes(s.nodeId))
+        .length
+    : 0;
+
+  // ── Toggle helpers ─────────────────────────────────────────────────────────
+
+  /**
+   * Shared toggle logic for both topics and subtopics.
+   * Performs an optimistic update then calls the real API.
+   * On failure the optimistic change is reverted and an inline error is shown.
+   */
+  const handleToggleNode = async (nodeId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (togglingId) return;
+
     const wasCompleted = completedNodeIds.includes(nodeId);
+    const newIsCompleted = !wasCompleted;
+
     setTogglingId(nodeId);
-    const next = wasCompleted
-      ? completedNodeIds.filter((id) => id !== nodeId)
-      : [...completedNodeIds, nodeId];
-    setCompletedNodeIds(next);
+    setToggleError(null);
+
+    // Optimistic update
+    setCompletedNodeIds((prev) =>
+      wasCompleted ? prev.filter((id) => id !== nodeId) : [...prev, nodeId]
+    );
+
     try {
-      await new Promise<void>((res) => setTimeout(res, 350));
-    } catch {
-      setCompletedNodeIds(wasCompleted ? next : completedNodeIds);
+      await updateNodeProgress(trackName ?? '', nodeId, newIsCompleted);
+    } catch (err) {
+      // Revert optimistic update
+      setCompletedNodeIds((prev) =>
+        wasCompleted ? [...prev, nodeId] : prev.filter((id) => id !== nodeId)
+      );
+      setToggleError(
+        err instanceof Error
+          ? err.message
+          : 'Failed to update progress. Please try again.'
+      );
     } finally {
       setTogglingId(null);
     }
   };
 
-  // Toggle subtopic (local fake API)
-  const handleToggleSubtopic = async (nodeId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (togglingSubId) return;
-    const wasCompleted = completedSubtopicIds.includes(nodeId);
-    setTogglingSubId(nodeId);
-    setCompletedSubtopicIds((prev) =>
-      wasCompleted ? prev.filter((id) => id !== nodeId) : [...prev, nodeId]
-    );
-    try {
-      await new Promise<void>((res) => setTimeout(res, 250));
-    } catch {
-      setCompletedSubtopicIds((prev) =>
-        wasCompleted ? [...prev, nodeId] : prev.filter((id) => id !== nodeId)
-      );
-    } finally {
-      setTogglingSubId(null);
-    }
-  };
+  // Topic toggle — wraps shared handler (kept as separate function for clarity)
+  const handleToggleTopic = (nodeId: string, e: React.MouseEvent) =>
+    handleToggleNode(nodeId, e);
+
+  // Subtopic toggle — same API, same handler
+  const handleToggleSubtopic = (nodeId: string, e: React.MouseEvent) =>
+    handleToggleNode(nodeId, e);
 
   // Toggle accordion expand
   const toggleExpand = (nodeId: string) => {
@@ -211,10 +260,6 @@ const TrackLearning = () => {
       return next;
     });
   };
-
-  // Derived subtopic totals (only available once track is loaded)
-  const totalSubtopics = track ? track.topics.reduce((acc, t) => acc + t.subtopics.length, 0) : 0;
-  const completedSubtopicsCount = completedSubtopicIds.length;
 
   const handleProjectSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -230,30 +275,14 @@ const TrackLearning = () => {
     setProjectError('');
     setProjectSuccess(false);
     try {
-      const token = localStorage.getItem('authToken');
-      const formData = new FormData();
-      formData.append('trackName', trackName ?? '');
-      formData.append('Title', projectTitle.trim());
-      formData.append('Description', projectDescription.trim());
-      formData.append('RepoUrl', projectUrl.trim());
-      if (projectFile) formData.append('file', projectFile);
-
-      const res = await fetch(`${API_BASE}/roadmap/projects`, {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: formData,
+      const result = await submitProject({
+        trackName: trackName ?? '',
+        title: projectTitle.trim(),
+        description: projectDescription.trim() || undefined,
+        repoUrl: projectUrl.trim() || undefined,
+        file: projectFile,
       });
-
-      if (!res.ok) {
-        let msg = `Submission failed (${res.status})`;
-        try {
-          const data = await res.json();
-          if (data?.message) msg = data.message;
-          else if (typeof data === 'string') msg = data;
-        } catch { /* ignore */ }
-        throw new Error(msg);
-      }
-
+      setSubmittedProject(result);
       setProjectSuccess(true);
       setProjectFile(null);
       setProjectTitle('');
@@ -282,6 +311,25 @@ const TrackLearning = () => {
       setRateError('Submission failed. Please try again.');
     } finally {
       setRateLoading(false);
+    }
+  };
+
+  const handleDeleteProject = async () => {
+    if (!trackName) return;
+    setDeleteProjectLoading(true);
+    setDeleteProjectError('');
+    try {
+      await deleteMyProject(trackName);
+      // Reset all project state so the form reappears
+      setSubmittedProject(null);
+      setProjectSuccess(false);
+      setShowDeleteConfirm(false);
+      // Also update enrollment flag locally
+      setEnrollment((prev) => prev ? { ...prev, hasSubmittedProject: false } : prev);
+    } catch (err) {
+      setDeleteProjectError(err instanceof Error ? err.message : 'Could not delete the project. Please try again.');
+    } finally {
+      setDeleteProjectLoading(false);
     }
   };
 
@@ -516,6 +564,22 @@ const TrackLearning = () => {
                         <span className="text-white/40 text-sm">{completedCount} / {totalTopics} done</span>
                       </div>
 
+                      {/* Toggle error banner */}
+                      {toggleError && (
+                        <div className="mb-4 flex items-start gap-2.5 bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3">
+                          <i className="ri-error-warning-line text-red-400 mt-0.5 flex-shrink-0"></i>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-red-400 text-sm">{toggleError}</p>
+                          </div>
+                          <button
+                            onClick={() => setToggleError(null)}
+                            className="text-red-400/50 hover:text-red-400 transition-colors cursor-pointer flex-shrink-0"
+                          >
+                            <i className="ri-close-line text-base"></i>
+                          </button>
+                        </div>
+                      )}
+
                       {!track ? (
                         <p className="text-white/40 text-sm text-center py-16">
                           No topic data available for this track.
@@ -530,7 +594,7 @@ const TrackLearning = () => {
                             const hasSubtopics = topic.subtopics.length > 0;
                             const hasLinks = topic.links && topic.links.length > 0;
                             const doneSubtopics = topic.subtopics.filter(
-                              (s) => completedSubtopicIds.includes(s.nodeId || `${nodeId}-sub-${s.title}`)
+                              (s) => completedNodeIds.includes(s.nodeId || `${nodeId}-sub-${s.title}`)
                             ).length;
 
                             return (
@@ -618,8 +682,8 @@ const TrackLearning = () => {
                                         {hasLinks && <div className="h-px bg-white/8 mb-3"></div>}
                                         {topic.subtopics.map((sub, subIdx) => {
                                           const subNodeId = sub.nodeId || `${nodeId}-sub-${subIdx}`;
-                                          const subDone = completedSubtopicIds.includes(subNodeId);
-                                          const subToggling = togglingSubId === subNodeId;
+                                          const subDone = completedNodeIds.includes(subNodeId);
+                                          const subToggling = togglingId === subNodeId;
                                           const subHasLinks = sub.links && sub.links.length > 0;
                                           const isDescExpanded = expandedDescriptions.has(subNodeId);
                                           const isLongDesc = sub.description && sub.description.length > 120;
@@ -637,7 +701,7 @@ const TrackLearning = () => {
                                                 {/* Subtopic checkbox */}
                                                 <button
                                                   onClick={(e) => handleToggleSubtopic(subNodeId, e)}
-                                                  disabled={!!togglingSubId}
+                                                  disabled={!!togglingId}
                                                   className={`mt-0.5 w-5 h-5 flex-shrink-0 flex items-center justify-center rounded border-2 transition-all cursor-pointer disabled:opacity-70 ${
                                                     subDone
                                                       ? 'bg-green-500 border-green-500'
@@ -699,7 +763,7 @@ const TrackLearning = () => {
                             onClick={() => setActiveSection('project')}
                             className="ml-auto px-4 py-2 bg-green-500 text-white rounded-xl text-xs font-semibold hover:bg-green-600 transition-all cursor-pointer whitespace-nowrap"
                           >
-                            Submit Project
+                            {enrollment?.hasSubmittedProject ? 'View Project' : 'Submit Project'}
                           </button>
                         </div>
                       )}
@@ -713,39 +777,223 @@ const TrackLearning = () => {
                         <div className="mb-6">
                           <h2 className="text-white font-bold text-lg mb-1">Submit Your Project</h2>
                           <p className="text-white/50 text-sm">
-                            Upload your final project to complete the track and earn your certificate.
+                            {enrollment.hasSubmittedProject
+                              ? 'Your project is submitted. See the details below.'
+                              : 'Upload your final project to complete the track and earn your certificate.'}
                           </p>
-                          {enrollment.hasSubmittedProject && (
-                            <div className="mt-3 flex items-center gap-2 text-green-400 text-sm bg-green-500/10 border border-green-500/30 rounded-xl p-3">
-                              <i className="ri-checkbox-circle-line text-lg"></i>
-                              <span>You&apos;ve already submitted a project for this track.</span>
-                            </div>
-                          )}
                         </div>
 
-                        {projectSuccess ? (
-                          <div className="text-center py-16">
-                            <div className="w-20 h-20 flex items-center justify-center bg-green-500/20 rounded-2xl mx-auto mb-5">
-                              <i className="ri-check-double-line text-4xl text-green-400"></i>
+                        {/* ── Already submitted: show project details card ── */}
+                        {enrollment.hasSubmittedProject && !projectSuccess ? (
+                          existingProjectLoading ? (
+                            <div className="flex items-center justify-center py-20 gap-3 text-white/40">
+                              <i className="ri-loader-4-line animate-spin text-xl"></i>
+                              <span className="text-sm">Loading your submission…</span>
                             </div>
-                            <h4 className="text-white font-bold text-xl mb-2">Project Submitted!</h4>
-                            <p className="text-white/50 text-sm mb-6">Your project has been submitted for review.</p>
-                            <div className="flex justify-center gap-3">
-                              <button
-                                onClick={() => setProjectSuccess(false)}
-                                className="px-5 py-2.5 bg-white/10 text-white rounded-xl hover:bg-white/20 transition-all cursor-pointer whitespace-nowrap text-sm font-semibold"
-                              >
-                                Submit Another
-                              </button>
+                          ) : submittedProject ? (
+                            <div className="space-y-5">
+                              {/* Header badge */}
+                              <div className="flex items-center gap-3 bg-green-500/10 border border-green-500/30 rounded-xl p-4">
+                                <div className="w-10 h-10 flex items-center justify-center bg-green-500/20 rounded-xl shrink-0">
+                                  <i className="ri-checkbox-circle-fill text-xl text-green-400"></i>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-green-400 font-semibold text-sm">Project Submitted</p>
+                                  <p className="text-green-400/60 text-xs">
+                                    {new Date(submittedProject.submittedAt).toLocaleDateString(undefined, {
+                                      year: 'numeric', month: 'long', day: 'numeric',
+                                    })}
+                                  </p>
+                                </div>
+                                {/* Delete trigger */}
+                                <button
+                                  onClick={() => { setShowDeleteConfirm(true); setDeleteProjectError(''); }}
+                                  className="shrink-0 w-9 h-9 flex items-center justify-center rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 hover:border-red-500/40 transition-all cursor-pointer"
+                                  title="Delete project"
+                                >
+                                  <i className="ri-delete-bin-line text-sm"></i>
+                                </button>
+                              </div>
+
+                              {/* Delete confirmation dialog */}
+                              {showDeleteConfirm && (
+                                <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-5 space-y-4">
+                                  <div className="flex items-start gap-3">
+                                    <div className="w-9 h-9 flex items-center justify-center bg-red-500/20 rounded-xl shrink-0 mt-0.5">
+                                      <i className="ri-error-warning-line text-red-400 text-base"></i>
+                                    </div>
+                                    <div>
+                                      <p className="text-white font-semibold text-sm mb-1">Delete this project?</p>
+                                      <p className="text-white/50 text-xs leading-relaxed">
+                                        This will permanently remove your submission. You can re-submit a new project afterwards.
+                                      </p>
+                                    </div>
+                                  </div>
+                                  {deleteProjectError && (
+                                    <p className="text-red-400 text-xs flex items-center gap-1.5">
+                                      <i className="ri-error-warning-line"></i>{deleteProjectError}
+                                    </p>
+                                  )}
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => { setShowDeleteConfirm(false); setDeleteProjectError(''); }}
+                                      disabled={deleteProjectLoading}
+                                      className="flex-1 py-2 bg-white/10 text-white rounded-xl text-sm font-semibold hover:bg-white/20 transition-all cursor-pointer disabled:opacity-50"
+                                    >
+                                      Cancel
+                                    </button>
+                                    <button
+                                      onClick={handleDeleteProject}
+                                      disabled={deleteProjectLoading}
+                                      className="flex-1 py-2 bg-red-500 text-white rounded-xl text-sm font-semibold hover:bg-red-600 transition-all cursor-pointer disabled:opacity-70 flex items-center justify-center gap-2"
+                                    >
+                                      {deleteProjectLoading ? (
+                                        <><i className="ri-loader-4-line animate-spin"></i>Deleting…</>
+                                      ) : (
+                                        <><i className="ri-delete-bin-line"></i>Yes, Delete</>
+                                      )}
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Project image */}
+                              {submittedProject.fileUrl && (
+                                <div className="rounded-xl overflow-hidden border border-white/10 bg-white/5 group relative">
+                                  <img
+                                    src={`https://nextcoder.runasp.net/${submittedProject.fileUrl}`}
+                                    alt={submittedProject.title}
+                                    className="w-full max-h-64 object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+                                    onError={(e) => {
+                                      const wrapper = (e.currentTarget as HTMLImageElement).parentElement;
+                                      if (wrapper) wrapper.style.display = 'none';
+                                    }}
+                                  />
+                                  <a
+                                    href={`https://nextcoder.runasp.net/${submittedProject.fileUrl}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40"
+                                  >
+                                    <span className="flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 text-white text-xs font-semibold px-3 py-1.5 rounded-full">
+                                      <i className="ri-zoom-in-line"></i>View full image
+                                    </span>
+                                  </a>
+                                </div>
+                              )}
+
+                              {/* Title, description & repo */}
+                              <div className="bg-white/5 border border-white/10 rounded-xl p-5 space-y-3">
+                                <h3 className="text-white font-bold text-base">{submittedProject.title}</h3>
+                                {submittedProject.description && (
+                                  <p className="text-white/50 text-sm leading-relaxed">{submittedProject.description}</p>
+                                )}
+                                {submittedProject.repoUrl && (
+                                  <a
+                                    href={submittedProject.repoUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-2 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-purple-400 hover:text-purple-300 hover:border-purple-500/40 transition-all"
+                                  >
+                                    <i className="ri-github-line text-base"></i>
+                                    <span className="truncate max-w-[260px]">{submittedProject.repoUrl}</span>
+                                    <i className="ri-external-link-line text-xs opacity-60 shrink-0"></i>
+                                  </a>
+                                )}
+                              </div>
+
+                              {/* CTA to rate */}
                               <button
                                 onClick={() => setActiveSection('rate')}
-                                className="px-5 py-2.5 bg-yellow-500 text-white rounded-xl hover:bg-yellow-600 transition-all cursor-pointer whitespace-nowrap text-sm font-semibold flex items-center gap-2"
+                                className="w-full py-3 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-xl font-semibold hover:opacity-90 transition-all cursor-pointer text-sm flex items-center justify-center gap-2"
                               >
                                 <i className="ri-star-line"></i>Rate This Track
                               </button>
                             </div>
+                          ) : (
+                            /* Fallback if fetch returned null but flag was true */
+                            <div className="flex flex-col items-center justify-center py-16 text-center">
+                              <i className="ri-file-unknow-line text-4xl text-white/20 mb-3"></i>
+                              <p className="text-white/40 text-sm">Could not load submission details.</p>
+                            </div>
+                          )
+                        ) : projectSuccess ? (
+                          /* ── Just submitted successfully ── */
+                          <div className="space-y-5">
+                            {/* Success header */}
+                            <div className="flex items-center gap-3 bg-green-500/10 border border-green-500/30 rounded-xl p-4">
+                              <div className="w-10 h-10 flex items-center justify-center bg-green-500/20 rounded-xl shrink-0">
+                                <i className="ri-check-double-line text-xl text-green-400"></i>
+                              </div>
+                              <div>
+                                <p className="text-green-400 font-semibold text-sm">Project Submitted!</p>
+                                {submittedProject && (
+                                  <p className="text-green-400/60 text-xs">
+                                    {new Date(submittedProject.submittedAt).toLocaleDateString(undefined, {
+                                      year: 'numeric', month: 'long', day: 'numeric',
+                                    })}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Project image — from API fileUrl */}
+                            {submittedProject?.fileUrl && (
+                              <div className="rounded-xl overflow-hidden border border-white/10 bg-white/5 group relative">
+                                <img
+                                  src={`https://nextcoder.runasp.net/${submittedProject.fileUrl}`}
+                                  alt={submittedProject.title}
+                                  className="w-full max-h-64 object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+                                  onError={(e) => {
+                                    const wrapper = (e.currentTarget as HTMLImageElement).parentElement;
+                                    if (wrapper) wrapper.style.display = 'none';
+                                  }}
+                                />
+                                <a
+                                  href={`https://nextcoder.runasp.net/${submittedProject.fileUrl}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40"
+                                >
+                                  <span className="flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 text-white text-xs font-semibold px-3 py-1.5 rounded-full">
+                                    <i className="ri-zoom-in-line"></i>View full image
+                                  </span>
+                                </a>
+                              </div>
+                            )}
+
+                            {/* Title, description & repo */}
+                            {submittedProject && (
+                              <div className="bg-white/5 border border-white/10 rounded-xl p-5 space-y-3">
+                                <h3 className="text-white font-bold text-base">{submittedProject.title}</h3>
+                                {submittedProject.description && (
+                                  <p className="text-white/50 text-sm leading-relaxed">{submittedProject.description}</p>
+                                )}
+                                {submittedProject.repoUrl && (
+                                  <a
+                                    href={submittedProject.repoUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-2 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-purple-400 hover:text-purple-300 hover:border-purple-500/40 transition-all"
+                                  >
+                                    <i className="ri-github-line text-base"></i>
+                                    <span className="truncate max-w-[260px]">{submittedProject.repoUrl}</span>
+                                    <i className="ri-external-link-line text-xs opacity-60 shrink-0"></i>
+                                  </a>
+                                )}
+                              </div>
+                            )}
+
+                            {/* CTA */}
+                            <button
+                              onClick={() => setActiveSection('rate')}
+                              className="w-full py-3 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-xl font-semibold hover:opacity-90 transition-all cursor-pointer text-sm flex items-center justify-center gap-2"
+                            >
+                              <i className="ri-star-line"></i>Rate This Track
+                            </button>
                           </div>
                         ) : (
+                          /* ── Not yet submitted: show form ── */
                           <form onSubmit={handleProjectSubmit} className="space-y-5">
 
                             {/* Title */}

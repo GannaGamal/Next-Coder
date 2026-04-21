@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   fetchRoadmapTracks,
-  fetchTrackEnrollmentCount,
   enrollInTrack,
   clearRoadmapCache,
 } from '../../../services/roadmap.service';
@@ -55,8 +54,8 @@ const BrowsePaths = () => {
   const [searchQuery, setSearchQuery]                   = useState('');
   const [selectedTrack, setSelectedTrack]               = useState<RoadmapTrack | null>(null);
 
-  // enrollment counts: trackName → number | 'loading' | 'error'
-  const [enrollCounts, setEnrollCounts]                 = useState<Map<string, number | 'loading' | 'error'>>(new Map());
+  // enrollment counts: trackName → number (now directly from API)
+  const [enrollCounts, setEnrollCounts]                 = useState<Map<string, number>>(new Map());
   // enrolling in progress: Set of track names currently awaiting POST
   const [enrollingSet, setEnrollingSet]                 = useState<Set<string>>(new Set());
   // enrolled: Set of track names the user has enrolled in this session
@@ -71,22 +70,13 @@ const BrowsePaths = () => {
     try {
       const data = await fetchRoadmapTracks();
       setTracks(data);
-      // Kick off all enrollment count fetches concurrently
-      const initialMap = new Map<string, number | 'loading' | 'error'>();
-      data.forEach(t => initialMap.set(t.trackName, 'loading'));
-      setEnrollCounts(initialMap);
-
-      const results = await Promise.allSettled(
-        data.map(t => fetchTrackEnrollmentCount(t.trackName))
-      );
-      setEnrollCounts(prev => {
-        const next = new Map(prev);
-        data.forEach((t, i) => {
-          const res = results[i];
-          next.set(t.trackName, res.status === 'fulfilled' ? res.value : 'error');
-        });
-        return next;
+      
+      // Use enrolledUsersCount directly from the API response instead of fetching separately
+      const enrollCountMap = new Map<string, number>();
+      data.forEach(t => {
+        enrollCountMap.set(t.trackName, t.enrolledUsersCount);
       });
+      setEnrollCounts(enrollCountMap);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'We could not load roadmap tracks right now. Please try again.');
     } finally {
@@ -115,8 +105,14 @@ const BrowsePaths = () => {
         if (typeof cur === 'number') next.set(trackName, cur + 1);
         return next;
       });
-    } catch {
-      setEnrollErrors(prev => new Map(prev).set(trackName, 'We could not enroll you right now. Please try again.'));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message.toLowerCase() : '';
+      // If the API says the user is already enrolled, treat it silently as success
+      if (msg.includes('already') || msg.includes('enrolled') || msg.includes('exists')) {
+        setEnrolledSet(prev => new Set(prev).add(trackName));
+      } else {
+        setEnrollErrors(prev => new Map(prev).set(trackName, 'We could not enroll you right now. Please try again.'));
+      }
     } finally {
       setEnrollingSet(prev => { const s = new Set(prev); s.delete(trackName); return s; });
     }
@@ -214,17 +210,8 @@ const BrowsePaths = () => {
                           <i className={`ri-road-map-line text-xl ${accent.icon}`}></i>
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-white font-bold text-base leading-snug">{track.trackName}</h3>
-                          {/* Enrollment count */}
-                          <div className="mt-1 h-4">
-                            {countVal === 'loading' && (
-                              <span className="text-xs text-white/30 flex items-center gap-1">
-                                <i className="ri-loader-4-line animate-spin text-xs"></i> loading...
-                              </span>
-                            )}
-                            {countVal === 'error' && (
-                              <span className="text-xs text-white/20">— enrollments</span>
-                            )}
+                          <h3 className="text-white font-bold text-base leading-snug">{track.displayName}</h3>
+                        <div className="mt-1 h-4">
                             {typeof countVal === 'number' && (
                               <span className="text-xs text-white/50 flex items-center gap-1">
                                 <i className="ri-user-follow-line"></i>

@@ -10,6 +10,7 @@ interface TrackDetailModalProps {
 const TrackDetailModal = ({ track, onClose }: TrackDetailModalProps) => {
   const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set());
   const [expandedSubtopics, setExpandedSubtopics] = useState<Set<string>>(new Set());
+  const [expandedDescriptions, setExpandedDescriptions] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
 
   const toggleTopic = (nodeId: string) => {
@@ -24,6 +25,16 @@ const TrackDetailModal = ({ track, onClose }: TrackDetailModalProps) => {
     setExpandedSubtopics((prev) => {
       const next = new Set(prev);
       next.has(nodeId) ? next.delete(nodeId) : next.add(nodeId);
+      return next;
+    });
+  };
+
+  const toggleDescription = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExpandedDescriptions((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   };
@@ -50,7 +61,7 @@ const TrackDetailModal = ({ track, onClose }: TrackDetailModalProps) => {
         {/* Header */}
         <div className="flex items-start justify-between p-6 border-b border-white/10 flex-shrink-0">
           <div>
-            <h2 className="text-2xl font-bold text-white mb-1">{track.trackName}</h2>
+            <h2 className="text-2xl font-bold text-white mb-1">{track.displayName}</h2>
             <div className="flex gap-4 text-sm text-white/50">
               <span><i className="ri-node-tree mr-1"></i>{totalTopics} topics</span>
               <span><i className="ri-git-branch-line mr-1"></i>{totalSubtopics} subtopics</span>
@@ -62,20 +73,6 @@ const TrackDetailModal = ({ track, onClose }: TrackDetailModalProps) => {
           >
             <i className="ri-close-line text-lg"></i>
           </button>
-        </div>
-
-        {/* Search */}
-        <div className="px-6 pt-4 flex-shrink-0">
-          <div className="relative">
-            <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-white/40 text-sm"></i>
-            <input
-              type="text"
-              placeholder="Search topics or subtopics..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-purple-500 text-sm"
-            />
-          </div>
         </div>
 
         {/* Topics list */}
@@ -100,7 +97,20 @@ const TrackDetailModal = ({ track, onClose }: TrackDetailModalProps) => {
                     <div className="flex-1 min-w-0">
                       <h3 className="text-white font-semibold text-sm">{topic.title}</h3>
                       {topic.description && (
-                        <p className="text-white/50 text-xs mt-1 line-clamp-2">{topic.description}</p>
+                        <div className="mt-1">
+                          <p className={`text-white/50 text-xs leading-relaxed ${!expandedDescriptions.has(topic.nodeId || String(index)) && topic.description.length > 120 ? 'line-clamp-2' : ''}`}>
+                            {topic.description}
+                          </p>
+                          {topic.description.length > 120 && (
+                            <button
+                              onClick={(e) => toggleDescription(topic.nodeId || String(index), e)}
+                              className="text-purple-400/70 hover:text-purple-400 text-xs mt-1 cursor-pointer transition-colors whitespace-nowrap flex items-center gap-1"
+                            >
+                              <i className={`ri-arrow-${expandedDescriptions.has(topic.nodeId || String(index)) ? 'up' : 'down'}-s-line text-xs`}></i>
+                              {expandedDescriptions.has(topic.nodeId || String(index)) ? 'Show less' : 'Read more'}
+                            </button>
+                          )}
+                        </div>
                       )}
                       <div className="flex gap-3 mt-1.5 text-xs text-white/40">
                         {topic.links.length > 0 && (
@@ -161,7 +171,20 @@ const TrackDetailModal = ({ track, onClose }: TrackDetailModalProps) => {
                                   <div className="flex-1 min-w-0">
                                     <h4 className="text-white/90 text-sm font-medium">{sub.title}</h4>
                                     {sub.description && (
-                                      <p className="text-white/40 text-xs mt-0.5 line-clamp-1">{sub.description}</p>
+                                      <div className="mt-0.5">
+                                        <p className={`text-white/40 text-xs leading-relaxed ${!expandedDescriptions.has(sub.nodeId || `${topic.nodeId}-${sIdx}`) && sub.description.length > 120 ? 'line-clamp-2' : ''}`}>
+                                          {sub.description}
+                                        </p>
+                                        {sub.description.length > 120 && (
+                                          <button
+                                            onClick={(e) => toggleDescription(sub.nodeId || `${topic.nodeId}-${sIdx}`, e)}
+                                            className="text-purple-400/70 hover:text-purple-400 text-xs mt-1 cursor-pointer transition-colors whitespace-nowrap flex items-center gap-1"
+                                          >
+                                            <i className={`ri-arrow-${expandedDescriptions.has(sub.nodeId || `${topic.nodeId}-${sIdx}`) ? 'up' : 'down'}-s-line text-xs`}></i>
+                                            {expandedDescriptions.has(sub.nodeId || `${topic.nodeId}-${sIdx}`) ? 'Show less' : 'Read more'}
+                                          </button>
+                                        )}
+                                      </div>
                                     )}
                                   </div>
                                 </div>
