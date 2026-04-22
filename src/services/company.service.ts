@@ -7,7 +7,17 @@ import { parseApiError } from './api.utils';
 export interface CompanyInfo {
   id: string;
   name: string;
+  industry: string | null;
   logoUrl: string | null;
+}
+
+export interface AddCompanyPayload {
+  name: string;
+  industry: string;
+}
+
+interface AddCompanyResponse {
+  message?: string;
 }
 
 /**
@@ -62,11 +72,13 @@ export const getEmployerCompanies = async (employerId: string | null | undefined
 
         const id = raw.id ?? raw.Id ?? raw.companyId ?? raw.CompanyId;
         const name = raw.name ?? raw.Name ?? raw.companyName ?? raw.CompanyName ?? '';
+        const industry = raw.industry ?? raw.Industry ?? raw.companyIndustry ?? raw.CompanyIndustry ?? null;
         const logoUrl = raw.logoUrl ?? raw.LogoUrl ?? raw.logo ?? raw.Logo ?? null;
 
         return {
           id: String(id),
           name: String(name).trim(),
+          industry: industry ? String(industry).trim() : null,
           logoUrl: logoUrl ? String(logoUrl) : null,
         };
       })
@@ -82,4 +94,79 @@ export const getEmployerCompanies = async (employerId: string | null | undefined
     }
     throw new Error('Failed to load employer companies. Please try again.');
   }
+};
+
+/**
+ * Adds a new company for the currently authenticated employer.
+ * API Endpoint: POST /api/Company/addCompany
+ */
+export const addCompany = async (payload: AddCompanyPayload): Promise<string> => {
+  const token = localStorage.getItem('authToken') ?? '';
+  if (!token) {
+    throw new Error('You must be signed in as an employer to add a company.');
+  }
+
+  const storedUserRaw = localStorage.getItem('user');
+  let userRoles: string[] = [];
+  let employerId = '';
+
+  if (storedUserRaw) {
+    try {
+      const parsed = JSON.parse(storedUserRaw) as { roles?: unknown; employerId?: unknown };
+      userRoles = Array.isArray(parsed.roles)
+        ? parsed.roles
+            .filter((role): role is string => typeof role === 'string')
+            .map((role) => role.toLowerCase().trim())
+        : [];
+      employerId = String(parsed.employerId ?? '').trim();
+    } catch {
+      userRoles = [];
+      employerId = '';
+    }
+  }
+
+  if (!userRoles.includes('employer') || employerId.length === 0) {
+    throw new Error('Only employers can add a company for their own account.');
+  }
+
+  const name = payload.name.trim();
+  const industry = payload.industry.trim();
+
+  if (!name || !industry) {
+    throw new Error('Company name and industry are required.');
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}/Company/addCompany`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ name, industry }),
+    });
+  } catch {
+    throw new Error('We could not add your company right now. Please check your connection and try again.');
+  }
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+
+  const rawText = await response.text();
+  if (!rawText.trim()) {
+    return 'Company added successfully';
+  }
+
+  try {
+    const parsed = JSON.parse(rawText) as AddCompanyResponse;
+    if (parsed.message && parsed.message.trim()) {
+      return parsed.message.trim();
+    }
+  } catch {
+    // If backend returns plain text, keep default success message.
+  }
+
+  return 'Company added successfully';
 };

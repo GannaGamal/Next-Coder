@@ -8,7 +8,7 @@ import EmployerEditModal from '../../components/feature/EmployerEditModal';
 import type { EmployerEditData } from '../../components/feature/EmployerEditModal';
 import useProfilePhoto from '../../hooks/useProfilePhoto';
 import { getEmployerProfile, updateEmployerProfile } from '../../services/employer.service';
-import { getEmployerCompanies } from '../../services/company.service';
+import { addCompany, getEmployerCompanies } from '../../services/company.service';
 
 interface Company {
   id: string;
@@ -25,6 +25,17 @@ interface Document {
   uploadedAt: string;
 }
 
+const getMappedCompanies = (
+  apiCompanies: Awaited<ReturnType<typeof getEmployerCompanies>>
+): Company[] =>
+  apiCompanies.map((comp) => ({
+    id: comp.id,
+    name: comp.name,
+    industry: comp.industry || 'Not specified',
+    logo: comp.logoUrl || undefined,
+    documents: [],
+  }));
+
 const EmployerProfile = () => {
   const { user } = useAuth();
   const { handlePhotoUpload, handlePhotoRemove } = useProfilePhoto();
@@ -33,6 +44,11 @@ const EmployerProfile = () => {
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [profileError, setProfileError] = useState('');
   const [contactSaveMessage, setContactSaveMessage] = useState('');
+  const [newCompanyName, setNewCompanyName] = useState('');
+  const [newCompanyIndustry, setNewCompanyIndustry] = useState('');
+  const [isAddingCompany, setIsAddingCompany] = useState(false);
+  const [addCompanyError, setAddCompanyError] = useState('');
+  const [addCompanySuccessMessage, setAddCompanySuccessMessage] = useState('');
   
   const [contactInfo, setContactInfo] = useState<EmployerEditData>({
     phoneNumber: '',
@@ -42,6 +58,9 @@ const EmployerProfile = () => {
   const [companies, setCompanies] = useState<Company[]>([]);
 
   const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
+  const canManageCompanies = Boolean(
+    user?.roles?.includes('employer') && String(user?.employerId ?? '').trim().length > 0
+  );
 
   // Fetch employer profile from API on component mount
   useEffect(() => {
@@ -64,13 +83,7 @@ const EmployerProfile = () => {
         });
 
         const apiCompanies = await getEmployerCompanies(user.employerId);
-        const mappedCompanies: Company[] = apiCompanies.map((comp) => ({
-          id: comp.id,
-          name: comp.name,
-          industry: 'Not specified',
-          logo: comp.logoUrl || undefined,
-          documents: [],
-        }));
+        const mappedCompanies = getMappedCompanies(apiCompanies);
 
         setCompanies(mappedCompanies);
         setSelectedCompany(mappedCompanies[0]?.id || null);
@@ -151,6 +164,52 @@ const EmployerProfile = () => {
     }
   };
 
+  const handleAddCompany = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    setAddCompanyError('');
+    setAddCompanySuccessMessage('');
+
+    const name = newCompanyName.trim();
+    const industry = newCompanyIndustry.trim();
+
+    if (!canManageCompanies || !user?.employerId) {
+      setAddCompanyError('Only authenticated employers can add companies.');
+      return;
+    }
+
+    if (!name || !industry) {
+      setAddCompanyError('Company name and industry are required.');
+      return;
+    }
+
+    try {
+      setIsAddingCompany(true);
+      const successMessage = await addCompany({ name, industry });
+
+      const apiCompanies = await getEmployerCompanies(user.employerId);
+      const mappedCompanies = getMappedCompanies(apiCompanies);
+
+      setCompanies(mappedCompanies);
+
+      const newlyAddedCompany = mappedCompanies.find(
+        (company) =>
+          company.name.toLowerCase() === name.toLowerCase() &&
+          company.industry.toLowerCase() === industry.toLowerCase()
+      );
+
+      setSelectedCompany(newlyAddedCompany?.id || mappedCompanies[0]?.id || null);
+      setNewCompanyName('');
+      setNewCompanyIndustry('');
+      setAddCompanySuccessMessage(successMessage || 'Company added successfully.');
+      window.setTimeout(() => setAddCompanySuccessMessage(''), 2500);
+    } catch (err) {
+      setAddCompanyError(err instanceof Error ? err.message : 'Failed to add company. Please try again.');
+    } finally {
+      setIsAddingCompany(false);
+    }
+  };
+
   const selectedCompanyData = companies.find(c => c.id === selectedCompany);
 
   return (
@@ -224,6 +283,56 @@ const EmployerProfile = () => {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0 mb-4 sm:mb-6">
               <h2 className="text-xl sm:text-2xl font-bold text-white">My Companies</h2>
             </div>
+
+            <form onSubmit={handleAddCompany} className="mb-5 sm:mb-6 p-4 rounded-xl border border-white/10 bg-white/5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                <div className="lg:col-span-2">
+                  <label htmlFor="company-name" className="block text-xs text-gray-300 mb-1">Company Name</label>
+                  <input
+                    id="company-name"
+                    type="text"
+                    value={newCompanyName}
+                    onChange={(e) => setNewCompanyName(e.target.value)}
+                    placeholder="Enter company name"
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-violet-500/60"
+                    maxLength={120}
+                    disabled={!canManageCompanies || isAddingCompany}
+                  />
+                </div>
+                <div className="lg:col-span-2">
+                  <label htmlFor="company-industry" className="block text-xs text-gray-300 mb-1">Industry</label>
+                  <input
+                    id="company-industry"
+                    type="text"
+                    value={newCompanyIndustry}
+                    onChange={(e) => setNewCompanyIndustry(e.target.value)}
+                    placeholder="Enter company industry"
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-violet-500/60"
+                    maxLength={120}
+                    disabled={!canManageCompanies || isAddingCompany}
+                  />
+                </div>
+                <div className="flex items-end">
+                  <button
+                    type="submit"
+                    disabled={!canManageCompanies || isAddingCompany}
+                    className="w-full h-[42px] px-4 py-2 rounded-lg bg-violet-500 text-white text-sm font-semibold hover:bg-violet-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isAddingCompany ? 'Adding...' : 'Add Company'}
+                  </button>
+                </div>
+              </div>
+
+              {!canManageCompanies && (
+                <p className="text-xs text-amber-300 mt-3">Only authenticated employers can add companies.</p>
+              )}
+              {addCompanyError && (
+                <p className="text-xs text-red-300 mt-3">{addCompanyError}</p>
+              )}
+              {addCompanySuccessMessage && (
+                <p className="text-xs text-emerald-300 mt-3">{addCompanySuccessMessage}</p>
+              )}
+            </form>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
               {companies.map((company) => (
