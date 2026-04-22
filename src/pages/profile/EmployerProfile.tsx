@@ -8,7 +8,15 @@ import EmployerEditModal from '../../components/feature/EmployerEditModal';
 import type { EmployerEditData } from '../../components/feature/EmployerEditModal';
 import useProfilePhoto from '../../hooks/useProfilePhoto';
 import { getEmployerProfile, updateEmployerProfile } from '../../services/employer.service';
-import { addCompany, getCompanyDetails, getEmployerCompanies } from '../../services/company.service';
+import {
+  addCompany,
+  deleteCompanyDocument,
+  downloadCompanyDocument,
+  getCompanyDetails,
+  getEmployerCompanies,
+  uploadCompanyDocument,
+  uploadCompanyLogo,
+} from '../../services/company.service';
 
 interface Company {
   id: string;
@@ -80,6 +88,12 @@ const EmployerProfile = () => {
   const [addCompanySuccessMessage, setAddCompanySuccessMessage] = useState('');
   const [isLoadingCompanyDetails, setIsLoadingCompanyDetails] = useState(false);
   const [companyDetailsError, setCompanyDetailsError] = useState('');
+  const [logoUploadError, setLogoUploadError] = useState('');
+  const [documentUploadError, setDocumentUploadError] = useState('');
+  const [uploadingLogoByCompany, setUploadingLogoByCompany] = useState<Record<string, boolean>>({});
+  const [uploadingDocumentByCompany, setUploadingDocumentByCompany] = useState<Record<string, boolean>>({});
+  const [deletingDocumentId, setDeletingDocumentId] = useState<string | null>(null);
+  const [documentDeleteError, setDocumentDeleteError] = useState('');
   
   const [contactInfo, setContactInfo] = useState<EmployerEditData>({
     phoneNumber: '',
@@ -89,9 +103,15 @@ const EmployerProfile = () => {
   const [companies, setCompanies] = useState<Company[]>([]);
 
   const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
+  const hasEmployerRole = Array.isArray(user?.roles)
+    ? user.roles.some((role) => String(role).toLowerCase().trim() === 'employer')
+    : false;
   const canManageCompanies = Boolean(
-    user?.roles?.includes('employer') && String(user?.employerId ?? '').trim().length > 0
+    hasEmployerRole && String(user?.employerId ?? '').trim().length > 0
   );
+
+  const isLogoUploading = (companyId: string) => Boolean(uploadingLogoByCompany[companyId]);
+  const isDocumentUploading = (companyId: string) => Boolean(uploadingDocumentByCompany[companyId]);
 
   // Fetch employer profile from API on component mount
   useEffect(() => {
@@ -188,7 +208,7 @@ const EmployerProfile = () => {
   }, [selectedCompany]);
 
   const handleSaveContact = async (data: EmployerEditData) => {
-    if (!user?.roles?.includes('employer')) {
+    if (!hasEmployerRole) {
       throw new Error('Only employers can update their own profile.');
     }
 
@@ -208,48 +228,185 @@ const EmployerProfile = () => {
     window.setTimeout(() => setContactSaveMessage(''), 2500);
   };
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>, companyId?: string) => {
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>, companyId?: string) => {
     const file = e.target.files?.[0];
-    if (file && companyId) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const logoUrl = reader.result as string;
-        setCompanies(companies.map(company =>
-          company.id === companyId ? { ...company, logo: logoUrl } : company
-        ));
-      };
-      reader.readAsDataURL(file);
+    e.target.value = '';
+
+    if (!file || !companyId) {
+      return;
+    }
+
+    if (!canManageCompanies) {
+      setLogoUploadError('Only authenticated employers can upload or update company logos.');
+      return;
+    }
+
+    const canUpdateThisCompany = companies.some((company) => company.id === companyId);
+    if (!canUpdateThisCompany) {
+      setLogoUploadError('You can only update logos for companies linked to your account.');
+      return;
+    }
+
+    setLogoUploadError('');
+
+    setUploadingLogoByCompany((prev) => ({
+      ...prev,
+      [companyId]: true,
+    }));
+
+    try {
+      await uploadCompanyLogo(companyId, file);
+      const details = await getCompanyDetails(companyId);
+
+      setCompanies((prevCompanies) =>
+        prevCompanies.map((company) =>
+          company.id === companyId
+            ? {
+                ...company,
+                name: details.name,
+                industry: details.industry || 'Not specified',
+                logo: details.logoUrl || undefined,
+                documents: details.documents.map((doc) => ({
+                  id: doc.id,
+                  name: doc.fileName,
+                  url: doc.filePath,
+                  uploadedAt: formatUploadedAt(doc.uploadedAt),
+                })),
+              }
+            : company
+        )
+      );
+    } catch (error) {
+      setLogoUploadError(
+        error instanceof Error
+          ? error.message
+          : 'Failed to upload company logo. Please try again.'
+      );
+    } finally {
+      setUploadingLogoByCompany((prev) => ({
+        ...prev,
+        [companyId]: false,
+      }));
     }
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, companyId: string) => {
     const file = e.target.files?.[0];
-    if (file) {
+    e.target.value = '';
+
+    if (!file) {
+      return;
+    }
+
+    if (!canManageCompanies) {
+      setDocumentUploadError('Only authenticated employers can upload company documents.');
+      return;
+    }
+
+    const canUploadToThisCompany = companies.some((company) => company.id === companyId);
+    if (!canUploadToThisCompany) {
+      setDocumentUploadError('You can only upload documents for companies linked to your account.');
+      return;
+    }
+
+    const existingDocumentIds = new Set(
+      (companies.find((company) => company.id === companyId)?.documents ?? []).map((doc) => doc.id)
+    );
+
+    setDocumentUploadError('');
+    setUploadingDocumentByCompany((prev) => ({
+      ...prev,
+      [companyId]: true,
+    }));
+
+    void (async () => {
       try {
-        const newDoc: Document = {
-          id: Date.now().toString(),
-          name: file.name,
-          url: URL.createObjectURL(file),
-          uploadedAt: new Date().toISOString().split('T')[0]
-        };
-        setCompanies(companies.map(company =>
-          company.id === companyId ? { ...company, documents: [...company.documents, newDoc] } : company
-        ));
+        await uploadCompanyDocument(companyId, file);
+
+        let details = await getCompanyDetails(companyId);
+        const uploadAppearsInList = details.documents.some(
+          (doc) => doc.fileName === file.name || !existingDocumentIds.has(doc.id)
+        );
+
+        // Retry once to handle eventual-consistency delays after upload.
+        if (!uploadAppearsInList) {
+          try {
+            details = await getCompanyDetails(companyId);
+          } catch {
+            // Keep first successful details payload if retry fails.
+          }
+        }
+
+        setCompanies((prevCompanies) =>
+          prevCompanies.map((company) =>
+            company.id === companyId
+              ? {
+                  ...company,
+                  name: details.name,
+                  industry: details.industry || 'Not specified',
+                  logo: details.logoUrl || undefined,
+                  documents: details.documents.map((doc) => ({
+                    id: doc.id,
+                    name: doc.fileName,
+                    url: doc.filePath,
+                    uploadedAt: formatUploadedAt(doc.uploadedAt),
+                  })),
+                }
+              : company
+          )
+        );
       } catch (error) {
-        console.error('Error uploading file:', error);
+        setDocumentUploadError(
+          error instanceof Error
+            ? error.message
+            : 'Failed to upload company document. Please try again.'
+        );
+      } finally {
+        setUploadingDocumentByCompany((prev) => ({
+          ...prev,
+          [companyId]: false,
+        }));
       }
+    })();
+  };
+
+  const handleDeleteDocument = async (docId: string, companyId: string) => {
+    setDocumentDeleteError('');
+
+    if (!hasEmployerRole) {
+      setDocumentDeleteError('Only employers can delete company documents.');
+      return;
+    }
+
+    setDeletingDocumentId(docId);
+
+    try {
+      await deleteCompanyDocument(docId);
+
+      // Remove document from UI immediately after successful deletion
+      setCompanies((prevCompanies) =>
+        prevCompanies.map((company) =>
+          company.id === companyId
+            ? { ...company, documents: company.documents.filter((doc) => doc.id !== docId) }
+            : company
+        )
+      );
+    } catch (error) {
+      setDocumentDeleteError(
+        error instanceof Error ? error.message : 'Failed to delete document. Please try again.'
+      );
+    } finally {
+      setDeletingDocumentId(null);
     }
   };
 
-  const handleDeleteDocument = (docId: string, companyId: string) => {
+  const handleDownloadDocument = async (docId: string) => {
     try {
-      setCompanies(companies.map(company =>
-        company.id === companyId
-          ? { ...company, documents: company.documents.filter(doc => doc.id !== docId) }
-          : company
-      ));
+      await downloadCompanyDocument(docId);
     } catch (error) {
-      console.error('Error deleting document:', error);
+      setDocumentDeleteError(
+        error instanceof Error ? error.message : 'Failed to download document. Please try again.'
+      );
     }
   };
 
@@ -421,6 +578,9 @@ const EmployerProfile = () => {
               {addCompanySuccessMessage && (
                 <p className="text-xs text-emerald-300 mt-3">{addCompanySuccessMessage}</p>
               )}
+              {logoUploadError && (
+                <p className="text-xs text-red-300 mt-3">{logoUploadError}</p>
+              )}
             </form>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
@@ -444,16 +604,24 @@ const EmployerProfile = () => {
                         onError={handleLogoImageError}
                       />
                     </div>
-                    <label
-                      onClick={(e) => e.stopPropagation()}
-                      className="absolute inset-0 w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center rounded-lg bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                    >
-                      <div className="text-center">
-                        <i className="ri-camera-line text-xl text-white"></i>
-                        <p className="text-xs text-white/80">Change</p>
-                      </div>
-                      <input type="file" accept="image/*" onChange={(e) => handleLogoUpload(e, company.id)} className="hidden" />
-                    </label>
+                    {canManageCompanies && (
+                      <label
+                        onClick={(e) => e.stopPropagation()}
+                        className="absolute inset-0 w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center rounded-lg bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                      >
+                        <div className="text-center">
+                          <i className="ri-camera-line text-xl text-white"></i>
+                          <p className="text-xs text-white/80">{isLogoUploading(company.id) ? 'Uploading...' : 'Change'}</p>
+                        </div>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleLogoUpload(e, company.id)}
+                          className="hidden"
+                          disabled={isLogoUploading(company.id)}
+                        />
+                      </label>
+                    )}
                   </div>
                   <h3 className="text-lg sm:text-xl font-bold text-white mb-2 truncate">{company.name}</h3>
                   <p className="text-sm sm:text-base text-gray-400 mb-3 truncate">{company.industry}</p>
@@ -479,13 +647,23 @@ const EmployerProfile = () => {
                       onError={handleLogoImageError}
                     />
                   </div>
-                  <label className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                    <div className="text-center">
-                      <i className="ri-camera-line text-2xl text-white"></i>
-                      <p className="text-xs text-white/80">Change Logo</p>
-                    </div>
-                    <input type="file" accept="image/*" onChange={(e) => handleLogoUpload(e, selectedCompanyData.id)} className="hidden" />
-                  </label>
+                  {canManageCompanies && (
+                    <label className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                      <div className="text-center">
+                        <i className="ri-camera-line text-2xl text-white"></i>
+                        <p className="text-xs text-white/80">
+                          {isLogoUploading(selectedCompanyData.id) ? 'Uploading...' : 'Change Logo'}
+                        </p>
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleLogoUpload(e, selectedCompanyData.id)}
+                        className="hidden"
+                        disabled={isLogoUploading(selectedCompanyData.id)}
+                      />
+                    </label>
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <h2 className="text-2xl sm:text-3xl font-bold text-white mb-1 truncate">{selectedCompanyData.name}</h2>
@@ -503,10 +681,23 @@ const EmployerProfile = () => {
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0 mb-3 sm:mb-4">
                   <h3 className="text-lg sm:text-xl font-bold text-white">Company Documents</h3>
                   <label className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 bg-violet-500 text-white text-sm sm:text-base font-semibold rounded-lg hover:bg-violet-600 transition-colors whitespace-nowrap cursor-pointer text-center">
-                    <i className="ri-upload-line mr-2"></i>Upload Document
-                    <input type="file" onChange={(e) => handleFileUpload(e, selectedCompanyData.id)} className="hidden" accept=".pdf,.doc,.docx,.txt" />
+                    <i className="ri-upload-line mr-2"></i>
+                    {isDocumentUploading(selectedCompanyData.id) ? 'Uploading...' : 'Upload Document'}
+                    <input
+                      type="file"
+                      onChange={(e) => handleFileUpload(e, selectedCompanyData.id)}
+                      className="hidden"
+                      accept=".pdf,.doc,.docx,.txt"
+                      disabled={isDocumentUploading(selectedCompanyData.id)}
+                    />
                   </label>
                 </div>
+                {documentUploadError && (
+                  <p className="text-xs text-red-300 mb-3">{documentUploadError}</p>
+                )}
+                {documentDeleteError && (
+                  <p className="text-xs text-red-300 mb-3">{documentDeleteError}</p>
+                )}
 
                 {selectedCompanyData.documents.length > 0 ? (
                   <div className="space-y-3">
@@ -522,18 +713,25 @@ const EmployerProfile = () => {
                           </div>
                         </div>
                         <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
-                          <a
-                            href={doc.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            download={doc.name}
-                            className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
+                          <button
+                            onClick={() => handleDownloadDocument(doc.id)}
+                            className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Download document"
                           >
                             <i className="ri-download-line text-lg sm:text-xl text-white"></i>
-                          </a>
-                          <button onClick={() => handleDeleteDocument(doc.id, selectedCompanyData.id)} className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg bg-white/5 hover:bg-red-500/20 transition-colors cursor-pointer">
-                            <i className="ri-delete-bin-line text-lg sm:text-xl text-white hover:text-red-400"></i>
                           </button>
+                          {canManageCompanies && (
+                            <button
+                              onClick={() => handleDeleteDocument(doc.id, selectedCompanyData.id)}
+                              disabled={deletingDocumentId === doc.id}
+                              className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg bg-white/5 hover:bg-red-500/20 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                              title="Delete document"
+                            >
+                              <i className={`text-lg sm:text-xl text-white hover:text-red-400 ${
+                                deletingDocumentId === doc.id ? 'ri-loader-4-line animate-spin' : 'ri-delete-bin-line'
+                              }`}></i>
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))}

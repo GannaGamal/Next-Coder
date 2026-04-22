@@ -35,6 +35,11 @@ interface AddCompanyResponse {
   message?: string;
 }
 
+interface StoredUserAuth {
+  roles: string[];
+  employerId: string;
+}
+
 const API_ORIGIN = API_BASE.replace(/\/api\/?$/i, '');
 
 const toNonEmptyString = (value: unknown): string | null => {
@@ -55,6 +60,26 @@ const encodePathSegments = (path: string): string =>
       }
     })
     .join('/');
+
+const getStoredUserAuth = (): StoredUserAuth => {
+  const storedUserRaw = localStorage.getItem('user');
+  if (!storedUserRaw) {
+    return { roles: [], employerId: '' };
+  }
+
+  try {
+    const parsed = JSON.parse(storedUserRaw) as { roles?: unknown; employerId?: unknown };
+    const roles = Array.isArray(parsed.roles)
+      ? parsed.roles
+          .filter((role): role is string => typeof role === 'string')
+          .map((role) => role.toLowerCase().trim())
+      : [];
+    const employerId = String(parsed.employerId ?? '').trim();
+    return { roles, employerId };
+  } catch {
+    return { roles: [], employerId: '' };
+  }
+};
 
 /**
  * Builds a full file URL from a relative backend path.
@@ -162,24 +187,7 @@ export const addCompany = async (payload: AddCompanyPayload): Promise<string> =>
     throw new Error('You must be signed in as an employer to add a company.');
   }
 
-  const storedUserRaw = localStorage.getItem('user');
-  let userRoles: string[] = [];
-  let employerId = '';
-
-  if (storedUserRaw) {
-    try {
-      const parsed = JSON.parse(storedUserRaw) as { roles?: unknown; employerId?: unknown };
-      userRoles = Array.isArray(parsed.roles)
-        ? parsed.roles
-            .filter((role): role is string => typeof role === 'string')
-            .map((role) => role.toLowerCase().trim())
-        : [];
-      employerId = String(parsed.employerId ?? '').trim();
-    } catch {
-      userRoles = [];
-      employerId = '';
-    }
-  }
+  const { roles: userRoles, employerId } = getStoredUserAuth();
 
   if (!userRoles.includes('employer') || employerId.length === 0) {
     throw new Error('Only employers can add a company for their own account.');
@@ -225,6 +233,107 @@ export const addCompany = async (payload: AddCompanyPayload): Promise<string> =>
   }
 
   return 'Company added successfully';
+};
+
+/**
+ * Uploads or updates a company logo for the authenticated employer's own company.
+ * API Endpoint: POST /api/Company/companyLogo/{companyId}
+ */
+export const uploadCompanyLogo = async (
+  companyId: string | number | null | undefined,
+  file: File
+): Promise<void> => {
+  const token = localStorage.getItem('authToken') ?? '';
+  if (!token) {
+    throw new Error('You must be signed in as an employer to update your company logo.');
+  }
+
+  const { roles, employerId } = getStoredUserAuth();
+  if (!roles.includes('employer') || employerId.length === 0) {
+    throw new Error('Only employers can upload or update company logos.');
+  }
+
+  const normalizedCompanyId = String(companyId ?? '').trim();
+  if (!normalizedCompanyId) {
+    throw new Error('Invalid company ID.');
+  }
+
+  const ownedCompanies = await getEmployerCompanies(employerId);
+  const ownsCompany = ownedCompanies.some((company) => company.id === normalizedCompanyId);
+  if (!ownsCompany) {
+    throw new Error('You can only update the logo for your own company.');
+  }
+
+  const formData = new FormData();
+  formData.append('logoUrl', file);
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}/Company/companyLogo/${encodeURIComponent(normalizedCompanyId)}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
+    });
+  } catch {
+    throw new Error('We could not upload your company logo right now. Please check your connection and try again.');
+  }
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+};
+
+/**
+ * Uploads a company document for the authenticated employer's own company.
+ * API Endpoint: POST /api/Company/uploadDocument/{companyId}
+ * Form-data key: File
+ */
+export const uploadCompanyDocument = async (
+  companyId: string | number | null | undefined,
+  file: File
+): Promise<void> => {
+  const token = localStorage.getItem('authToken') ?? '';
+  if (!token) {
+    throw new Error('You must be signed in as an employer to upload company documents.');
+  }
+
+  const { roles, employerId } = getStoredUserAuth();
+  if (!roles.includes('employer') || employerId.length === 0) {
+    throw new Error('Only employers can upload company documents.');
+  }
+
+  const normalizedCompanyId = String(companyId ?? '').trim();
+  if (!normalizedCompanyId) {
+    throw new Error('Invalid company ID.');
+  }
+
+  const ownedCompanies = await getEmployerCompanies(employerId);
+  const ownsCompany = ownedCompanies.some((company) => company.id === normalizedCompanyId);
+  if (!ownsCompany) {
+    throw new Error('You can only upload documents for your own company.');
+  }
+
+  const formData = new FormData();
+  formData.append('File', file);
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}/Company/uploadDocument/${encodeURIComponent(normalizedCompanyId)}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
+    });
+  } catch {
+    throw new Error('We could not upload your company document right now. Please check your connection and try again.');
+  }
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
 };
 
 /**
@@ -304,4 +413,94 @@ export const getCompanyDetails = async (
     logoUrl: buildCompanyAssetUrl(toNonEmptyString(logoUrl)),
     documents,
   };
+};
+
+/**
+ * Downloads a company document by triggering browser download.
+ * API Endpoint: GET /api/CompanyDocument/download/{id}
+ * Accessible by Job Seekers and Employers.
+ */
+export const downloadCompanyDocument = async (documentId: string | null | undefined): Promise<void> => {
+  const normalizedId = String(documentId ?? '').trim();
+  if (!normalizedId) {
+    throw new Error('Invalid document ID.');
+  }
+
+  const token = localStorage.getItem('authToken') ?? '';
+  const headers: HeadersInit = {};
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}/CompanyDocument/download/${encodeURIComponent(normalizedId)}`, {
+      headers,
+    });
+  } catch {
+    throw new Error('We could not download the document right now. Please check your connection and try again.');
+  }
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+
+  // Extract filename from Content-Disposition header if available
+  const contentDisposition = response.headers.get('Content-Disposition');
+  let filename = 'document';
+  if (contentDisposition) {
+    const filenameMatch = contentDisposition.match(/filename[^;=\n]*=(?:(['"]).*?\1|[^;\n]*)/);
+    if (filenameMatch && filenameMatch[0]) {
+      filename = filenameMatch[0].replace(/filename[^;=\n]*=(['"]?)(.+?)\1/i, '$2');
+    }
+  }
+
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.URL.revokeObjectURL(url);
+};
+
+/**
+ * Deletes a company document for the authenticated employer's own company.
+ * API Endpoint: DELETE /api/CompanyDocument/{id}
+ * Only Employers can delete documents.
+ */
+export const deleteCompanyDocument = async (documentId: string | null | undefined): Promise<void> => {
+  const token = localStorage.getItem('authToken') ?? '';
+  if (!token) {
+    throw new Error('You must be signed in to delete documents.');
+  }
+
+  const { roles } = getStoredUserAuth();
+  if (!roles.includes('employer')) {
+    throw new Error('Only employers can delete company documents.');
+  }
+
+  const normalizedId = String(documentId ?? '').trim();
+  if (!normalizedId) {
+    throw new Error('Invalid document ID.');
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}/CompanyDocument/${encodeURIComponent(normalizedId)}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  } catch {
+    throw new Error('We could not delete the document right now. Please check your connection and try again.');
+  }
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
 };
