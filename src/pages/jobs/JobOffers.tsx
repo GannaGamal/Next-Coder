@@ -29,6 +29,29 @@ interface Job {
   featured: boolean;
 }
 
+const COMPANY_ASSET_BASE_URL = 'https://nextcoder.runasp.net';
+const DEFAULT_COMPANY_LOGO_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Company placeholder logo"><rect width="96" height="96" rx="14" fill="#E5E7EB"/><path d="M25 68h46V36H25v32Zm8-8v-6h6v6h-6Zm12 0v-6h6v6h-6Zm12 0v-6h6v6h-6Zm-24-14v-6h6v6h-6Zm12 0v-6h6v6h-6Zm12 0v-6h6v6h-6Z" fill="#9CA3AF"/><rect x="40" y="24" width="16" height="8" rx="2" fill="#9CA3AF"/></svg>';
+const DEFAULT_COMPANY_LOGO = `data:image/svg+xml,${encodeURIComponent(DEFAULT_COMPANY_LOGO_SVG)}`;
+
+const buildCompanyLogoUrl = (logoUrl: string | null | undefined): string => {
+  const normalizedLogoPath = String(logoUrl ?? '').trim();
+  if (!normalizedLogoPath) {
+    return DEFAULT_COMPANY_LOGO;
+  }
+
+  if (/^https?:\/\//i.test(normalizedLogoPath)) {
+    return normalizedLogoPath;
+  }
+
+  const slashNormalizedPath = normalizedLogoPath.replace(/\\/g, '/').replace(/^\/+/, '');
+  if (!slashNormalizedPath) {
+    return DEFAULT_COMPANY_LOGO;
+  }
+
+  return `${COMPANY_ASSET_BASE_URL}/${encodeURI(slashNormalizedPath)}`;
+};
+
 const JobOffers = () => {
   const { user, isAuthenticated } = useAuth();
   const { isLightMode } = useTheme();
@@ -139,20 +162,11 @@ const JobOffers = () => {
     const min = typeof item.minSalary === 'number' ? item.minSalary : 0;
     const max = typeof item.maxSalary === 'number' ? item.maxSalary : 0;
 
-    // Use company logo if available, otherwise use a fallback icon/placeholder
-    const getCompanyLogo = (): string => {
-      if (item.companyLogoUrl) {
-        return item.companyLogoUrl;
-      }
-      // Fallback: Generate a placeholder based on company name
-      return `https://ui-avatars.com/api/?name=${encodeURIComponent(item.companyName)}&background=6366f1&color=ffffff&size=100`;
-    };
-
     return {
       id: String(item.id),
       title: item.title,
       company: item.companyName,
-      companyLogo: getCompanyLogo(),
+      companyLogo: buildCompanyLogoUrl(item.companyLogoUrl),
       employerId: item.employerId ?? '0',
       location: item.location,
       type: (['Full-time', 'Part-time', 'Contract', 'Remote', 'Internship'].includes(item.jobType)
@@ -695,7 +709,17 @@ const JobOffers = () => {
                         <div className="flex flex-col sm:flex-row gap-4 sm:gap-5">
                           <div className="flex-shrink-0 mx-auto sm:mx-0 relative">
                             <Link to={`/user/${job.employerId}`} className={`block w-12 h-12 sm:w-16 sm:h-16 rounded-xl overflow-hidden hover:ring-2 hover:ring-amber-500 transition-all cursor-pointer ${isLightMode ? 'bg-gray-100' : 'bg-white/10'}`}>
-                              <img src={job.companyLogo} alt={job.company} className="w-full h-full object-cover" />
+                              <img
+                                src={job.companyLogo}
+                                alt={`${job.company} logo`}
+                                className="w-full h-full object-cover"
+                                loading="lazy"
+                                decoding="async"
+                                onError={(event) => {
+                                  event.currentTarget.onerror = null;
+                                  event.currentTarget.src = DEFAULT_COMPANY_LOGO;
+                                }}
+                              />
                             </Link>
                             <button onClick={() => handleOpenReport(job.company, job.companyLogo)} className={`absolute -top-1 -right-1 w-6 h-6 flex items-center justify-center border rounded-full text-gray-400 hover:text-red-400 hover:border-red-500/50 transition-all cursor-pointer opacity-0 group-hover:opacity-100 ${isLightMode ? 'bg-white border-gray-200' : 'bg-[#1a1f37] border-white/10'}`} title={t('common.report')}>
                               <i className="ri-flag-line text-xs"></i>
@@ -745,7 +769,17 @@ const JobOffers = () => {
                     <div className="flex flex-col sm:flex-row gap-4 sm:gap-5">
                       <div className="flex-shrink-0 mx-auto sm:mx-0 relative">
                         <Link to={`/user/${job.employerId}`} className={`block w-12 h-12 sm:w-16 sm:h-16 rounded-xl overflow-hidden hover:ring-2 hover:ring-teal-500 transition-all cursor-pointer ${isLightMode ? 'bg-gray-100' : 'bg-white/10'}`}>
-                          <img src={job.companyLogo} alt={job.company} className="w-full h-full object-cover" />
+                          <img
+                            src={job.companyLogo}
+                            alt={`${job.company} logo`}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                            decoding="async"
+                            onError={(event) => {
+                              event.currentTarget.onerror = null;
+                              event.currentTarget.src = DEFAULT_COMPANY_LOGO;
+                            }}
+                          />
                         </Link>
                         <button onClick={() => handleOpenReport(job.company, job.companyLogo)} className={`absolute -top-1 -right-1 w-6 h-6 flex items-center justify-center border rounded-full text-gray-400 hover:text-red-400 hover:border-red-500/50 transition-all cursor-pointer opacity-0 group-hover:opacity-100 ${isLightMode ? 'bg-white border-gray-200' : 'bg-[#1a1f37] border-white/10'}`} title={t('common.report')}>
                           <i className="ri-flag-line text-xs"></i>
