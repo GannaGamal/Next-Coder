@@ -8,7 +8,7 @@ import EmployerEditModal from '../../components/feature/EmployerEditModal';
 import type { EmployerEditData } from '../../components/feature/EmployerEditModal';
 import useProfilePhoto from '../../hooks/useProfilePhoto';
 import { getEmployerProfile, updateEmployerProfile } from '../../services/employer.service';
-import { addCompany, getEmployerCompanies } from '../../services/company.service';
+import { addCompany, getCompanyDetails, getEmployerCompanies } from '../../services/company.service';
 
 interface Company {
   id: string;
@@ -24,6 +24,35 @@ interface Document {
   url: string;
   uploadedAt: string;
 }
+
+const DEFAULT_COMPANY_LOGO = `data:image/svg+xml,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128"><rect width="128" height="128" fill="#1F2A44"/><rect x="22" y="28" width="84" height="72" rx="8" fill="#2F3B58"/><rect x="34" y="42" width="24" height="44" fill="#8B5CF6"/><rect x="66" y="52" width="28" height="10" fill="#C4B5FD"/><rect x="66" y="68" width="22" height="8" fill="#A78BFA"/></svg>'
+)}`;
+
+const formatUploadedAt = (value: string): string => {
+  const normalized = value.trim();
+  if (!normalized) {
+    return 'Unknown date';
+  }
+
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) {
+    return normalized;
+  }
+
+  return parsed.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+};
+
+const handleLogoImageError = (event: React.SyntheticEvent<HTMLImageElement>) => {
+  const image = event.currentTarget;
+  if (image.src !== DEFAULT_COMPANY_LOGO) {
+    image.src = DEFAULT_COMPANY_LOGO;
+  }
+};
 
 const getMappedCompanies = (
   apiCompanies: Awaited<ReturnType<typeof getEmployerCompanies>>
@@ -49,6 +78,8 @@ const EmployerProfile = () => {
   const [isAddingCompany, setIsAddingCompany] = useState(false);
   const [addCompanyError, setAddCompanyError] = useState('');
   const [addCompanySuccessMessage, setAddCompanySuccessMessage] = useState('');
+  const [isLoadingCompanyDetails, setIsLoadingCompanyDetails] = useState(false);
+  const [companyDetailsError, setCompanyDetailsError] = useState('');
   
   const [contactInfo, setContactInfo] = useState<EmployerEditData>({
     phoneNumber: '',
@@ -86,7 +117,7 @@ const EmployerProfile = () => {
         const mappedCompanies = getMappedCompanies(apiCompanies);
 
         setCompanies(mappedCompanies);
-        setSelectedCompany(mappedCompanies[0]?.id || null);
+        setSelectedCompany(null);
       } catch (err) {
         setProfileError(err instanceof Error ? err.message : 'Failed to load employer profile.');
         console.error('Error loading employer profile:', err);
@@ -97,6 +128,64 @@ const EmployerProfile = () => {
 
     loadEmployerProfile();
   }, [user?.employerId]);
+
+  useEffect(() => {
+    if (!selectedCompany) {
+      setCompanyDetailsError('');
+      return;
+    }
+
+    let isActive = true;
+
+    const loadCompanyDetails = async () => {
+      try {
+        setIsLoadingCompanyDetails(true);
+        setCompanyDetailsError('');
+
+        const details = await getCompanyDetails(selectedCompany);
+
+        if (!isActive) {
+          return;
+        }
+
+        setCompanies((prevCompanies) =>
+          prevCompanies.map((company) =>
+            company.id === selectedCompany
+              ? {
+                  ...company,
+                  name: details.name,
+                  industry: details.industry || 'Not specified',
+                  logo: details.logoUrl || undefined,
+                  documents: details.documents.map((doc) => ({
+                    id: doc.id,
+                    name: doc.fileName,
+                    url: doc.filePath,
+                    uploadedAt: formatUploadedAt(doc.uploadedAt),
+                  })),
+                }
+              : company
+          )
+        );
+      } catch (err) {
+        if (!isActive) {
+          return;
+        }
+        setCompanyDetailsError(
+          err instanceof Error ? err.message : 'Failed to load company details. Please try again.'
+        );
+      } finally {
+        if (isActive) {
+          setIsLoadingCompanyDetails(false);
+        }
+      }
+    };
+
+    loadCompanyDetails();
+
+    return () => {
+      isActive = false;
+    };
+  }, [selectedCompany]);
 
   const handleSaveContact = async (data: EmployerEditData) => {
     if (!user?.roles?.includes('employer')) {
@@ -198,7 +287,7 @@ const EmployerProfile = () => {
           company.industry.toLowerCase() === industry.toLowerCase()
       );
 
-      setSelectedCompany(newlyAddedCompany?.id || mappedCompanies[0]?.id || null);
+      setSelectedCompany(newlyAddedCompany?.id || null);
       setNewCompanyName('');
       setNewCompanyIndustry('');
       setAddCompanySuccessMessage(successMessage || 'Company added successfully.');
@@ -210,7 +299,7 @@ const EmployerProfile = () => {
     }
   };
 
-  const selectedCompanyData = companies.find(c => c.id === selectedCompany);
+  const selectedCompanyData = companies.find((c) => c.id === selectedCompany);
 
   return (
     <div className="min-h-screen bg-navy-900">
@@ -338,18 +427,22 @@ const EmployerProfile = () => {
               {companies.map((company) => (
                 <div
                   key={company.id}
-                  onClick={() => setSelectedCompany(company.id)}
+                  onClick={() => {
+                    setCompanyDetailsError('');
+                    setSelectedCompany((prev) => (prev === company.id ? null : company.id));
+                  }}
                   className={`bg-white/5 rounded-lg p-4 sm:p-5 lg:p-6 border-2 transition-all cursor-pointer ${
                     selectedCompany === company.id ? 'border-violet-500' : 'border-white/10 hover:border-violet-500/50'
                   }`}
                 >
                   <div className="relative group">
                     <div className="w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center rounded-lg bg-white/10 mb-3 sm:mb-4 overflow-hidden">
-                      {company.logo ? (
-                        <img src={company.logo} alt={company.name} className="w-full h-full object-cover" />
-                      ) : (
-                        <i className="ri-building-line text-3xl sm:text-4xl text-violet-400"></i>
-                      )}
+                      <img
+                        src={company.logo || DEFAULT_COMPANY_LOGO}
+                        alt={company.name}
+                        className="w-full h-full object-cover"
+                        onError={handleLogoImageError}
+                      />
                     </div>
                     <label
                       onClick={(e) => e.stopPropagation()}
@@ -379,11 +472,12 @@ const EmployerProfile = () => {
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 mb-6 sm:mb-8">
                 <div className="relative group">
                   <div className="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 flex items-center justify-center rounded-lg bg-white/10 overflow-hidden flex-shrink-0">
-                    {selectedCompanyData.logo ? (
-                      <img src={selectedCompanyData.logo} alt={selectedCompanyData.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <i className="ri-building-line text-4xl sm:text-5xl text-violet-400"></i>
-                    )}
+                    <img
+                      src={selectedCompanyData.logo || DEFAULT_COMPANY_LOGO}
+                      alt={selectedCompanyData.name}
+                      className="w-full h-full object-cover"
+                      onError={handleLogoImageError}
+                    />
                   </div>
                   <label className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
                     <div className="text-center">
@@ -396,6 +490,12 @@ const EmployerProfile = () => {
                 <div className="flex-1 min-w-0">
                   <h2 className="text-2xl sm:text-3xl font-bold text-white mb-1 truncate">{selectedCompanyData.name}</h2>
                   <p className="text-sm sm:text-base text-gray-400 truncate">{selectedCompanyData.industry}</p>
+                  {isLoadingCompanyDetails && (
+                    <p className="text-xs text-gray-400 mt-2">Loading company details...</p>
+                  )}
+                  {companyDetailsError && (
+                    <p className="text-xs text-red-300 mt-2">{companyDetailsError}</p>
+                  )}
                 </div>
               </div>
 
@@ -422,7 +522,13 @@ const EmployerProfile = () => {
                           </div>
                         </div>
                         <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
-                          <a href={doc.url} download={doc.name} className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 transition-colors cursor-pointer">
+                          <a
+                            href={doc.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            download={doc.name}
+                            className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
+                          >
                             <i className="ri-download-line text-lg sm:text-xl text-white"></i>
                           </a>
                           <button onClick={() => handleDeleteDocument(doc.id, selectedCompanyData.id)} className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg bg-white/5 hover:bg-red-500/20 transition-colors cursor-pointer">
@@ -435,7 +541,7 @@ const EmployerProfile = () => {
                 ) : (
                   <div className="text-center py-8 sm:py-12 border-2 border-dashed border-white/20 rounded-lg">
                     <i className="ri-file-line text-5xl sm:text-6xl text-gray-400 mb-3 sm:mb-4"></i>
-                    <p className="text-sm sm:text-base text-gray-400">No documents uploaded yet</p>
+                    <p className="text-sm sm:text-base text-gray-400">No documents available</p>
                   </div>
                 )}
               </div>
