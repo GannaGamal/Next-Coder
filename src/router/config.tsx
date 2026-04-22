@@ -82,7 +82,7 @@ const routes: RouteObject[] = [
     element: withAuth(<EmployerProfile />),
   },
   {
-    path: "/profile/job-seeker",
+    path: "/profile/job-seeker/:jobSeekerId?",
     element: withAuth(<ApplicantProfile />),
   },
   {

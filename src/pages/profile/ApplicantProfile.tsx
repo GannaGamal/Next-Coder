@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import Navbar from '../../components/feature/Navbar';
 import Footer from '../../components/feature/Footer';
@@ -7,15 +8,32 @@ import ProfilePhotoModal from '../../components/feature/ProfilePhotoModal';
 import ContactInfoModal from '../../components/feature/ContactInfoModal';
 import type { ContactInfo } from '../../components/feature/ContactInfoModal';
 import useProfilePhoto from '../../hooks/useProfilePhoto';
-import { getJobSeekerProfile } from '../../services/job-seeker-profile.service';
+import {
+  buildJobSeekerImageUrl,
+  canCurrentUserEditJobSeekerProfile,
+  getJobSeekerProfile,
+  updateJobSeekerProfile,
+} from '../../services/job-seeker-profile.service';
+
+const NOT_PROVIDED = 'Not provided';
+
+const getDisplayValue = (value: string): string => {
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : NOT_PROVIDED;
+};
 
 const ApplicantProfile = () => {
   const { user, updateUser } = useAuth();
+  const { jobSeekerId: routeJobSeekerId } = useParams<{ jobSeekerId?: string }>();
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState('');
+  const [profileSuccessMessage, setProfileSuccessMessage] = useState('');
+  const [profileOwnerId, setProfileOwnerId] = useState('');
+  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
+  const [imageLoadFailed, setImageLoadFailed] = useState(false);
   
   const [originalCv] = useState({
     name: 'John_Doe_Resume_2024.pdf',
@@ -24,71 +42,92 @@ const ApplicantProfile = () => {
   });
 
   const [contactInfo, setContactInfo] = useState<ContactInfo>({
-    phone: '+1 234 567 8900',
-    location: 'San Francisco, CA',
-    website: '',
-    linkedin: 'linkedin.com/in/johndoe',
-    github: 'github.com/johndoe',
-    twitter: '',
-    experience: '3 years of experience in software development, working on full-stack web applications using React, Node.js and PostgreSQL.',
-    education: 'Bachelor of Computer Science, University of Technology (2018–2022). Graduated with honors.',
+    phoneNumber: '',
+    address: '',
+    websiteUrl: '',
+    gitHubUrl: '',
+    experience: '',
+    education: '',
   });
 
   const [profile, setProfile] = useState({
+    fullName: user?.name ?? '',
+    email: user?.email ?? '',
     skills: ['JavaScript', 'React', 'Python', 'SQL', 'Git'],
   });
 
   const [newSkill, setNewSkill] = useState('');
 
-  useEffect(() => {
-    const loadProfile = async () => {
-      if (!user?.id) return;
+  const viewedJobSeekerId = String(routeJobSeekerId ?? user?.jobSeekerId ?? '').trim();
+  const loggedInJobSeekerId = String(user?.jobSeekerId ?? '').trim();
+  const hasJobSeekerRole = Array.isArray(user?.roles)
+    ? user.roles.some((role) => String(role).toLowerCase().trim() === 'applicant')
+    : false;
 
-      setProfileLoading(true);
-      setProfileError('');
+  const canEditProfile = canCurrentUserEditJobSeekerProfile(profileOwnerId || viewedJobSeekerId);
+  const isReadOnlyView = !canEditProfile;
 
-      try {
-        const data = await getJobSeekerProfile(user.id, user.jobSeekerId);
+  const loadProfile = async () => {
+    if (!viewedJobSeekerId) {
+      setProfileError('No job seeker ID was provided to load this profile.');
+      return;
+    }
 
-        const nextSkills = Array.isArray(data.skills)
-          ? data.skills
-          : Array.isArray(data.skillNames)
-            ? data.skillNames
-            : [];
+    setProfileLoading(true);
+    setProfileError('');
 
-        if (nextSkills.length > 0) {
-          setProfile((prev) => ({ ...prev, skills: nextSkills }));
-        }
+    try {
+      const data = await getJobSeekerProfile(viewedJobSeekerId);
 
-        setContactInfo((prev) => ({
-          ...prev,
-          phone: data.phone ?? prev.phone,
-          location: data.location ?? prev.location,
-          website: data.website ?? prev.website,
-          linkedin: data.linkedin ?? data.linkedIn ?? prev.linkedin,
-          github: data.github ?? prev.github,
-          twitter: data.twitter ?? prev.twitter,
-          experience: data.experience ?? prev.experience,
-          education: data.education ?? prev.education,
-        }));
+      const ownerId = String(data.id ?? viewedJobSeekerId).trim();
+      setProfileOwnerId(ownerId);
 
-        const updatedName = (data.fullName ?? data.name ?? '').trim();
-        const updatedEmail = (data.email ?? '').trim();
-        if (updatedName || updatedEmail) {
-          updateUser({
-            ...(updatedName ? { name: updatedName } : {}),
-            ...(updatedEmail ? { email: updatedEmail } : {}),
-          });
-        }
-      } catch (err: unknown) {
-        setProfileError(err instanceof Error ? err.message : 'We could not load your profile right now. Please try again.');
-      } finally {
-        setProfileLoading(false);
+      setProfile((prev) => ({
+        ...prev,
+        fullName: String(data.fullName ?? '').trim(),
+        email: String(data.email ?? '').trim(),
+      }));
+
+      setContactInfo({
+        phoneNumber: String(data.phoneNumber ?? '').trim(),
+        address: String(data.address ?? '').trim(),
+        websiteUrl: String(data.websiteUrl ?? '').trim(),
+        gitHubUrl: String(data.gitHubUrl ?? '').trim(),
+        experience: String(data.experience ?? ''),
+        education: String(data.education ?? ''),
+      });
+
+      setImageLoadFailed(false);
+      setProfileImageUrl(buildJobSeekerImageUrl(data.imageUrl));
+
+      const updatedName = String(data.fullName ?? '').trim();
+      const updatedEmail = String(data.email ?? '').trim();
+      if (updatedName || updatedEmail) {
+        updateUser({
+          ...(updatedName ? { name: updatedName } : {}),
+          ...(updatedEmail ? { email: updatedEmail } : {}),
+        });
       }
-    };
+    } catch (err: unknown) {
+      setProfileError(err instanceof Error ? err.message : 'We could not load your profile right now. Please try again.');
+    } finally {
+      setProfileLoading(false);
+    }
+  };
 
-    loadProfile();
-  }, [user?.id, user?.jobSeekerId]);
+  useEffect(() => {
+    void loadProfile();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewedJobSeekerId]);
+
+  useEffect(() => {
+    if (!profileSuccessMessage) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => setProfileSuccessMessage(''), 2500);
+    return () => window.clearTimeout(timeout);
+  }, [profileSuccessMessage]);
 
   const handleAddSkill = () => {
     if (newSkill.trim() && !profile.skills.includes(newSkill.trim())) {
@@ -110,6 +149,24 @@ const ApplicantProfile = () => {
 
   const { handlePhotoUpload, handlePhotoRemove } = useProfilePhoto();
 
+  const handleSaveContact = async (updatedContactInfo: ContactInfo) => {
+    if (!hasJobSeekerRole) {
+      throw new Error('Only job seekers can edit job seeker profiles.');
+    }
+
+    if (!canCurrentUserEditJobSeekerProfile(profileOwnerId || viewedJobSeekerId)) {
+      throw new Error('You can only edit your own profile.');
+    }
+
+    await updateJobSeekerProfile(updatedContactInfo, profileOwnerId || viewedJobSeekerId);
+
+    setProfileSuccessMessage('Profile updated successfully');
+    await loadProfile();
+  };
+
+  const headerName = getDisplayValue(profile.fullName || user?.name || '');
+  const headerEmail = getDisplayValue(profile.email || user?.email || '');
+
   return (
     <div className="min-h-screen bg-navy-900">
       <Navbar />
@@ -118,68 +175,66 @@ const ApplicantProfile = () => {
         <div className="max-w-7xl mx-auto">
           {/* Profile Header */}
           <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 sm:p-6 lg:p-8 mb-6 sm:mb-8 border border-white/10">
-            {(profileLoading || profileError) && (
+            {(profileLoading || profileError || profileSuccessMessage) && (
               <div className={`mb-4 p-3 rounded-lg text-sm border ${profileError ? 'bg-red-500/10 border-red-500/30 text-red-300' : 'bg-cyan-500/10 border-cyan-500/30 text-cyan-300'}`}>
-                {profileLoading ? 'Loading your profile...' : profileError}
+                {profileLoading ? 'Loading your profile...' : profileError || profileSuccessMessage}
+              </div>
+            )}
+            {isReadOnlyView && (
+              <div className="mb-4 p-3 rounded-lg text-sm border bg-yellow-500/10 border-yellow-500/30 text-yellow-300">
+                {hasJobSeekerRole && loggedInJobSeekerId
+                  ? 'You can view this profile, but only the profile owner can edit it.'
+                  : 'Read-only mode. Only job seekers can edit their own profiles.'}
               </div>
             )}
             <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-6">
               <div 
-                onClick={() => setShowPhotoModal(true)}
-                className="w-20 h-20 sm:w-24 sm:h-24 lg:w-32 lg:h-32 flex items-center justify-center rounded-2xl bg-gradient-to-br from-pink-500 to-rose-500 flex-shrink-0 cursor-pointer relative group"
+                onClick={() => canEditProfile && setShowPhotoModal(true)}
+                className={`w-20 h-20 sm:w-24 sm:h-24 lg:w-32 lg:h-32 flex items-center justify-center rounded-2xl bg-gradient-to-br from-pink-500 to-rose-500 flex-shrink-0 relative group ${canEditProfile ? 'cursor-pointer' : 'cursor-default'}`}
               >
-                {user?.avatar ? (
-                  <img src={user.avatar} alt={user.name} className="w-full h-full rounded-2xl object-cover" />
+                {profileImageUrl && !imageLoadFailed ? (
+                  <img
+                    src={profileImageUrl}
+                    alt={headerName}
+                    onError={() => setImageLoadFailed(true)}
+                    className="w-full h-full rounded-2xl object-cover"
+                  />
                 ) : (
                   <i className="ri-user-line text-4xl sm:text-5xl lg:text-6xl text-white"></i>
                 )}
-                <div className="absolute inset-0 bg-black/50 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <i className="ri-camera-line text-2xl text-white"></i>
-                </div>
+                {canEditProfile && (
+                  <div className="absolute inset-0 bg-black/50 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <i className="ri-camera-line text-2xl text-white"></i>
+                  </div>
+                )}
               </div>
               <div className="flex-1 w-full">
                 <div className="flex items-start justify-between gap-3 mb-1">
-                  <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white">{user?.name}</h1>
-                  <button
-                    onClick={() => setShowContactModal(true)}
-                    className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-pink-500/20 hover:bg-pink-500/30 border border-pink-500/30 rounded-lg text-pink-300 text-xs font-medium transition-colors cursor-pointer whitespace-nowrap"
-                  >
-                    <i className="ri-edit-line"></i>
-                    Edit Contact
-                  </button>
+                  <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white">{headerName}</h1>
+                  {canEditProfile && (
+                    <button
+                      onClick={() => setShowContactModal(true)}
+                      className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-pink-500/20 hover:bg-pink-500/30 border border-pink-500/30 rounded-lg text-pink-300 text-xs font-medium transition-colors cursor-pointer whitespace-nowrap"
+                    >
+                      <i className="ri-edit-line"></i>
+                      Edit Contact
+                    </button>
+                  )}
                 </div>
-                <p className="text-sm sm:text-base text-gray-400 mb-3 break-all">{user?.email}</p>
+                <p className="text-sm sm:text-base text-gray-400 mb-3 break-all">{headerEmail}</p>
                 <div className="flex flex-wrap items-center gap-3 mb-4">
-                  {contactInfo.phone && (
-                    <span className="flex items-center gap-1.5 text-xs sm:text-sm text-gray-300">
-                      <i className="ri-phone-line text-pink-400"></i>{contactInfo.phone}
-                    </span>
-                  )}
-                  {contactInfo.location && (
-                    <span className="flex items-center gap-1.5 text-xs sm:text-sm text-gray-300">
-                      <i className="ri-map-pin-line text-pink-400"></i>{contactInfo.location}
-                    </span>
-                  )}
-                  {contactInfo.linkedin && (
-                    <span className="flex items-center gap-1.5 text-xs sm:text-sm text-gray-300">
-                      <i className="ri-linkedin-box-line text-pink-400"></i>{contactInfo.linkedin}
-                    </span>
-                  )}
-                  {contactInfo.github && (
-                    <span className="flex items-center gap-1.5 text-xs sm:text-sm text-gray-300">
-                      <i className="ri-github-fill text-pink-400"></i>{contactInfo.github}
-                    </span>
-                  )}
-                  {contactInfo.website && (
-                    <span className="flex items-center gap-1.5 text-xs sm:text-sm text-gray-300">
-                      <i className="ri-global-line text-pink-400"></i>{contactInfo.website}
-                    </span>
-                  )}
-                  {contactInfo.twitter && (
-                    <span className="flex items-center gap-1.5 text-xs sm:text-sm text-gray-300">
-                      <i className="ri-twitter-x-line text-pink-400"></i>{contactInfo.twitter}
-                    </span>
-                  )}
+                  <span className="flex items-center gap-1.5 text-xs sm:text-sm text-gray-300">
+                    <i className="ri-phone-line text-pink-400"></i>{getDisplayValue(contactInfo.phoneNumber)}
+                  </span>
+                  <span className="flex items-center gap-1.5 text-xs sm:text-sm text-gray-300">
+                    <i className="ri-map-pin-line text-pink-400"></i>{getDisplayValue(contactInfo.address)}
+                  </span>
+                  <span className="flex items-center gap-1.5 text-xs sm:text-sm text-gray-300">
+                    <i className="ri-github-fill text-pink-400"></i>{getDisplayValue(contactInfo.gitHubUrl)}
+                  </span>
+                  <span className="flex items-center gap-1.5 text-xs sm:text-sm text-gray-300">
+                    <i className="ri-global-line text-pink-400"></i>{getDisplayValue(contactInfo.websiteUrl)}
+                  </span>
                 </div>
                 <Link
                   to="/dashboard"
@@ -281,35 +336,39 @@ const ApplicantProfile = () => {
             <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 sm:p-6 lg:p-8 border border-white/10">
               <div className="flex items-center justify-between mb-3 sm:mb-4">
                 <h2 className="text-xl sm:text-2xl font-bold text-white">Experience</h2>
-                <button
-                  onClick={() => setShowContactModal(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-pink-500/20 hover:bg-pink-500/30 border border-pink-500/30 rounded-lg text-pink-300 text-xs font-medium transition-colors cursor-pointer whitespace-nowrap"
-                >
-                  <i className="ri-edit-line"></i>
-                  Edit
-                </button>
+                {canEditProfile && (
+                  <button
+                    onClick={() => setShowContactModal(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-pink-500/20 hover:bg-pink-500/30 border border-pink-500/30 rounded-lg text-pink-300 text-xs font-medium transition-colors cursor-pointer whitespace-nowrap"
+                  >
+                    <i className="ri-edit-line"></i>
+                    Edit
+                  </button>
+                )}
               </div>
-              {contactInfo.experience ? (
-                <p className="text-sm sm:text-base text-gray-300 leading-relaxed">{contactInfo.experience}</p>
+              {contactInfo.experience.trim().length > 0 ? (
+                <p className="text-sm sm:text-base text-gray-300 leading-relaxed whitespace-pre-line">{contactInfo.experience}</p>
               ) : (
-                <p className="text-sm text-gray-500 italic">No experience added yet. Click Edit to add yours.</p>
+                <p className="text-sm text-gray-500 italic">Not provided</p>
               )}
             </div>
             <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 sm:p-6 lg:p-8 border border-white/10">
               <div className="flex items-center justify-between mb-3 sm:mb-4">
                 <h2 className="text-xl sm:text-2xl font-bold text-white">Education</h2>
-                <button
-                  onClick={() => setShowContactModal(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-pink-500/20 hover:bg-pink-500/30 border border-pink-500/30 rounded-lg text-pink-300 text-xs font-medium transition-colors cursor-pointer whitespace-nowrap"
-                >
-                  <i className="ri-edit-line"></i>
-                  Edit
-                </button>
+                {canEditProfile && (
+                  <button
+                    onClick={() => setShowContactModal(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-pink-500/20 hover:bg-pink-500/30 border border-pink-500/30 rounded-lg text-pink-300 text-xs font-medium transition-colors cursor-pointer whitespace-nowrap"
+                  >
+                    <i className="ri-edit-line"></i>
+                    Edit
+                  </button>
+                )}
               </div>
-              {contactInfo.education ? (
-                <p className="text-sm sm:text-base text-gray-300 leading-relaxed">{contactInfo.education}</p>
+              {contactInfo.education.trim().length > 0 ? (
+                <p className="text-sm sm:text-base text-gray-300 leading-relaxed whitespace-pre-line">{contactInfo.education}</p>
               ) : (
-                <p className="text-sm text-gray-500 italic">No education added yet. Click Edit to add yours.</p>
+                <p className="text-sm text-gray-500 italic">Not provided</p>
               )}
             </div>
           </div>
@@ -323,8 +382,8 @@ const ApplicantProfile = () => {
       <ProfilePhotoModal
         isOpen={showPhotoModal}
         onClose={() => setShowPhotoModal(false)}
-        currentPhoto={user?.avatar}
-        userName={user?.name}
+        currentPhoto={profileImageUrl ?? user?.avatar}
+        userName={headerName}
         onUpload={handlePhotoUpload}
         onRemove={handlePhotoRemove}
         accentColor="pink"
@@ -334,7 +393,7 @@ const ApplicantProfile = () => {
         isOpen={showContactModal}
         onClose={() => setShowContactModal(false)}
         contactInfo={contactInfo}
-        onSave={setContactInfo}
+        onSave={handleSaveContact}
         accentColor="pink"
       />
     </div>

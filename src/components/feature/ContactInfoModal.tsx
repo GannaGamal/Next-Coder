@@ -2,21 +2,19 @@ import { useState, useEffect } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 
 export interface ContactInfo {
-  phone: string;
-  location: string;
-  website: string;
-  linkedin: string;
-  github: string;
-  twitter: string;
-  experience?: string;
-  education?: string;
+  phoneNumber: string;
+  address: string;
+  websiteUrl: string;
+  gitHubUrl: string;
+  experience: string;
+  education: string;
 }
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   contactInfo: ContactInfo;
-  onSave: (info: ContactInfo) => void;
+  onSave: (info: ContactInfo) => void | Promise<void>;
   accentColor?: 'violet' | 'purple' | 'pink' | 'orange' | 'emerald' | 'teal';
 }
 
@@ -30,12 +28,10 @@ const colorConfig = {
 };
 
 const fields: { key: keyof ContactInfo; label: string; icon: string; placeholder: string; type?: string }[] = [
-  { key: 'phone',    label: 'Phone',      icon: 'ri-phone-line',        placeholder: '+1 234 567 8900',           type: 'tel'  },
-  { key: 'location', label: 'Location',   icon: 'ri-map-pin-line',       placeholder: 'City, State / Country'                  },
-  { key: 'website',  label: 'Website',    icon: 'ri-global-line',        placeholder: 'https://yourwebsite.com'                },
-  { key: 'linkedin', label: 'LinkedIn',   icon: 'ri-linkedin-box-line',  placeholder: 'linkedin.com/in/username'               },
-  { key: 'github',   label: 'GitHub',     icon: 'ri-github-fill',        placeholder: 'github.com/username'                    },
-  { key: 'twitter',  label: 'Twitter / X',icon: 'ri-twitter-x-line',     placeholder: '@username'                              },
+  { key: 'phoneNumber', label: 'Phone Number', icon: 'ri-phone-line', placeholder: '+1 234 567 8900', type: 'tel' },
+  { key: 'address', label: 'Address', icon: 'ri-map-pin-line', placeholder: 'City, State / Country' },
+  { key: 'websiteUrl', label: 'Website', icon: 'ri-global-line', placeholder: 'https://yourwebsite.com' },
+  { key: 'gitHubUrl', label: 'GitHub', icon: 'ri-github-fill', placeholder: 'https://github.com/username' },
 ];
 
 const textareaFields: { key: keyof ContactInfo; label: string; icon: string; placeholder: string }[] = [
@@ -52,17 +48,35 @@ const ContactInfoModal = ({
 }: Props) => {
   const { isLightMode } = useTheme();
   const [form, setForm] = useState<ContactInfo>({ ...contactInfo });
+  const [saveError, setSaveError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
   const cfg = colorConfig[accentColor];
 
   useEffect(() => {
-    if (isOpen) setForm({ ...contactInfo });
+    if (isOpen) {
+      setForm({ ...contactInfo });
+      setSaveError('');
+      setIsSaving(false);
+    }
   }, [isOpen, contactInfo]);
 
   if (!isOpen) return null;
 
-  const handleSave = () => {
-    onSave(form);
-    onClose();
+  const handleSave = async () => {
+    try {
+      setSaveError('');
+      setIsSaving(true);
+      await onSave(form);
+      onClose();
+    } catch (error) {
+      setSaveError(
+        error instanceof Error
+          ? error.message
+          : 'We could not update your profile right now. Please try again.'
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -86,6 +100,12 @@ const ContactInfoModal = ({
           </div>
         </div>
 
+        {saveError && (
+          <div className={`mb-4 p-3 rounded-lg text-sm border ${isLightMode ? 'bg-red-50 border-red-200 text-red-700' : 'bg-red-500/10 border-red-500/30 text-red-300'}`}>
+            {saveError}
+          </div>
+        )}
+
         <div className="space-y-4">
           {fields.map(field => (
             <div key={field.key}>
@@ -98,6 +118,7 @@ const ContactInfoModal = ({
                 value={form[field.key]}
                 onChange={e => setForm(prev => ({ ...prev, [field.key]: e.target.value }))}
                 placeholder={field.placeholder}
+                disabled={isSaving}
                 className={`w-full border rounded-lg px-4 py-3 text-sm focus:outline-none ${cfg.border} transition-colors ${isLightMode ? 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400' : 'bg-white/5 border-white/10 text-white placeholder-gray-500'}`}
               />
             </div>
@@ -116,6 +137,7 @@ const ContactInfoModal = ({
                   onChange={e => setForm(prev => ({ ...prev, [field.key]: e.target.value }))}
                   placeholder={field.placeholder}
                   rows={3}
+                  disabled={isSaving}
                   className={`w-full border rounded-lg px-4 py-3 text-sm focus:outline-none resize-none ${cfg.border} transition-colors ${isLightMode ? 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400' : 'bg-white/5 border-white/10 text-white placeholder-gray-500'}`}
                 />
               </div>
@@ -126,15 +148,17 @@ const ContactInfoModal = ({
         <div className="flex gap-3 mt-6">
           <button
             onClick={onClose}
+            disabled={isSaving}
             className={`flex-1 px-5 py-3 font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap ${isLightMode ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' : 'bg-white/5 text-white hover:bg-white/10'}`}
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
+            disabled={isSaving}
             className={`flex-1 px-5 py-3 ${cfg.btn} text-white font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap`}
           >
-            <i className="ri-save-line mr-2"></i>Save Changes
+            <i className="ri-save-line mr-2"></i>{isSaving ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
       </div>
