@@ -16,6 +16,7 @@ interface JobSummary {
   salary: string;
   experience: string;
   applicants: number;
+  companyLogoUrl?: string | null;
 }
 
 const JobApplication = () => {
@@ -33,6 +34,7 @@ const JobApplication = () => {
   const [job, setJob] = useState<JobSummary | null>(null);
   const [isLoadingJob, setIsLoadingJob] = useState(true);
   const [jobLoadError, setJobLoadError] = useState('');
+  const [logoLoadFailed, setLogoLoadFailed] = useState(false);
   const [formData, setFormData] = useState({
     seekerTitle: '',
     availableDate: '',
@@ -40,6 +42,26 @@ const JobApplication = () => {
     minExpectedSalary: '',
     maxExpectedSalary: '',
   });
+
+  const buildCompanyLogoUrl = (logoUrl?: string | null): string => {
+    if (!logoUrl) {
+      return 'https://ui-avatars.com/api/?name=Company&background=6366f1&color=ffffff&size=100';
+    }
+
+    const trimmed = String(logoUrl).trim();
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      return trimmed;
+    }
+
+    // Encode spaces and other special characters in the path
+    const encoded = trimmed.split('/').map(segment => encodeURIComponent(segment)).join('/');
+    return `https://nextcoder.runasp.net/${encoded}`;
+  };
+
+  const getDefaultCompanyLogo = (companyName: string): string => {
+    const normalized = encodeURIComponent(companyName || 'Company');
+    return `https://ui-avatars.com/api/?name=${normalized}&background=6366f1&color=ffffff&size=100`;
+  };
 
   const mapApiJobToSummary = (item: JobPostItem): JobSummary => {
     const hasMin = typeof item.minSalary === 'number';
@@ -56,12 +78,13 @@ const JobApplication = () => {
       id: String(item.id),
       title: item.title,
       company: item.companyName,
-      companyLogo: 'https://readdy.ai/api/search-image?query=modern%20company%20logo%20minimalist%20clean%20branding%20on%20white%20background&width=100&height=100&seq=job-app-real&orientation=squarish',
+      companyLogo: buildCompanyLogoUrl(item.companyLogoUrl) || getDefaultCompanyLogo(item.companyName),
       location: item.location || 'Remote',
       type: item.jobType || 'Not specified',
       salary,
       experience: item.experienceLevel || 'Not specified',
       applicants: item.jobSeekersCount ?? 0,
+      companyLogoUrl: item.companyLogoUrl,
     };
   };
 
@@ -323,8 +346,19 @@ const JobApplication = () => {
 
             {!isLoadingJob && !jobLoadError && job && (
               <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
-                <div className="w-16 h-16 rounded-xl overflow-hidden bg-white/10 flex-shrink-0 mx-auto sm:mx-0">
-                  <img src={job.companyLogo} alt={job.company} className="w-full h-full object-cover" />
+                <div className="w-16 h-16 rounded-xl overflow-hidden bg-white/10 flex-shrink-0 mx-auto sm:mx-0 flex items-center justify-center">
+                  {logoLoadFailed ? (
+                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-500/20 to-blue-500/20">
+                      <i className="ri-building-4-line text-2xl text-purple-400"></i>
+                    </div>
+                  ) : (
+                    <img
+                      src={job.companyLogo}
+                      alt={job.company}
+                      className="w-full h-full object-cover"
+                      onError={() => setLogoLoadFailed(true)}
+                    />
+                  )}
                 </div>
                 <div className="flex-1 text-center sm:text-left">
                   <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">

@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { closeJobPost, deleteJobPost, getEmployerDashboard, getJobPostDetails, rejectJobApplicant, scheduleInterviewForApplicant, type EmployerDashboardJobPostItem } from '../../../services/job-post.service';
 
 interface Applicant {
   id: string;
+  jobSeekerId?: string;
   name: string;
   avatar: string;
   title: string;
@@ -371,6 +373,7 @@ const EmployerDashboard = () => {
 
       const mappedApplicants: Applicant[] = details.applicants.map((applicant) => ({
         id: String(applicant.id),
+        jobSeekerId: typeof applicant.jobSeekerId === 'number' && applicant.jobSeekerId > 0 ? String(applicant.jobSeekerId) : undefined,
         name: applicant.name,
         avatar: applicant.avatar,
         title: applicant.title,
@@ -620,7 +623,17 @@ const EmployerDashboard = () => {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
-                            <h5 className={`font-semibold truncate ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{applicant.name}</h5>
+                            {applicant.jobSeekerId ? (
+                              <Link
+                                to={`/profile/job-seeker/${encodeURIComponent(applicant.jobSeekerId)}`}
+                                className={`font-semibold truncate hover:underline ${isLightMode ? 'text-gray-900 hover:text-violet-600' : 'text-white hover:text-violet-300'}`}
+                                title={`Open ${applicant.name}'s profile`}
+                              >
+                                {applicant.name}
+                              </Link>
+                            ) : (
+                              <h5 className={`font-semibold truncate ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{applicant.name}</h5>
+                            )}
                             <span className={`px-2 py-0.5 rounded text-xs font-medium border ${getApplicantStatusColor(applicant.status)}`}>{getApplicantStatusLabel(applicant.status)}</span>
                           </div>
                           <p className={`text-sm ${isLightMode ? 'text-gray-500' : 'text-gray-400'}`}>{applicant.title} • {applicant.experience}</p>
@@ -696,7 +709,17 @@ const EmployerDashboard = () => {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
-                            <h5 className={`font-semibold truncate ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{applicant.name}</h5>
+                            {applicant.jobSeekerId ? (
+                              <Link
+                                to={`/profile/job-seeker/${encodeURIComponent(applicant.jobSeekerId)}`}
+                                className={`font-semibold truncate hover:underline ${isLightMode ? 'text-gray-900 hover:text-violet-600' : 'text-white hover:text-violet-300'}`}
+                                title={`Open ${applicant.name}'s profile`}
+                              >
+                                {applicant.name}
+                              </Link>
+                            ) : (
+                              <h5 className={`font-semibold truncate ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{applicant.name}</h5>
+                            )}
                             <span className={`px-2 py-0.5 rounded text-xs font-medium border ${getApplicantStatusColor(applicant.status)}`}>{getApplicantStatusLabel(applicant.status)}</span>
                           </div>
                           <p className={`text-sm ${isLightMode ? 'text-gray-500' : 'text-gray-400'}`}>{applicant.title} • {applicant.experience}</p>

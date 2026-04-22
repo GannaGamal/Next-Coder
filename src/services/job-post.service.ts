@@ -73,6 +73,7 @@ export type EmployerJobApplicationStatus = 'pending' | 'reviewed' | 'shortlisted
 
 export interface EmployerJobApplicantItem {
   id: number;
+  jobSeekerId?: number;
   name: string;
   avatar: string;
   title: string;
@@ -392,6 +393,7 @@ export const getJobPostDetails = async (jobPostId: number): Promise<EmployerJobP
     .map((item: unknown) => {
       const raw = item as Record<string, unknown>;
       const id = Number(raw.id ?? raw.jobApplicationId ?? raw.applicationId ?? raw.Id ?? raw.JobApplicationId ?? 0);
+        const jobSeekerId = Number(raw.jobSeekerId ?? raw.JobSeekerId ?? raw.seekerId ?? raw.SeekerId ?? raw.applicantId ?? raw.ApplicantId ?? 0);
       const score = Number(raw.matchScore ?? raw.MatchScore);
       const years = Number(raw.yearsOfExperience ?? raw.yearsofExperience ?? raw.YearsOfExperience ?? raw.YearsofExperience);
       const interviewAtRaw = raw.interviewScheduledAt ?? raw.InterviewScheduledAt;
@@ -401,6 +403,7 @@ export const getJobPostDetails = async (jobPostId: number): Promise<EmployerJobP
 
       return {
         id,
+          jobSeekerId: Number.isFinite(jobSeekerId) && jobSeekerId > 0 ? jobSeekerId : undefined,
         name,
         avatar: String(raw.avatar ?? raw.profileImageUrl ?? raw.imageUrl ?? raw.Avatar ?? raw.ProfileImageUrl ?? raw.ImageUrl ?? getDefaultAvatar(name)),
         title: String(raw.title ?? raw.seekerTitle ?? raw.jobTitle ?? raw.Title ?? raw.SeekerTitle ?? 'Job Seeker'),
