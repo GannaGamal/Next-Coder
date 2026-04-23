@@ -14,6 +14,13 @@ import {
   getJobSeekerProfile,
   updateJobSeekerProfile,
 } from '../../services/job-seeker-profile.service';
+import {
+  downloadCvById,
+  getJobSeekerCv,
+  replaceCurrentUserCv,
+  viewCvById,
+  type PublicCvInfo,
+} from '../../services/public-cv.service';
 
 const NOT_PROVIDED = 'Not provided';
 
@@ -22,10 +29,27 @@ const getDisplayValue = (value: string): string => {
   return normalized.length > 0 ? normalized : NOT_PROVIDED;
 };
 
+const formatCvDate = (isoDate: string | null | undefined): string => {
+  if (!isoDate) {
+    return 'Unknown upload date';
+  }
+
+  const parsed = new Date(isoDate);
+  if (Number.isNaN(parsed.getTime())) {
+    return 'Unknown upload date';
+  }
+
+  return parsed.toLocaleDateString();
+};
+
 const ApplicantProfile = () => {
   const { user, updateUser } = useAuth();
   const { jobSeekerId: routeJobSeekerId } = useParams<{ jobSeekerId?: string }>();
-  const [cvFile, setCvFile] = useState<File | null>(null);
+  const [cvInfo, setCvInfo] = useState<PublicCvInfo | null>(null);
+  const [cvLoading, setCvLoading] = useState(false);
+  const [cvUploading, setCvUploading] = useState(false);
+  const [cvError, setCvError] = useState('');
+  const [cvSuccessMessage, setCvSuccessMessage] = useState('');
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
@@ -34,12 +58,6 @@ const ApplicantProfile = () => {
   const [profileOwnerId, setProfileOwnerId] = useState('');
   const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
   const [imageLoadFailed, setImageLoadFailed] = useState(false);
-  
-  const [originalCv] = useState({
-    name: 'John_Doe_Resume_2024.pdf',
-    uploadedAt: '2024-01-05',
-    size: 245
-  });
 
   const [contactInfo, setContactInfo] = useState<ContactInfo>({
     phoneNumber: '',
@@ -117,6 +135,7 @@ const ApplicantProfile = () => {
 
   useEffect(() => {
     void loadProfile();
+    void loadCv();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewedJobSeekerId]);
 
@@ -129,6 +148,15 @@ const ApplicantProfile = () => {
     return () => window.clearTimeout(timeout);
   }, [profileSuccessMessage]);
 
+  useEffect(() => {
+    if (!cvSuccessMessage) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => setCvSuccessMessage(''), 2500);
+    return () => window.clearTimeout(timeout);
+  }, [cvSuccessMessage]);
+
   const handleAddSkill = () => {
     if (newSkill.trim() && !profile.skills.includes(newSkill.trim())) {
       setProfile({ ...profile, skills: [...profile.skills, newSkill.trim()] });
@@ -140,10 +168,80 @@ const ApplicantProfile = () => {
     setProfile({ ...profile, skills: profile.skills.filter(s => s !== skill) });
   };
 
-  const handleCvUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && file.type === 'application/pdf') {
-      setCvFile(file);
+  const loadCv = async () => {
+    if (!viewedJobSeekerId) {
+      setCvInfo(null);
+      setCvError('');
+      return;
+    }
+
+    setCvLoading(true);
+    setCvError('');
+
+    try {
+      const currentCv = await getJobSeekerCv(viewedJobSeekerId);
+      setCvInfo(currentCv);
+    } catch (err: unknown) {
+      setCvInfo(null);
+      setCvError(err instanceof Error ? err.message : 'We could not load CV data right now. Please try again.');
+    } finally {
+      setCvLoading(false);
+    }
+  };
+
+  const handleCvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const input = e.currentTarget;
+    const file = input.files?.[0] ?? null;
+    input.value = '';
+
+    if (!file) {
+      return;
+    }
+
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    if (!isPdf) {
+      setCvError('Only PDF files are allowed for CV upload.');
+      return;
+    }
+
+    setCvUploading(true);
+    setCvError('');
+    setCvSuccessMessage('');
+
+    try {
+      await replaceCurrentUserCv(file, profileOwnerId || viewedJobSeekerId);
+      setCvSuccessMessage(cvInfo ? 'CV replaced successfully.' : 'CV uploaded successfully.');
+      await loadCv();
+    } catch (err: unknown) {
+      setCvError(err instanceof Error ? err.message : 'We could not upload your CV right now. Please try again.');
+    } finally {
+      setCvUploading(false);
+    }
+  };
+
+  const handleViewCv = async () => {
+    if (!cvInfo?.id) {
+      return;
+    }
+
+    setCvError('');
+    try {
+      await viewCvById(cvInfo.id);
+    } catch (err: unknown) {
+      setCvError(err instanceof Error ? err.message : 'We could not open this CV right now. Please try again.');
+    }
+  };
+
+  const handleDownloadCv = async () => {
+    if (!cvInfo?.id) {
+      return;
+    }
+
+    setCvError('');
+    try {
+      await downloadCvById(cvInfo.id, cvInfo.fileName);
+    } catch (err: unknown) {
+      setCvError(err instanceof Error ? err.message : 'We could not download this CV right now. Please try again.');
     }
   };
 
@@ -251,6 +349,11 @@ const ApplicantProfile = () => {
           {/* CV Section */}
           <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 sm:p-6 lg:p-8 mb-6 sm:mb-8 border border-white/10">
             <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-6">My CV</h2>
+            {(cvLoading || cvError || cvSuccessMessage) && (
+              <div className={`mb-4 p-3 rounded-lg text-sm border ${cvError ? 'bg-red-500/10 border-red-500/30 text-red-300' : 'bg-cyan-500/10 border-cyan-500/30 text-cyan-300'}`}>
+                {cvLoading ? 'Loading CV...' : cvError || cvSuccessMessage}
+              </div>
+            )}
 
             <div className="mb-6">
               <h3 className="text-sm text-gray-400 mb-3">Current CV</h3>
@@ -260,38 +363,53 @@ const ApplicantProfile = () => {
                     <i className="ri-file-pdf-line text-2xl sm:text-3xl text-pink-400"></i>
                   </div>
                   <div>
-                    <h4 className="text-sm sm:text-base text-white font-semibold">{cvFile ? cvFile.name : originalCv.name}</h4>
+                    <h4 className="text-sm sm:text-base text-white font-semibold">{cvInfo?.fileName || 'No CV uploaded yet'}</h4>
                     <p className="text-xs sm:text-sm text-gray-400">
-                      {cvFile 
-                        ? `${(cvFile.size / 1024).toFixed(2)} KB • Just uploaded`
-                        : `${originalCv.size} KB • Uploaded on ${originalCv.uploadedAt}`
-                      }
+                      {cvInfo
+                        ? `Uploaded on ${formatCvDate(cvInfo.uploadedAt)}`
+                        : 'Upload your CV as a PDF file.'}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 w-full sm:w-auto">
-                  <button className="flex-1 sm:flex-none px-4 py-2 bg-white/10 text-white text-sm rounded-lg hover:bg-white/20 transition-colors cursor-pointer whitespace-nowrap">
+                  <button
+                    type="button"
+                    onClick={handleViewCv}
+                    disabled={!cvInfo?.id}
+                    className="flex-1 sm:flex-none px-4 py-2 bg-white/10 text-white text-sm rounded-lg hover:bg-white/20 transition-colors cursor-pointer whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50"
+                  >
                     <i className="ri-eye-line mr-2"></i>View
                   </button>
-                  <button className="flex-1 sm:flex-none px-4 py-2 bg-white/10 text-white text-sm rounded-lg hover:bg-white/20 transition-colors cursor-pointer whitespace-nowrap">
+                  <button
+                    type="button"
+                    onClick={handleDownloadCv}
+                    disabled={!cvInfo?.id}
+                    className="flex-1 sm:flex-none px-4 py-2 bg-white/10 text-white text-sm rounded-lg hover:bg-white/20 transition-colors cursor-pointer whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50"
+                  >
                     <i className="ri-download-line mr-2"></i>Download
                   </button>
                 </div>
               </div>
             </div>
 
-            <div>
-              <h3 className="text-sm text-gray-400 mb-3">Upload Updated CV</h3>
-              <div className="border-2 border-dashed border-white/20 rounded-lg p-6 sm:p-8 text-center hover:border-pink-500/50 transition-all">
-                <i className="ri-upload-cloud-line text-4xl sm:text-5xl text-gray-400 mb-3"></i>
-                <h4 className="text-base sm:text-lg text-white font-semibold mb-2">Replace Your CV (PDF)</h4>
-                <p className="text-sm text-gray-400 mb-4">Drag and drop or click to browse</p>
-                <label className="inline-block px-4 sm:px-6 py-2 sm:py-3 bg-pink-500 text-white text-sm sm:text-base font-semibold rounded-lg hover:bg-pink-600 transition-colors whitespace-nowrap cursor-pointer">
-                  Upload Updated CV
-                  <input type="file" accept=".pdf" onChange={handleCvUpload} className="hidden" />
-                </label>
+            {canEditProfile ? (
+              <div>
+                <h3 className="text-sm text-gray-400 mb-3">Upload Updated CV</h3>
+                <div className="border-2 border-dashed border-white/20 rounded-lg p-6 sm:p-8 text-center hover:border-pink-500/50 transition-all">
+                  <i className="ri-upload-cloud-line text-4xl sm:text-5xl text-gray-400 mb-3"></i>
+                  <h4 className="text-base sm:text-lg text-white font-semibold mb-2">Replace Your CV (PDF)</h4>
+                  <p className="text-sm text-gray-400 mb-4">
+                    {cvInfo ? 'Uploading a new PDF will replace your current CV.' : 'Upload your first CV as a PDF file.'}
+                  </p>
+                  <label className={`inline-block px-4 sm:px-6 py-2 sm:py-3 bg-pink-500 text-white text-sm sm:text-base font-semibold rounded-lg hover:bg-pink-600 transition-colors whitespace-nowrap ${cvUploading ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}>
+                    {cvUploading ? 'Uploading...' : cvInfo ? 'Replace CV' : 'Upload CV'}
+                    <input type="file" accept="application/pdf,.pdf" onChange={handleCvUpload} className="hidden" disabled={cvUploading} />
+                  </label>
+                </div>
               </div>
-            </div>
+            ) : (
+              <p className="text-sm text-gray-400">Only the profile owner can replace this CV.</p>
+            )}
           </div>
 
           {/* Skills */}
