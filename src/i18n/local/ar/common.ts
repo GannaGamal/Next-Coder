@@ -636,7 +636,7 @@ const ar = {
     browseFiles: 'تصفح الملفات',
     supportedFormats: 'الصيغ المدعومة: PDF, DOC, DOCX (الحد الأقصى 5MB)',
     agreeTerms: 'بالرفع، توافق على شروط الاستخدام وسياسة الخصوصية',
-    searchPlaceholder: 'ابحث بالاسم أو المسمى الوظيفي أو المهارات...',
+    searchPlaceholder: 'ابحث بأسم المتقدم أو عنوان الوظيفة...',
     applicantFilters: 'فلاتر المتقدمين',
     sortBy: 'ترتيب حسب:',
     matchScore: 'نسبة التطابق',
