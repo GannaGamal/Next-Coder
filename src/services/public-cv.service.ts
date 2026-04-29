@@ -8,6 +8,8 @@ export interface PublicCvInfo {
   filePath: string | null;
   fileUrl: string | null;
   uploadedAt: string | null;
+  isPublic?: boolean;
+  jobTitle?: string | null;
 }
 
 interface StoredUserAuth {
@@ -101,13 +103,23 @@ export const buildPublicCvFileUrl = (filePath: string | null | undefined): strin
 
 const parsePublicCvInfo = (raw: Record<string, unknown>): PublicCvInfo | null => {
   const id = toNonEmptyString(raw.id ?? raw.Id);
-  const filePath = toNonEmptyString(raw.filePath ?? raw.FilePath ?? raw.cvPath ?? raw.CvPath);
+  const filePath = toNonEmptyString(
+    raw.cvUrl
+      ?? raw.CvUrl
+      ?? raw.filePath
+      ?? raw.FilePath
+      ?? raw.cvPath
+      ?? raw.CvPath
+  );
 
   if (!id && !filePath) {
     return null;
   }
 
   const uploadedAtRaw = toNonEmptyString(raw.uploadedAt ?? raw.UploadedAt ?? raw.createdAt ?? raw.CreatedAt);
+  const jobTitle = toNonEmptyString(raw.jobTitle ?? raw.JobTitle ?? raw.title ?? raw.Title);
+  const isPublicRaw = raw.isPublic ?? raw.IsPublic;
+  const isPublic = typeof isPublicRaw === 'boolean' ? isPublicRaw : undefined;
 
   return {
     id: id ?? '',
@@ -116,6 +128,8 @@ const parsePublicCvInfo = (raw: Record<string, unknown>): PublicCvInfo | null =>
     filePath,
     fileUrl: buildPublicCvFileUrl(filePath),
     uploadedAt: uploadedAtRaw,
+    jobTitle,
+    isPublic,
   };
 };
 
@@ -166,6 +180,106 @@ export const getJobSeekerCv = async (jobSeekerId: string | null | undefined): Pr
 
   if (response.status === 404) {
     return null;
+  }
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+
+  const rawText = await response.text();
+  if (!rawText.trim()) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(rawText) as unknown;
+    return parsePublicCvResponse(parsed);
+  } catch {
+    return null;
+  }
+};
+
+const parsePublicCvList = (data: unknown): PublicCvInfo[] => {
+  if (!data || typeof data !== 'object') {
+    return [];
+  }
+
+  const candidate = data as Record<string, unknown>;
+  const list = Array.isArray(candidate.value)
+    ? candidate.value
+    : Array.isArray(candidate.data)
+      ? candidate.data
+      : Array.isArray(candidate.items)
+        ? candidate.items
+        : Array.isArray(data)
+          ? data
+          : [];
+
+  return list
+    .map((item) => (item && typeof item === 'object' ? parsePublicCvInfo(item as Record<string, unknown>) : null))
+    .filter((item): item is PublicCvInfo => Boolean(item));
+};
+
+export const getAllPublicCvs = async (search?: string): Promise<PublicCvInfo[]> => {
+  let response: Response;
+  const token = getToken();
+  const normalizedSearch = String(search ?? '').trim();
+  const query = normalizedSearch.length > 0 ? `?search=${encodeURIComponent(normalizedSearch)}` : '';
+
+  try {
+    response = await fetch(`${API_BASE}/PublicCv/All${query}`, {
+      method: 'GET',
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+  } catch {
+    throw new Error('We could not load public CVs right now. Please check your connection and try again.');
+  }
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+
+  const rawText = await response.text();
+  if (!rawText.trim()) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(rawText) as unknown;
+    return parsePublicCvList(parsed);
+  } catch {
+    return [];
+  }
+};
+
+export const toggleCvPrivacy = async (
+  cvId: string,
+  jobTitle?: string | null
+): Promise<PublicCvInfo | null> => {
+  const token = getToken();
+  if (!token) {
+    throw new Error('You must be signed in to update CV privacy.');
+  }
+
+  const normalizedId = String(cvId ?? '').trim();
+  if (!normalizedId) {
+    throw new Error('Invalid CV ID.');
+  }
+
+  const payload = jobTitle ? { jobTitle: String(jobTitle).trim() } : {};
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}/PublicCv/togglePrivacy/${encodeURIComponent(normalizedId)}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    throw new Error('We could not update CV privacy right now. Please check your connection and try again.');
   }
 
   if (!response.ok) {

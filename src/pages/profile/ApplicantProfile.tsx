@@ -18,6 +18,7 @@ import {
   downloadCvById,
   getJobSeekerCv,
   replaceCurrentUserCv,
+  toggleCvPrivacy,
   viewCvById,
   type PublicCvInfo,
 } from '../../services/public-cv.service';
@@ -48,6 +49,7 @@ const ApplicantProfile = () => {
   const [cvInfo, setCvInfo] = useState<PublicCvInfo | null>(null);
   const [cvLoading, setCvLoading] = useState(false);
   const [cvUploading, setCvUploading] = useState(false);
+  const [cvPrivacyUpdating, setCvPrivacyUpdating] = useState(false);
   const [cvError, setCvError] = useState('');
   const [cvSuccessMessage, setCvSuccessMessage] = useState('');
   const [showPhotoModal, setShowPhotoModal] = useState(false);
@@ -83,6 +85,7 @@ const ApplicantProfile = () => {
     : false;
 
   const canEditProfile = canCurrentUserEditJobSeekerProfile(profileOwnerId || viewedJobSeekerId);
+  const canToggleCvPrivacy = canEditProfile && hasJobSeekerRole;
   const isReadOnlyView = !canEditProfile;
 
   const loadProfile = async () => {
@@ -245,6 +248,57 @@ const ApplicantProfile = () => {
     }
   };
 
+  const handleCvPrivacyToggle = async () => {
+    if (!cvInfo?.id) {
+      return;
+    }
+
+    if (!canToggleCvPrivacy) {
+      setCvError('Only the CV owner can update CV privacy.');
+      return;
+    }
+
+    setCvError('');
+    setCvSuccessMessage('');
+
+    const isCurrentlyPublic = Boolean(cvInfo.isPublic);
+    let jobTitle: string | null | undefined = cvInfo.jobTitle ?? '';
+
+    if (!isCurrentlyPublic) {
+      const promptValue = window.prompt('Enter the job title for this CV:', jobTitle ?? '');
+      if (!promptValue || !promptValue.trim()) {
+        setCvError('Job title is required to make the CV public.');
+        return;
+      }
+      jobTitle = promptValue.trim();
+    } else {
+      jobTitle = undefined;
+    }
+
+    setCvPrivacyUpdating(true);
+
+    try {
+      const updatedCv = await toggleCvPrivacy(cvInfo.id, jobTitle);
+      const nextIsPublic = !isCurrentlyPublic;
+      setCvInfo((prev) => {
+        if (!prev) {
+          return prev;
+        }
+        return updatedCv ?? {
+          ...prev,
+          isPublic: nextIsPublic,
+          jobTitle: nextIsPublic ? (jobTitle ?? prev.jobTitle ?? null) : prev.jobTitle ?? null,
+        };
+      });
+      setCvSuccessMessage(nextIsPublic ? 'CV is now public.' : 'CV is now private.');
+      window.dispatchEvent(new Event('public-cv-updated'));
+    } catch (err: unknown) {
+      setCvError(err instanceof Error ? err.message : 'We could not update CV privacy right now. Please try again.');
+    } finally {
+      setCvPrivacyUpdating(false);
+    }
+  };
+
   const { handlePhotoUpload, handlePhotoRemove } = useProfilePhoto();
 
   const handleSaveContact = async (updatedContactInfo: ContactInfo) => {
@@ -388,6 +442,21 @@ const ApplicantProfile = () => {
                   >
                     <i className="ri-download-line mr-2"></i>Download
                   </button>
+                  {canToggleCvPrivacy && (
+                    <button
+                      type="button"
+                      onClick={handleCvPrivacyToggle}
+                      disabled={!cvInfo?.id || cvPrivacyUpdating || cvLoading}
+                      className="flex-1 sm:flex-none px-4 py-2 bg-pink-500/20 text-pink-200 text-sm rounded-lg hover:bg-pink-500/30 transition-colors cursor-pointer whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <i className="ri-lock-line mr-2"></i>
+                      {cvPrivacyUpdating
+                        ? 'Updating...'
+                        : cvInfo?.isPublic
+                          ? 'Make CV Private'
+                          : 'Make CV Public'}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
