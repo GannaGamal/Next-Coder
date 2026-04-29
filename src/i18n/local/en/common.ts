@@ -640,7 +640,7 @@ const en = {
     browseFiles: 'Browse Files',
     supportedFormats: 'Supported formats: PDF, DOC, DOCX (Max 5MB)',
     agreeTerms: 'By uploading, you agree to our Terms of Service and Privacy Policy',
-    searchPlaceholder: 'Search by name, title, or skills...',
+    searchPlaceholder: 'Search by Applicant Name or Job Title',
     applicantFilters: 'Job Seeker Filters',
     sortBy: 'Sort by:',
     matchScore: 'Match Score',

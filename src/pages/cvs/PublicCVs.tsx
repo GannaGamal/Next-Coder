@@ -60,23 +60,10 @@ const PublicCVs = () => {
     name: string;
     avatar: string;
   } | null>(null);
-  const [likedCVs, setLikedCVs] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
   const [publicCvs, setPublicCvs] = useState<PublicCvInfo[]>([]);
   const [cvLoading, setCvLoading] = useState(false);
   const [cvError, setCvError] = useState("");
-
-  const toggleLikeCV = (cvId: string) => {
-    setLikedCVs((prev) => {
-      const next = new Set(prev);
-      if (next.has(cvId)) {
-        next.delete(cvId);
-      } else {
-        next.add(cvId);
-      }
-      return next;
-    });
-  };
 
   const loadPublicCvs = async (query: string) => {
     setCvLoading(true);
@@ -227,31 +214,12 @@ const PublicCVs = () => {
 
                 <div className="flex flex-col sm:flex-row gap-4 sm:gap-5">
                   {/* Avatar */}
-                  <div className="flex-shrink-0 mx-auto sm:mx-0 relative">
-                    <button
-                      type="button"
-                      onClick={() => handleViewCv(cv.id)}
-                      className="block w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden cursor-pointer hover:ring-2 hover:ring-purple-500 transition-all"
-                    >
-                      <img
-                        src={cv.avatar}
-                        alt={cv.name}
-                        className="w-full h-full object-cover"
-                      />
-                    </button>
-                    {/* Report Flag Button */}
-                    <button
-                      onClick={() => handleOpenReport(cv.name, cv.avatar)}
-                      className={`absolute -top-1 -right-1 w-6 h-6 flex items-center justify-center border rounded-full text-gray-400 hover:text-red-400 hover:border-red-500/50 transition-all cursor-pointer opacity-0 group-hover:opacity-100 ${isLightMode ? "bg-white border-gray-200" : "bg-[#1a1f37] border-white/10"}`}
-                      title={t("common.report")}
-                    >
-                      <i className="ri-flag-line text-xs"></i>
-                    </button>
-                  </div>
 
                   {/* Info */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4 mb-2">
+                    {/* Title + Actions in same row */}
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
+                      {/* Title */}
                       <div className="text-center sm:text-left">
                         {cv.title && (
                           <button
@@ -260,38 +228,53 @@ const PublicCVs = () => {
                             className="cursor-pointer hover:underline"
                           >
                             <h3
-                              className={`text-base sm:text-lg font-bold group-hover:text-purple-500 transition-colors ${isLightMode ? "text-gray-900" : "text-white"}`}
+                              className={`text-base sm:text-lg font-bold transition-colors ${
+                                isLightMode
+                                  ? "text-gray-900 hover:text-purple-500"
+                                  : "text-white hover:text-purple-400"
+                              }`}
                             >
                               {cv.title}
                             </h3>
                           </button>
-                          //   <p className="text-purple-500 font-medium text-sm"></p>
                         )}
                       </div>
-                    </div>
 
-                    {/* Skills and Action */}
-                   <div className="flex flex-col sm:flex-row items-center justify-end gap-3 sm:gap-4">
-                      <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-2 sm:gap-3">
+                      {/* Actions */}
+                      <div className="flex items-center gap-2 sm:gap-3">
                         <button
                           type="button"
                           onClick={() => handleViewCv(cv.id)}
-                          className="w-full sm:w-auto px-4 sm:px-5 py-2 bg-purple-500 text-white text-sm font-semibold rounded-lg hover:bg-purple-600 transition-colors whitespace-nowrap cursor-pointer text-center"
+                          className="px-4 py-2 bg-purple-500 text-white text-sm font-semibold rounded-lg hover:bg-purple-600 transition-colors whitespace-nowrap"
                         >
                           {t("cvs.viewCV")}
                         </button>
+
                         <button
                           type="button"
                           onClick={() => handleDownloadCv(cv.id, cv.fileName)}
-                          className={`w-full sm:w-auto px-4 sm:px-5 py-2 border text-sm font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer text-center ${isLightMode ? "bg-white border-gray-200 text-gray-700 hover:bg-gray-100" : "bg-white/5 border-white/10 text-white hover:bg-white/10"}`}
+                          className={`px-4 py-2 border text-sm font-semibold rounded-lg transition-colors whitespace-nowrap ${
+                            isLightMode
+                              ? "bg-white border-gray-200 text-gray-700 hover:bg-gray-100"
+                              : "bg-white/5 border-white/10 text-white hover:bg-white/10"
+                          }`}
                         >
                           {t("download CV")}
                         </button>
+
                         <button
                           type="button"
                           onClick={() => handleViewProfile(cv.jobSeekerId)}
                           disabled={!cv.jobSeekerId}
-                          className={`w-full sm:w-auto px-4 sm:px-5 py-2 border text-sm font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer text-center ${cv.jobSeekerId ? (isLightMode ? "border-purple-200 text-purple-600 hover:bg-purple-50" : "border-purple-500/40 text-purple-200 hover:bg-purple-500/10") : isLightMode ? "border-gray-200 text-gray-300 cursor-not-allowed" : "border-white/10 text-gray-500 cursor-not-allowed"}`}
+                          className={`px-4 py-2 border text-sm font-semibold rounded-lg transition-colors whitespace-nowrap ${
+                            cv.jobSeekerId
+                              ? isLightMode
+                                ? "border-purple-200 text-purple-600 hover:bg-purple-50"
+                                : "border-purple-500/40 text-purple-200 hover:bg-purple-500/10"
+                              : isLightMode
+                                ? "border-gray-200 text-gray-300 cursor-not-allowed"
+                                : "border-white/10 text-gray-500 cursor-not-allowed"
+                          }`}
                         >
                           View Profile
                         </button>
