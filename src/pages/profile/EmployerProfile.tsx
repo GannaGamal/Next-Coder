@@ -17,6 +17,7 @@ import {
   uploadCompanyDocument,
   uploadCompanyLogo,
 } from '../../services/company.service';
+import { getDashboardPathForUser } from '../../utils/dashboard';
 
 interface Company {
   id: string;
@@ -106,6 +107,7 @@ const EmployerProfile = () => {
   const hasEmployerRole = Array.isArray(user?.roles)
     ? user.roles.some((role) => String(role).toLowerCase().trim() === 'employer')
     : false;
+  const dashboardPath = getDashboardPathForUser(user, 'employer');
   const canManageCompanies = Boolean(
     hasEmployerRole && String(user?.employerId ?? '').trim().length > 0
   );
@@ -512,7 +514,7 @@ const EmployerProfile = () => {
                     <span className="text-sm sm:text-base text-white font-semibold">{companies.length} Companies</span>
                   </div>
                   <Link
-                    to="/dashboard"
+                    to={dashboardPath}
                     className="flex items-center gap-2 px-4 py-2 bg-violet-500/20 hover:bg-violet-500/30 border border-violet-500/30 rounded-lg transition-colors cursor-pointer"
                   >
                     <i className="ri-dashboard-line text-violet-400 text-lg"></i>

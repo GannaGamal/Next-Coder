@@ -22,6 +22,14 @@ import {
   viewCvById,
   type PublicCvInfo,
 } from '../../services/public-cv.service';
+import { getJobSkills, type JobSkill } from '../../services/job-post.service';
+import {
+  addApplicantSkill,
+  deleteApplicantSkill,
+  getApplicantSkills,
+  type ApplicantSkill,
+} from '../../services/skill.service';
+import { getDashboardPathForUser } from '../../utils/dashboard';
 
 const NOT_PROVIDED = 'Not provided';
 
@@ -73,16 +81,23 @@ const ApplicantProfile = () => {
   const [profile, setProfile] = useState({
     fullName: user?.name ?? '',
     email: user?.email ?? '',
-    skills: ['JavaScript', 'React', 'Python', 'SQL', 'Git'],
   });
 
   const [newSkill, setNewSkill] = useState('');
+  const [applicantSkills, setApplicantSkills] = useState<ApplicantSkill[]>([]);
+  const [skillsLoading, setSkillsLoading] = useState(false);
+  const [skillsError, setSkillsError] = useState('');
+  const [jobSkills, setJobSkills] = useState<JobSkill[]>([]);
+  const [jobSkillsLoading, setJobSkillsLoading] = useState(false);
+  const [jobSkillsError, setJobSkillsError] = useState('');
 
   const viewedJobSeekerId = String(routeJobSeekerId ?? user?.jobSeekerId ?? '').trim();
   const loggedInJobSeekerId = String(user?.jobSeekerId ?? '').trim();
   const hasJobSeekerRole = Array.isArray(user?.roles)
     ? user.roles.some((role) => String(role).toLowerCase().trim() === 'applicant')
     : false;
+
+  const dashboardPath = getDashboardPathForUser(user, 'applicant');
 
   const canEditProfile = canCurrentUserEditJobSeekerProfile(profileOwnerId || viewedJobSeekerId);
   const canToggleCvPrivacy = canEditProfile && hasJobSeekerRole;
@@ -139,8 +154,33 @@ const ApplicantProfile = () => {
   useEffect(() => {
     void loadProfile();
     void loadCv();
+    void loadApplicantSkills();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewedJobSeekerId]);
+
+  useEffect(() => {
+    if (!user) {
+      setJobSkills([]);
+      return;
+    }
+
+    const loadJobSkills = async () => {
+      setJobSkillsLoading(true);
+      setJobSkillsError('');
+
+      try {
+        const skills = await getJobSkills();
+        setJobSkills(skills);
+      } catch (err: unknown) {
+        setJobSkills([]);
+        setJobSkillsError(err instanceof Error ? err.message : 'We could not load skills right now. Please try again.');
+      } finally {
+        setJobSkillsLoading(false);
+      }
+    };
+
+    void loadJobSkills();
+  }, [user]);
 
   useEffect(() => {
     if (!profileSuccessMessage) {
@@ -160,15 +200,76 @@ const ApplicantProfile = () => {
     return () => window.clearTimeout(timeout);
   }, [cvSuccessMessage]);
 
-  const handleAddSkill = () => {
-    if (newSkill.trim() && !profile.skills.includes(newSkill.trim())) {
-      setProfile({ ...profile, skills: [...profile.skills, newSkill.trim()] });
-      setNewSkill('');
+  const loadApplicantSkills = async () => {
+    if (!viewedJobSeekerId) {
+      setApplicantSkills([]);
+      setSkillsError('');
+      return;
+    }
+
+    setSkillsLoading(true);
+    setSkillsError('');
+
+    try {
+      const skills = await getApplicantSkills(viewedJobSeekerId);
+      setApplicantSkills(skills);
+    } catch (err: unknown) {
+      setApplicantSkills([]);
+      setSkillsError(err instanceof Error ? err.message : 'We could not load skills right now. Please try again.');
+    } finally {
+      setSkillsLoading(false);
     }
   };
 
-  const handleRemoveSkill = (skill: string) => {
-    setProfile({ ...profile, skills: profile.skills.filter(s => s !== skill) });
+  const handleAddSkillName = async (skillName: string) => {
+    if (!canEditProfile || !hasJobSeekerRole) {
+      setSkillsError('Only the profile owner can update skills.');
+      return;
+    }
+
+    const trimmed = skillName.trim();
+    if (!trimmed) {
+      return;
+    }
+
+    if (applicantSkills.some((skill) => skill.name.toLowerCase() === trimmed.toLowerCase())) {
+      setNewSkill('');
+      return;
+    }
+
+    setSkillsError('');
+
+    try {
+      const created = await addApplicantSkill(trimmed);
+      if (created) {
+        setApplicantSkills((prev) => [created, ...prev]);
+      } else {
+        await loadApplicantSkills();
+      }
+      setNewSkill('');
+    } catch (err: unknown) {
+      setSkillsError(err instanceof Error ? err.message : 'We could not add this skill right now. Please try again.');
+    }
+  };
+
+  const handleAddSkill = async () => {
+    await handleAddSkillName(newSkill);
+  };
+
+  const handleRemoveSkill = async (skill: ApplicantSkill) => {
+    if (!canEditProfile || !hasJobSeekerRole) {
+      setSkillsError('Only the profile owner can update skills.');
+      return;
+    }
+
+    setSkillsError('');
+
+    try {
+      await deleteApplicantSkill(skill.id);
+      setApplicantSkills((prev) => prev.filter((item) => item.id !== skill.id));
+    } catch (err: unknown) {
+      setSkillsError(err instanceof Error ? err.message : 'We could not remove this skill right now. Please try again.');
+    }
   };
 
   const loadCv = async () => {
@@ -389,7 +490,7 @@ const ApplicantProfile = () => {
                   </span>
                 </div>
                 <Link
-                  to="/dashboard"
+                  to={dashboardPath}
                   className="inline-flex items-center gap-2 px-4 py-2 bg-pink-500/20 hover:bg-pink-500/30 border border-pink-500/30 rounded-lg transition-colors cursor-pointer"
                 >
                   <i className="ri-dashboard-line text-pink-400 text-lg"></i>
@@ -484,38 +585,80 @@ const ApplicantProfile = () => {
           {/* Skills */}
           <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 sm:p-6 lg:p-8 mb-6 sm:mb-8 border border-white/10">
             <h2 className="text-xl sm:text-2xl font-bold text-white mb-3 sm:mb-4">Skills</h2>
+            {(skillsLoading || skillsError) && (
+              <div className={`mb-4 p-3 rounded-lg text-sm border ${skillsError ? 'bg-red-500/10 border-red-500/30 text-red-300' : 'bg-cyan-500/10 border-cyan-500/30 text-cyan-300'}`}>
+                {skillsLoading ? 'Loading skills...' : skillsError}
+              </div>
+            )}
             <div className="flex flex-wrap gap-2 sm:gap-3 mb-3 sm:mb-4">
-              {profile.skills.map((skill) => (
+              {applicantSkills.map((skill) => (
                 <div
-                  key={skill}
+                  key={skill.id}
                   className="flex items-center gap-2 bg-pink-500/20 border border-pink-500/30 rounded-lg px-3 sm:px-4 py-1.5 sm:py-2"
                 >
-                  <span className="text-sm sm:text-base text-white font-medium">{skill}</span>
-                  <button
-                    onClick={() => handleRemoveSkill(skill)}
-                    className="w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center text-white hover:text-red-400 transition-colors cursor-pointer"
-                  >
-                    <i className="ri-close-line text-sm sm:text-base"></i>
-                  </button>
+                  <span className="text-sm sm:text-base text-white font-medium">{skill.name}</span>
+                  {canEditProfile && hasJobSeekerRole && (
+                    <button
+                      onClick={() => void handleRemoveSkill(skill)}
+                      className="w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center text-white hover:text-red-400 transition-colors cursor-pointer"
+                    >
+                      <i className="ri-close-line text-sm sm:text-base"></i>
+                    </button>
+                  )}
                 </div>
               ))}
+              {!skillsLoading && applicantSkills.length === 0 && (
+                <p className="text-sm text-gray-400">No skills added yet.</p>
+              )}
             </div>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <input
-                type="text"
-                value={newSkill}
-                onChange={(e) => setNewSkill(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleAddSkill()}
-                className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base text-white placeholder-gray-500 focus:outline-none focus:border-pink-500"
-                placeholder="Add a skill..."
-              />
-              <button
-                onClick={handleAddSkill}
-                className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 bg-pink-500 text-white text-sm sm:text-base font-semibold rounded-lg hover:bg-pink-600 transition-colors whitespace-nowrap cursor-pointer"
-              >
-                Add Skill
-              </button>
-            </div>
+            {canEditProfile && hasJobSeekerRole ? (
+              <>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <input
+                    type="text"
+                    value={newSkill}
+                    onChange={(e) => setNewSkill(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && void handleAddSkill()}
+                    className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base text-white placeholder-gray-500 focus:outline-none focus:border-pink-500"
+                    placeholder="Add a skill..."
+                  />
+                  <button
+                    onClick={() => void handleAddSkill()}
+                    className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 bg-pink-500 text-white text-sm sm:text-base font-semibold rounded-lg hover:bg-pink-600 transition-colors whitespace-nowrap cursor-pointer"
+                  >
+                    Add Skill
+                  </button>
+                </div>
+                <div className="mt-4">
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <h3 className="text-sm text-gray-400">Suggested skills</h3>
+                    {jobSkillsLoading && <span className="text-xs text-gray-400">Loading...</span>}
+                  </div>
+                  {jobSkillsError && (
+                    <div className="mb-3 p-3 rounded-lg text-sm border bg-amber-500/10 border-amber-500/30 text-amber-300">
+                      {jobSkillsError}
+                    </div>
+                  )}
+                  <div className="flex flex-wrap gap-2">
+                    {jobSkills.map((skill) => (
+                      <button
+                        key={skill.id}
+                        type="button"
+                        onClick={() => void handleAddSkillName(skill.name)}
+                        className="px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors cursor-pointer whitespace-nowrap bg-white/5 border border-white/10 text-gray-300 hover:bg-pink-500/20 hover:border-pink-500/30 hover:text-white"
+                      >
+                        {skill.name}
+                      </button>
+                    ))}
+                    {!jobSkillsLoading && jobSkills.length === 0 && !jobSkillsError && (
+                      <p className="text-xs text-gray-500">No suggested skills available.</p>
+                    )}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-gray-400">Only the profile owner can update skills.</p>
+            )}
           </div>
 
           {/* Experience & Education */}

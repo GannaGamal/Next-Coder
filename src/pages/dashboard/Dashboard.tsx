@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import Navbar from '../../components/feature/Navbar';
 import Footer from '../../components/feature/Footer';
@@ -8,11 +8,13 @@ import FreelancerDashboard from './components/FreelancerDashboard';
 import ClientDashboard from './components/ClientDashboard';
 import EmployerDashboard from './components/EmployerDashboard';
 import ApplicantDashboard from './components/ApplicantDashboard';
+import { normalizeUserRole } from '../../utils/dashboard';
 
 const Dashboard = () => {
   const { user, isAuthenticated, isAuthReady } = useAuth();
   const [activeRole, setActiveRole] = useState('');
   const { t } = useTranslation();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const userRoles = Array.isArray(user?.roles) ? user.roles : [];
   const hasFreelancerRole = userRoles.includes('freelancer');
@@ -27,13 +29,22 @@ const Dashboard = () => {
     ...(hasApplicantRole ? ['applicant'] : []),
   ];
 
+  const requestedRole = normalizeUserRole(searchParams.get('role')) ?? '';
+  const requestedRoleIsValid = requestedRole ? availableRoles.includes(requestedRole) : false;
+
   useEffect(() => {
     if (!isAuthReady || !isAuthenticated || !user) return;
     if (!availableRoles.length) return;
+
+    if (requestedRoleIsValid && requestedRole !== activeRole) {
+      setActiveRole(requestedRole);
+      return;
+    }
+
     if (!availableRoles.includes(activeRole)) {
       setActiveRole(availableRoles[0]);
     }
-  }, [isAuthReady, isAuthenticated, user, availableRoles, activeRole]);
+  }, [isAuthReady, isAuthenticated, user, availableRoles, activeRole, requestedRole, requestedRoleIsValid]);
 
   if (!isAuthReady) {
     return (
@@ -63,6 +74,13 @@ const Dashboard = () => {
     applicant: { label: t('dashboard.applicant'), icon: 'ri-file-user-line', color: 'bg-pink-500' },
   };
 
+  const handleRoleChange = (role: string) => {
+    setActiveRole(role);
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('role', role);
+    setSearchParams(nextParams, { replace: true });
+  };
+
   return (
     <div className="min-h-screen bg-navy-900">
       <Navbar />
@@ -80,7 +98,7 @@ const Dashboard = () => {
                   return (
                     <button
                       key={role}
-                      onClick={() => setActiveRole(role)}
+                      onClick={() => handleRoleChange(role)}
                       className={`px-6 py-3 rounded-lg font-semibold transition-all whitespace-nowrap cursor-pointer ${
                         activeRole === role ? `${cfg.color} text-white` : 'text-white/60 hover:text-white'
                       }`}

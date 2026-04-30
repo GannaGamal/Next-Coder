@@ -3,8 +3,10 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import Navbar from '../../components/feature/Navbar';
 import Footer from '../../components/feature/Footer';
+import { useAuth } from '../../contexts/AuthContext';
 import { createJobApplication } from '../../services/job-application.service';
 import { getJobPosts, type JobPostItem } from '../../services/job-post.service';
+import { getDashboardPathForUser } from '../../utils/dashboard';
 
 interface JobSummary {
   id: string;
@@ -20,6 +22,7 @@ interface JobSummary {
 }
 
 const JobApplication = () => {
+  const { user } = useAuth();
   const { jobId } = useParams();
   const todayLocalIso = new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
     .toISOString()
@@ -42,6 +45,8 @@ const JobApplication = () => {
     minExpectedSalary: '',
     maxExpectedSalary: '',
   });
+
+  const dashboardPath = getDashboardPathForUser(user, 'applicant');
 
   const buildCompanyLogoUrl = (logoUrl?: string | null): string => {
     if (!logoUrl) {
@@ -305,7 +310,7 @@ const JobApplication = () => {
                   Browse More Jobs
                 </Link>
                 <Link
-                  to="/dashboard"
+                  to={dashboardPath}
                   className="px-6 py-3 bg-purple-500 text-white font-semibold rounded-lg hover:bg-purple-600 transition-colors cursor-pointer whitespace-nowrap"
                 >
                   Go to Dashboard
