@@ -21,6 +21,8 @@ interface Job {
   location: string;
   type: 'Full-time' | 'Part-time' | 'Contract' | 'Remote' | 'Internship';
   salary: string;
+  minSalary?: number;
+  maxSalary?: number;
   experience: string;
   skills: string[];
   postedDate: string;
@@ -64,8 +66,8 @@ const JobOffers = () => {
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [experienceFilter, setExperienceFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
-  const [locationFilter, setLocationFilter] = useState('all');
-  const [salaryFilter, setSalaryFilter] = useState('all');
+  const [minSalaryFilter, setMinSalaryFilter] = useState('');
+  const [maxSalaryFilter, setMaxSalaryFilter] = useState('');
   const [sortBy, setSortBy] = useState('newest');
   const [showFilters, setShowFilters] = useState(true);
 
@@ -173,6 +175,8 @@ const JobOffers = () => {
         ? item.jobType
         : 'Full-time') as Job['type'],
       salary: min || max ? `$${min.toLocaleString()} - $${max.toLocaleString()}` : 'Not specified',
+      minSalary: typeof item.minSalary === 'number' ? item.minSalary : undefined,
+      maxSalary: typeof item.maxSalary === 'number' ? item.maxSalary : undefined,
       experience: item.experienceLevel || 'Not specified',
       skills: item.skills,
       postedDate: toRelativeDate(item.createdAt),
@@ -189,13 +193,6 @@ const JobOffers = () => {
     return undefined;
   };
 
-  const mapSalaryFilterToBounds = (value: string): { min?: number; max?: number } => {
-    if (value === 'under80k') return { max: 80000 };
-    if (value === '80k-120k') return { min: 80000, max: 120000 };
-    if (value === 'over120k') return { min: 120000 };
-    return {};
-  };
-
   const mapSortToApi = (value: string): string | undefined => {
     if (value === 'newest') return 'Newest';
     if (value === 'salary') return 'Salary';
@@ -203,6 +200,16 @@ const JobOffers = () => {
     if (value === 'applicants') return 'Applicants';
     return undefined;
   };
+
+  const normalizeSalaryInput = (value: string): number | undefined => {
+    const trimmed = value.trim();
+    if (!trimmed) return undefined;
+    const numeric = Number(trimmed);
+    return Number.isFinite(numeric) ? numeric : undefined;
+  };
+
+  const minSalaryValue = normalizeSalaryInput(minSalaryFilter);
+  const maxSalaryValue = normalizeSalaryInput(maxSalaryFilter);
 
   useEffect(() => {
     const loadSkills = async () => {
@@ -246,13 +253,14 @@ const JobOffers = () => {
           })
           .filter((id): id is number => typeof id === 'number');
 
-        const salaryBounds = mapSalaryFilterToBounds(salaryFilter);
         const result = await getJobPosts({
-          SearchTerm: searchQuery.trim() || undefined,
+          Title: searchQuery.trim() || undefined,
+          Location: searchQuery.trim() || undefined,
+          Company: searchQuery.trim() || undefined,
           JobType: typeFilter !== 'all' ? typeFilter : undefined,
           ExperienceLevel: mapExperienceFilterToApi(experienceFilter),
-          MinSalary: salaryBounds.min,
-          MaxSalary: salaryBounds.max,
+          MinSalary: minSalaryValue,
+          MaxSalary: maxSalaryValue,
           SkillIds: mappedSkillIds,
           SortBy: mapSortToApi(sortBy),
         });
@@ -283,15 +291,13 @@ const JobOffers = () => {
     }, 350);
 
     return () => window.clearTimeout(timeoutId);
-  }, [isAuthenticated, searchQuery, typeFilter, experienceFilter, salaryFilter, selectedSkills, sortBy, apiSkills, jobsRefreshKey]);
+  }, [isAuthenticated, searchQuery, typeFilter, experienceFilter, minSalaryFilter, maxSalaryFilter, selectedSkills, sortBy, apiSkills, jobsRefreshKey]);
 
   const allSkills = [
     'JavaScript', 'React', 'Python', 'Java', 'Node.js', 'TypeScript',
     'SQL', 'MongoDB', 'AWS', 'Docker', 'Git', 'Angular', 'Vue.js',
     'PHP', 'C++', 'Ruby', 'Go', 'Swift', 'Kotlin', 'Flutter'
   ];
-
-  const locations = ['San Francisco, CA', 'New York, NY', 'Austin, TX', 'Seattle, WA', 'Boston, MA', 'Chicago, IL', 'Los Angeles, CA', 'Denver, CO', 'Remote'];
 
   const jobTypes = ['Full-time', 'Part-time', 'Contract', 'Remote', 'Internship'];
 
@@ -308,8 +314,8 @@ const JobOffers = () => {
     setSelectedSkills([]);
     setExperienceFilter('all');
     setTypeFilter('all');
-    setLocationFilter('all');
-    setSalaryFilter('all');
+    setMinSalaryFilter('');
+    setMaxSalaryFilter('');
   };
 
   const handlePostJob = () => {
@@ -327,21 +333,28 @@ const JobOffers = () => {
   };
 
   const filteredJobs = jobs.filter(job => {
-    const matchesSearch = job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         job.company.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         job.skills.some(skill => skill.toLowerCase().includes(searchQuery.toLowerCase()));
+    const normalizedSearch = searchQuery.trim().toLowerCase();
+    const matchesSearch = job.title.toLowerCase().includes(normalizedSearch) ||
+                         job.company.toLowerCase().includes(normalizedSearch) ||
+                         job.location.toLowerCase().includes(normalizedSearch);
     const matchesSkills = selectedSkills.length === 0 || selectedSkills.some(skill => job.skills.includes(skill));
     const matchesExperience = experienceFilter === 'all' ||
                              (experienceFilter === '0-2' && (job.experience.includes('0') || job.experience.includes('1') || job.experience.includes('2'))) ||
                              (experienceFilter === '3-5' && (job.experience.includes('3') || job.experience.includes('4') || job.experience.includes('5'))) ||
                              (experienceFilter === '6+' && (job.experience.includes('5+') || job.experience.includes('6') || job.experience.includes('7') || job.experience.includes('8')));
     const matchesType = typeFilter === 'all' || job.type === typeFilter;
-    const matchesLocation = locationFilter === 'all' || job.location === locationFilter;
-    const matchesSalary = salaryFilter === 'all' ||
-                         (salaryFilter === 'under80k' && (job.salary.includes('60k') || job.salary.includes('35/hr'))) ||
-                         (salaryFilter === '80k-120k' && (job.salary.includes('80k') || job.salary.includes('90k') || job.salary.includes('100k') || job.salary.includes('110k'))) ||
-                         (salaryFilter === 'over120k' && (job.salary.includes('120k') || job.salary.includes('130k') || job.salary.includes('150k') || job.salary.includes('180k')));
-    return matchesSearch && matchesSkills && matchesExperience && matchesType && matchesLocation && matchesSalary;
+    const matchesSalary = (() => {
+      if (minSalaryValue === undefined && maxSalaryValue === undefined) return true;
+      const jobMin = typeof job.minSalary === 'number' ? job.minSalary : undefined;
+      const jobMax = typeof job.maxSalary === 'number' ? job.maxSalary : undefined;
+      if (jobMin === undefined && jobMax === undefined) return false;
+      const effectiveMin = jobMin ?? jobMax ?? 0;
+      const effectiveMax = jobMax ?? jobMin ?? 0;
+      if (minSalaryValue !== undefined && effectiveMax < minSalaryValue) return false;
+      if (maxSalaryValue !== undefined && effectiveMin > maxSalaryValue) return false;
+      return true;
+    })();
+    return matchesSearch && matchesSkills && matchesExperience && matchesType && matchesSalary;
   });
 
   const sortedJobs = [...filteredJobs].sort((a, b) => {
@@ -376,8 +389,8 @@ const JobOffers = () => {
     selectedSkills.length > 0,
     experienceFilter !== 'all',
     typeFilter !== 'all',
-    locationFilter !== 'all',
-    salaryFilter !== 'all'
+    minSalaryFilter.trim() !== '',
+    maxSalaryFilter.trim() !== ''
   ].filter(Boolean).length;
 
   const inputCls = isLightMode
@@ -589,13 +602,6 @@ const JobOffers = () => {
                 </div>
 
                 <div className="mb-5">
-                  <label className={`block text-sm font-medium mb-2 ${labelCls}`}>{t('jobs.location')}</label>
-                  <CustomSelect value={locationFilter} onChange={setLocationFilter}
-                    options={[{ value: 'all', label: t('jobs.allLocations') }, ...locations.map(loc => ({ value: loc, label: loc }))]}
-                    placeholder={t('jobs.allLocations')} />
-                </div>
-
-                <div className="mb-5">
                   <label className={`block text-sm font-medium mb-2 ${labelCls}`}>{t('jobs.jobType')}</label>
                   <div className="space-y-2">
                     {['all', ...jobTypes].map(type => (
@@ -621,14 +627,27 @@ const JobOffers = () => {
                 </div>
 
                 <div className="mb-5">
-                  <label className={`block text-sm font-medium mb-2 ${labelCls}`}>{t('jobs.salaryRange')}</label>
-                  <CustomSelect value={salaryFilter} onChange={setSalaryFilter}
-                    options={[
-                      { value: 'all', label: t('jobs.anySalary') },
-                      { value: 'under80k', label: t('jobs.under80k') },
-                      { value: '80k-120k', label: t('jobs.range80to120k') },
-                      { value: 'over120k', label: t('jobs.over120k') },
-                    ]} placeholder={t('jobs.anySalary')} />
+                  <label className={`block text-sm font-medium mb-2 ${labelCls}`}>{t('jobs.minSalary')}</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={minSalaryFilter}
+                    onChange={(e) => setMinSalaryFilter(e.target.value)}
+                    placeholder="80"
+                    className={`w-full border rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-teal-500 ${inputCls}`}
+                  />
+                </div>
+
+                <div className="mb-5">
+                  <label className={`block text-sm font-medium mb-2 ${labelCls}`}>{t('jobs.maxSalary')}</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={maxSalaryFilter}
+                    onChange={(e) => setMaxSalaryFilter(e.target.value)}
+                    placeholder="120"
+                    className={`w-full border rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-teal-500 ${inputCls}`}
+                  />
                 </div>
 
                 <div>
@@ -658,7 +677,7 @@ const JobOffers = () => {
 
                   <div className="flex-1 relative">
                     <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm sm:text-base"></i>
-                    <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder={t('jobs.searchPlaceholder')} className={`w-full border rounded-lg pl-9 sm:pl-10 pr-4 py-2 sm:py-2.5 focus:outline-none focus:border-teal-500 text-sm ${inputCls}`} />
+                    <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search by job title, company, or location..." className={`w-full border rounded-lg pl-9 sm:pl-10 pr-4 py-2 sm:py-2.5 focus:outline-none focus:border-teal-500 text-sm ${inputCls}`} />
                   </div>
 
                   <div className="flex items-center gap-2 sm:gap-3">

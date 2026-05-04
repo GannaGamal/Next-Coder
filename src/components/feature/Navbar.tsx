@@ -5,6 +5,8 @@ import { useViewAs } from "../../contexts/ViewAsContext";
 import { useTheme } from "../../contexts/ThemeContext";
 import { useTranslation } from "react-i18next";
 import type { UserRole } from "../../types";
+import { normalizeUserRole } from "../../utils/dashboard";
+import { assignNewRole, getPublicRoles, unassignRole } from "../../services/role.service";
 import NotificationDropdown from "./NotificationDropdown";
 import LanguageSwitcher from "./LanguageSwitcher";
 import rocketImage from "../../assets/space-rocket.png";
@@ -23,6 +25,23 @@ interface CompanyItem {
   documents: File[];
 }
 
+interface PublicRoleOption {
+  value: UserRole;
+  name: string;
+  icon: string;
+  requiresDocuments: boolean;
+  apiName: string;
+}
+
+const roleMeta: Record<UserRole, { icon: string; requiresDocuments: boolean }> = {
+  freelancer: { icon: "ri-briefcase-line", requiresDocuments: true },
+  client: { icon: "ri-user-star-line", requiresDocuments: false },
+  employer: { icon: "ri-building-line", requiresDocuments: true },
+  applicant: { icon: "ri-file-user-line", requiresDocuments: true },
+  learner: { icon: "ri-graduation-cap-line", requiresDocuments: false },
+  admin: { icon: "ri-admin-line", requiresDocuments: false },
+};
+
 const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -36,6 +55,8 @@ const Navbar = () => {
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [showGuestPrefs, setShowGuestPrefs] = useState(false);
+  const [publicRoleOptions, setPublicRoleOptions] = useState<PublicRoleOption[]>([]);
+  const [publicRolesLoaded, setPublicRolesLoaded] = useState(false);
   const { user, logout, isAuthenticated, addRole, removeRole } = useAuth();
   const { viewingAs, isViewingAs, exitViewAs } = useViewAs();
   const navigate = useNavigate();
@@ -55,43 +76,7 @@ const Navbar = () => {
   const [applicantCV, setApplicantCV] = useState<File | null>(null);
   const [employerCompanies, setEmployerCompanies] = useState<CompanyItem[]>([]);
 
-  const availableRoles: {
-    value: UserRole;
-    name: string;
-    icon: string;
-    requiresDocuments: boolean;
-  }[] = [
-    {
-      value: "freelancer",
-      name: "Freelancer",
-      icon: "ri-briefcase-line",
-      requiresDocuments: true,
-    },
-    {
-      value: "client",
-      name: "Client",
-      icon: "ri-user-star-line",
-      requiresDocuments: false,
-    },
-    {
-      value: "employer",
-      name: "Employer",
-      icon: "ri-building-line",
-      requiresDocuments: true,
-    },
-    {
-      value: "applicant",
-      name: "Job Seeker",
-      icon: "ri-file-user-line",
-      requiresDocuments: true,
-    },
-    {
-      value: "learner",
-      name: "Learner",
-      icon: "ri-graduation-cap-line",
-      requiresDocuments: false,
-    },
-  ];
+  const availableRoles = publicRoleOptions;
 
   useEffect(() => {
     const handleScroll = () => {
@@ -100,6 +85,43 @@ const Navbar = () => {
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated || !showRoleModal || publicRolesLoaded) {
+      return;
+    }
+
+    const loadPublicRoles = async () => {
+      try {
+        const roles = await getPublicRoles();
+        const mapped = roles
+          .map((roleName) => {
+            const normalized = normalizeUserRole(roleName);
+            if (!normalized) {
+              return null;
+            }
+            const meta = roleMeta[normalized];
+            return {
+              value: normalized,
+              name: roleName,
+              icon: meta?.icon ?? "ri-user-line",
+              requiresDocuments: meta?.requiresDocuments ?? false,
+              apiName: roleName,
+            } satisfies PublicRoleOption;
+          })
+          .filter((role): role is PublicRoleOption => Boolean(role));
+
+        setPublicRoleOptions(mapped);
+      } catch (err) {
+        console.warn("Failed to load public roles", err);
+        setPublicRoleOptions([]);
+      } finally {
+        setPublicRolesLoaded(true);
+      }
+    };
+
+    void loadPublicRoles();
+  }, [isAuthenticated, showRoleModal, publicRolesLoaded]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -157,8 +179,18 @@ const Navbar = () => {
   };
 
   const getRoleIcon = (role: string) => {
-    const roleInfo = availableRoles.find((r) => r.value === role);
-    return roleInfo?.icon || "ri-user-line";
+    return roleMeta[role as UserRole]?.icon || "ri-user-line";
+  };
+
+  const getRoleApiName = (role: UserRole): string => {
+    const match = publicRoleOptions.find((option) => option.value === role);
+    if (match) {
+      return match.apiName;
+    }
+    if (role === "applicant") {
+      return "Job Seeker";
+    }
+    return role.charAt(0).toUpperCase() + role.slice(1);
   };
 
   const handleAddRole = (role: UserRole) => {
@@ -169,15 +201,20 @@ const Navbar = () => {
       setShowRoleManager(false);
       setShowRoleModal(false);
     } else {
-      addRole(role);
-      setShowRoleManager(false);
-      setShowRoleModal(false);
+      void submitRoleAssignment(role);
     }
   };
 
-  const handleRemoveRole = (role: UserRole) => {
-    if (user && user.roles.length > 1) {
+  const handleRemoveRole = async (role: UserRole) => {
+    if (!user || user.roles.length <= 1) {
+      return;
+    }
+
+    try {
+      await unassignRole(getRoleApiName(role));
       removeRole(role);
+    } catch (err) {
+      console.error("Failed to remove role", err);
     }
   };
 
@@ -188,7 +225,7 @@ const Navbar = () => {
     setEmployerCompanies([]);
   };
 
-  const handleSubmitRoleDocuments = () => {
+  const handleSubmitRoleDocuments = async () => {
     if (!pendingRole) return;
 
     if (pendingRole === "freelancer" && freelancerPortfolio.length === 0) {
@@ -204,10 +241,52 @@ const Navbar = () => {
       return;
     }
 
-    addRole(pendingRole);
-    setShowAddRoleModal(false);
-    setPendingRole(null);
-    resetDocumentStates();
+    await submitRoleAssignment(pendingRole);
+  };
+
+  const submitRoleAssignment = async (role: UserRole) => {
+    const formData = new FormData();
+    const roleName = getRoleApiName(role);
+
+    formData.append("RoleName", roleName);
+    formData.append("Country", "");
+    formData.append("PhoneNumber", "");
+    formData.append("HourlyRate", "");
+
+    if (role === "applicant" && applicantCV) {
+      formData.append("CvFile", applicantCV);
+    }
+
+    if (role === "freelancer") {
+      const portfolioFile = freelancerPortfolio.find((item) => item.file instanceof File)?.file ?? null;
+      if (portfolioFile) {
+        formData.append("PortfolioFile", portfolioFile);
+      }
+    }
+
+    if (role === "employer") {
+      const payload = employerCompanies.map((company) => ({
+        name: company.name,
+        industry: company.industry,
+        logoUrl: "",
+        documents: company.documents.map((doc) => doc.name),
+      }));
+      formData.append("Companies", JSON.stringify(payload));
+    } else {
+      formData.append("Companies", JSON.stringify([]));
+    }
+
+    try {
+      await assignNewRole(formData);
+      addRole(role);
+      setShowAddRoleModal(false);
+      setShowRoleManager(false);
+      setShowRoleModal(false);
+      setPendingRole(null);
+      resetDocumentStates();
+    } catch (err) {
+      console.error("Failed to assign role", err);
+    }
   };
 
   const addPortfolioItem = () => {

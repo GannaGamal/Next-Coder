@@ -24,7 +24,9 @@ export interface JobPostItem {
 }
 
 export interface GetJobPostsParams {
-  SearchTerm?: string;
+  Title?: string;
+  Location?: string;
+  Company?: string;
   JobType?: string;
   ExperienceLevel?: string;
   MinSalary?: number;
@@ -205,7 +207,9 @@ export const getJobPosts = async (params: GetJobPostsParams = {}): Promise<GetJo
   }
 
   const query = new URLSearchParams();
-  if (params.SearchTerm) query.set('SearchTerm', params.SearchTerm);
+  if (params.Title) query.set('Title', params.Title);
+  if (params.Location) query.set('Location', params.Location);
+  if (params.Company) query.set('Company', params.Company);
   if (params.JobType) query.set('JobType', params.JobType);
   if (params.ExperienceLevel) query.set('ExperienceLevel', params.ExperienceLevel);
   if (typeof params.MinSalary === 'number') query.set('MinSalary', String(params.MinSalary));
