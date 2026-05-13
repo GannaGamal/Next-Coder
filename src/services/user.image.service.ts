@@ -4,15 +4,39 @@ import { parseApiError } from './api.utils';
 const getToken = () => localStorage.getItem('authToken') ?? '';
 
 /**
- * POST /AppUser/userImage
- * Uploads a new profile photo. Returns the URL of the uploaded image.
+ * Helper function to build full image URL from API response
+ * @param imagePath The image path returned from API (e.g., "UserImage/6194a3f5..." or "/")
+ * @returns Full URL to the image, or empty string if no image
  */
-export const uploadUserImage = async (file: File): Promise<string> => {
+export const buildImageUrl = (imagePath: string): string => {
+  if (!imagePath || imagePath === '/' || imagePath.trim() === '') return '';
+  
+  // If it already has the protocol, return as-is
+  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+    return imagePath;
+  }
+  
+  // If it already has the domain, prepend protocol
+  if (imagePath.startsWith('nextcoder.runasp.net')) {
+    return `https://${imagePath}`;
+  }
+  
+  // Otherwise, prepend the full base URL
+  const baseUrl = 'https://nextcoder.runasp.net';
+  return `${baseUrl}/${imagePath.startsWith('/') ? imagePath.slice(1) : imagePath}`;
+};
+
+/**
+ * POST /AppUser/sharedUserImage
+ * Uploads a new profile photo using the shared endpoint. Returns the relative image path.
+ * Response: { "success": true, "message": "Image uploaded successfully.", "data": "UserImage/..." }
+ */
+export const uploadSharedUserImage = async (file: File): Promise<string> => {
   const token = getToken();
   const formData = new FormData();
-  formData.append('image', file);
+  formData.append('ImageUrl', file);
 
-  const response = await fetch(`${API_BASE}/AppUser/userImage`, {
+  const response = await fetch(`${API_BASE}/AppUser/sharedUserImage`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -28,9 +52,11 @@ export const uploadUserImage = async (file: File): Promise<string> => {
   const rawText = await response.text();
   try {
     const data = JSON.parse(rawText);
-    return (data.imageUrl ?? data.url ?? data.image ?? data) as string;
+    // Extract the image path from the data field
+    const imagePath = data.data ?? data.imageUrl ?? data.url ?? data.image ?? data;
+    return buildImageUrl(imagePath as string);
   } catch {
-    return rawText.trim();
+    return buildImageUrl(rawText.trim());
   }
 };
 
@@ -43,7 +69,7 @@ export const getUserImage = async (): Promise<string> => {
   const token = getToken();
   if (!token) return '';
 
-  const response = await fetch(`${API_BASE}/AppUser/userImage`, {
+  const response = await fetch(`${API_BASE}/AppUser/sharedUserImage`, {
     method: 'GET',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -60,20 +86,22 @@ export const getUserImage = async (): Promise<string> => {
   const rawText = await response.text();
   try {
     const data = JSON.parse(rawText);
-    return (data.imageUrl ?? data.url ?? data.image ?? data ?? '') as string;
+    const imagePath = data.imageUrl ?? data.url ?? data.image ?? data ?? '';
+    return buildImageUrl(imagePath as string);
   } catch {
-    return rawText.trim();
+    return buildImageUrl(rawText.trim());
   }
 };
 
 /**
- * DELETE /AppUser/deleteImage
+ * DELETE /AppUser/deleteSharedImage
  * Removes the authenticated user's profile photo.
+ * Response: { "success": true, "message": "User Image deleted successfully.", "data": null }
  */
 export const deleteUserImage = async (): Promise<void> => {
   const token = getToken();
 
-  const response = await fetch(`${API_BASE}/AppUser/deleteImage`, {
+  const response = await fetch(`${API_BASE}/AppUser/deleteSharedImage`, {
     method: 'DELETE',
     headers: {
       Authorization: `Bearer ${token}`,

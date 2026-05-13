@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import type { User, UserRole } from '../types';
 import { loginUser, refreshToken, revokeToken } from '../services/auth.service';
 import type { AuthResponse } from '../services/auth.service';
-import { getUserImage } from '../services/user.image.service';
+import { getUserImage, buildImageUrl } from '../services/user.image.service';
 import { AUTH_EXPIRED_EVENT } from '../services/api.utils';
 
 // Refresh buffer: refresh 90 seconds before expiry
@@ -215,12 +215,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
     const normalizedRoles = (data.roles ?? []).map(normalizeRole);
 
+    // Build avatar URL from API response if available, or check for pending one
+    let avatarUrl = '';
+    if (data.imageUrl) {
+      avatarUrl = buildImageUrl(data.imageUrl);
+    } else {
+      const pendingImageUrl = localStorage.getItem('pendingImageUrl');
+      if (pendingImageUrl) {
+        avatarUrl = buildImageUrl(pendingImageUrl);
+        localStorage.removeItem('pendingImageUrl');
+      }
+    }
+
     const loggedInUser: User = {
       id: data.userId || String(Date.now()),
       email: data.email || email,
       name: data.fullName || email.split('@')[0],
       roles: normalizedRoles,
-      avatar: '',
+      avatar: avatarUrl,
       createdAt: new Date().toISOString(),
       jobSeekerId: data.jobSeekerId,
       employerId: data.employerId,
@@ -233,16 +245,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem('user', JSON.stringify(loggedInUser));
     setUser(loggedInUser);
 
-    // Fetch profile photo immediately
-    getUserImage()
-      .then((url) => {
-        if (url) {
-          const withPhoto = { ...loggedInUser, avatar: url };
-          localStorage.setItem('user', JSON.stringify(withPhoto));
-          setUser(withPhoto);
-        }
-      })
-      .catch(() => { /* silently ignore */ });
+    // If we don't have an avatar from the response, fetch it immediately
+    if (!avatarUrl) {
+      getUserImage()
+        .then((url) => {
+          if (url) {
+            const withPhoto = { ...loggedInUser, avatar: url };
+            localStorage.setItem('user', JSON.stringify(withPhoto));
+            setUser(withPhoto);
+          }
+        })
+        .catch(() => { /* silently ignore */ });
+    }
 
     // Schedule token auto-refresh
     if (data.refreshTokenExpiration) {

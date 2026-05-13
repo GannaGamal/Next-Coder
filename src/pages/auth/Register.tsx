@@ -263,6 +263,11 @@ const Register = () => {
         localStorage.setItem('authToken', apiUser.token);
       }
 
+      // Save imageUrl if present
+      if (apiUser.imageUrl) {
+        localStorage.setItem('pendingImageUrl', apiUser.imageUrl);
+      }
+
       await login(formData.email.trim(), formData.password, false);
 
       setOtpSuccess(true);

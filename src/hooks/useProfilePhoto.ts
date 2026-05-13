@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { uploadUserImage, deleteUserImage } from '../services/user.image.service';
+import { uploadSharedUserImage, deleteUserImage } from '../services/user.image.service';
 
 interface UseProfilePhotoReturn {
   photoLoading: boolean;
@@ -27,7 +27,7 @@ const useProfilePhoto = (): UseProfilePhotoReturn => {
     updateUser({ avatar: preview });
 
     try {
-      const url = await uploadUserImage(file);
+      const url = await uploadSharedUserImage(file);
       // Replace preview with the real server URL when available
       if (url) updateUser({ avatar: url });
     } catch (err) {

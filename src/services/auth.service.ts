@@ -16,6 +16,7 @@ export interface AuthResponse {
   roles: string[];
   token: string;
   fullName: string;
+  imageUrl?: string; // User's profile image URL from the server
   userId: string;
   jobSeekerId: string | null;
   employerId: string | null;
