@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import Navbar from '../../components/feature/Navbar';
 import Footer from '../../components/feature/Footer';
@@ -6,6 +6,7 @@ import ProfilePhotoModal from '../../components/feature/ProfilePhotoModal';
 import LearnerEditModal from '../../components/feature/LearnerEditModal';
 import type { LearnerEditData } from '../../components/feature/LearnerEditModal';
 import useProfilePhoto from '../../hooks/useProfilePhoto';
+import { getLearnerProfile, updateLearnerProfile, buildLearnerImageUrl, type LearnerProfileDto } from '../../services/learner.service';
 
 interface Roadmap {
   id: string;
@@ -31,7 +32,7 @@ const LearnerProfile = () => {
   const { user, updateUser } = useAuth();
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
-  const [contactInfo, setContactInfo] = useState({
+  const [contactInfo] = useState({
     phone: '',
     location: '',
     website: '',
@@ -39,12 +40,48 @@ const LearnerProfile = () => {
     github: '',
     twitter: '',
   });
+  const [learnerProfile, setLearnerProfile] = useState<LearnerProfileDto | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   const [profile, setProfile] = useState({
     bio: 'Passionate learner focused on web development and data science',
     interests: ['Web Development', 'Data Science', 'Machine Learning', 'UI/UX Design'],
     goals: 'Become a full-stack developer within 12 months',
   });
+
+  useEffect(() => {
+    let active = true;
+    setIsLoading(true);
+    setFetchError(null);
+
+    getLearnerProfile()
+      .then((data) => {
+        if (!active) return;
+        setLearnerProfile(data);
+        setProfile((prev) => ({
+          bio: data.bio ?? prev.bio,
+          interests: data.interests.length > 0 ? data.interests : prev.interests,
+          goals: data.learningGoals ?? prev.goals,
+        }));
+
+        if ((!user?.avatar || user.avatar === '/' || user.avatar.trim() === '') && data.imageUrl) {
+          updateUser({ avatar: buildLearnerImageUrl(data.imageUrl) ?? undefined });
+        }
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        setFetchError(error instanceof Error ? error.message : 'Unable to load learner profile.');
+      })
+      .finally(() => {
+        if (!active) return;
+        setIsLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [updateUser, user?.avatar]);
 
   const [roadmaps] = useState<Roadmap[]>([
     {
@@ -90,23 +127,50 @@ const LearnerProfile = () => {
 
   const [newInterest, setNewInterest] = useState('');
 
-  const handleSaveEdit = (data: LearnerEditData) => {
-    setContactInfo({
-      phone: data.phone,
-      location: data.location,
-      website: data.website,
-      linkedin: data.linkedin,
-      github: data.github,
-      twitter: data.twitter,
-    });
-    setProfile(prev => ({ ...prev, bio: data.bio, goals: data.goals }));
+  const learnerRoadmaps: Roadmap[] = learnerProfile?.enrollments?.map((enrollment) => ({
+    id: String(enrollment.enrollmentId),
+    title: enrollment.trackName || 'Learning Track',
+    description: '',
+    progress: enrollment.progressPercent || 0,
+    totalSteps: enrollment.totalTopics || 0,
+    completedSteps: enrollment.completedTopics || 0,
+    category: enrollment.trackName || 'Learning',
+  })) ?? roadmaps;
+  const learnerProjects: CompletedProject[] = learnerProfile?.projects?.map((project) => ({
+    id: String(project.projectId),
+    courseName: project.trackName || 'Learner Project',
+    projectTitle: project.title || 'Project',
+    description: project.description || '',
+    githubLink: project.repoUrl || project.fileUrl || '#',
+    completedDate: project.submittedAt ? new Date(project.submittedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'Unknown',
+    technologies: [],
+  })) ?? completedProjects;
+  const totalSteps = learnerProfile?.totalSteps ?? learnerRoadmaps.reduce((acc, item) => acc + item.totalSteps, 0);
+  const completedSteps = learnerProfile?.completedSteps ?? learnerRoadmaps.reduce((acc, item) => acc + item.completedSteps, 0);
+  const activeRoadmapsCount = learnerProfile?.activeRoadmaps ?? learnerRoadmaps.length;
+  const projectsCompletedCount = learnerProfile?.projectsCompleted ?? learnerProjects.length;
+
+  const handleSaveEdit = async (data: LearnerEditData) => {
+    try {
+      const updated = await updateLearnerProfile({
+        bio: data.bio,
+        learningGoals: data.goals,
+      });
+
+      setLearnerProfile(updated);
+      setProfile(prev => ({
+        ...prev,
+        bio: updated.bio ?? prev.bio,
+        goals: updated.learningGoals ?? prev.goals,
+      }));
+    } catch (error: unknown) {
+      console.error('Unable to update learner profile', error);
+    }
   };
 
   const editData: LearnerEditData = {
-    ...contactInfo,
-    bio: profile.bio,
-    goals: profile.goals,
-    experience: '',
+    bio: learnerProfile?.bio ?? profile.bio,
+    goals: learnerProfile?.learningGoals ?? profile.goals,
   };
 
   const handleAddInterest = () => {
@@ -128,6 +192,16 @@ const LearnerProfile = () => {
       
       <div className="pt-24 sm:pt-32 pb-12 sm:pb-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
+          {isLoading && (
+            <div className="mb-6 p-4 rounded-2xl bg-white/5 border border-white/10 text-sm text-gray-300">
+              Loading learner profile...
+            </div>
+          )}
+          {fetchError && (
+            <div className="mb-6 p-4 rounded-2xl bg-red-500/10 border border-red-400/20 text-sm text-red-200">
+              {fetchError}
+            </div>
+          )}
           {/* Profile Header */}
           <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 sm:p-6 lg:p-8 mb-6 sm:mb-8 border border-white/10">
             <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-6">
@@ -169,11 +243,11 @@ const LearnerProfile = () => {
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-6">
                   <div className="flex items-center gap-2">
                     <i className="ri-road-map-line text-emerald-400 text-lg sm:text-xl"></i>
-                    <span className="text-sm sm:text-base text-white font-semibold">{roadmaps.length} Active Roadmaps</span>
+                    <span className="text-sm sm:text-base text-white font-semibold">{activeRoadmapsCount} Active Roadmaps</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <i className="ri-folder-check-line text-emerald-400 text-lg sm:text-xl"></i>
-                    <span className="text-sm sm:text-base text-white font-semibold">{completedProjects.length} Projects Completed</span>
+                    <span className="text-sm sm:text-base text-white font-semibold">{projectsCompletedCount} Projects Completed</span>
                   </div>
                 </div>
               </div>
@@ -187,7 +261,7 @@ const LearnerProfile = () => {
                 <i className="ri-book-open-line text-xl sm:text-2xl text-emerald-400"></i>
               </div>
               <p className="text-gray-400 text-xs sm:text-sm mb-1">Total Steps</p>
-              <p className="text-2xl sm:text-3xl font-bold text-white">{roadmaps.reduce((acc, r) => acc + r.totalSteps, 0)}</p>
+              <p className="text-2xl sm:text-3xl font-bold text-white">{totalSteps}</p>
             </div>
 
             <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 sm:p-5 lg:p-6 border border-white/10">
@@ -195,7 +269,7 @@ const LearnerProfile = () => {
                 <i className="ri-checkbox-circle-line text-xl sm:text-2xl text-green-400"></i>
               </div>
               <p className="text-gray-400 text-xs sm:text-sm mb-1">Completed</p>
-              <p className="text-2xl sm:text-3xl font-bold text-white">{roadmaps.reduce((acc, r) => acc + r.completedSteps, 0)}</p>
+              <p className="text-2xl sm:text-3xl font-bold text-white">{completedSteps}</p>
             </div>
           </div>
 
@@ -203,7 +277,7 @@ const LearnerProfile = () => {
           <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 sm:p-6 lg:p-8 mb-6 sm:mb-8 border border-white/10">
             <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-6">My Roadmaps</h2>
             <div className="space-y-4 sm:space-y-6">
-              {roadmaps.map((roadmap) => (
+              {learnerRoadmaps.map((roadmap) => (
                 <div key={roadmap.id} className="bg-white/5 rounded-lg p-4 sm:p-5 lg:p-6 border border-white/10">
                   <div className="flex flex-col sm:flex-row items-start justify-between gap-3 sm:gap-0 mb-3 sm:mb-4">
                     <div className="flex-1">
@@ -246,7 +320,7 @@ const LearnerProfile = () => {
               Completed Course Projects
             </h2>
             <div className="space-y-4 sm:space-y-6">
-              {completedProjects.map((project) => (
+              {learnerProjects.map((project) => (
                 <div key={project.id} className="bg-white/5 rounded-xl p-4 sm:p-5 lg:p-6 border border-white/10">
                   <div className="flex flex-col gap-3 sm:gap-4 mb-3 sm:mb-4">
                     <div className="flex-1">
@@ -283,7 +357,7 @@ const LearnerProfile = () => {
                 </div>
               ))}
 
-              {completedProjects.length === 0 && (
+              {learnerProjects.length === 0 && (
                 <div className="text-center py-8 sm:py-12">
                   <div className="w-12 h-12 sm:w-16 sm:h-16 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
                     <i className="ri-folder-line text-2xl sm:text-3xl text-white/40"></i>
