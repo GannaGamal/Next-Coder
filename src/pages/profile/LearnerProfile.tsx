@@ -226,7 +226,7 @@ const LearnerProfile = () => {
                     className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 rounded-lg text-emerald-300 text-xs font-medium transition-colors cursor-pointer whitespace-nowrap"
                   >
                     <i className="ri-edit-line"></i>
-                    Edit Contact
+                    Edit
                   </button>
                 </div>
                 <p className="text-sm sm:text-base text-gray-400 mb-2 break-all">{user?.email}</p>
@@ -375,13 +375,6 @@ const LearnerProfile = () => {
             <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 sm:p-6 lg:p-8 border border-white/10">
               <div className="flex items-center justify-between mb-3 sm:mb-4">
                 <h2 className="text-xl sm:text-2xl font-bold text-white">About Me</h2>
-                <button
-                  onClick={() => setShowContactModal(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 rounded-lg text-emerald-300 text-xs font-medium transition-colors cursor-pointer whitespace-nowrap"
-                >
-                  <i className="ri-edit-line"></i>
-                  Edit
-                </button>
               </div>
               {profile.bio ? (
                 <p className="text-sm sm:text-base text-gray-300 leading-relaxed">{profile.bio}</p>
@@ -394,13 +387,6 @@ const LearnerProfile = () => {
             <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 sm:p-6 lg:p-8 border border-white/10">
               <div className="flex items-center justify-between mb-3 sm:mb-4">
                 <h2 className="text-xl sm:text-2xl font-bold text-white">Learning Goals</h2>
-                <button
-                  onClick={() => setShowContactModal(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 rounded-lg text-emerald-300 text-xs font-medium transition-colors cursor-pointer whitespace-nowrap"
-                >
-                  <i className="ri-edit-line"></i>
-                  Edit
-                </button>
               </div>
               {profile.goals ? (
                 <p className="text-sm sm:text-base text-gray-300 leading-relaxed">{profile.goals}</p>

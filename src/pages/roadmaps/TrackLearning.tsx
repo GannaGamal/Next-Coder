@@ -185,10 +185,7 @@ const TrackLearning = () => {
 
   // ── Derived stats ──────────────────────────────────────────────────────────
 
-  // Count only top-level topic IDs so the progress ring matches the API's definition
-  const completedCount = track
-    ? track.topics.filter((t) => completedNodeIds.includes(t.nodeId)).length
-    : (enrollment?.completedTopics ?? 0);
+   const completedCount = enrollment?.completedTopics ?? track?.topics.length ?? 0;
 
   const totalTopics = enrollment?.totalTopics ?? track?.topics.length ?? 0;
   const progressPct = totalTopics > 0 ? Math.round((completedCount / totalTopics) * 100) : 0;
