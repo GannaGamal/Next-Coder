@@ -10,12 +10,14 @@ import { assignNewRole, getPublicRoles, unassignRole } from "../../services/role
 import NotificationDropdown from "./NotificationDropdown";
 import LanguageSwitcher from "./LanguageSwitcher";
 import rocketImage from "../../assets/space-rocket.png";
+import CustomSelect from "../base/CustomSelect";
 
 interface PortfolioItem {
   id: string;
   title: string;
   description: string;
-  file?: File;
+  category: string;
+  file?: File | null;
 }
 
 interface CompanyItem {
@@ -41,6 +43,43 @@ const roleMeta: Record<UserRole, { icon: string; requiresDocuments: boolean }> =
   learner: { icon: "ri-graduation-cap-line", requiresDocuments: false },
   admin: { icon: "ri-admin-line", requiresDocuments: false },
 };
+
+const PORTFOLIO_ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+const PORTFOLIO_MAX_SIZE_MB = 10;
+const DEFAULT_PORTFOLIO_CATEGORIES = [
+  'webDevelopment',
+  'mobileDevelopment',
+  'uiUX',
+  'dataScience',
+  'machineLearning',
+  'devOps',
+  'cyberSecurity',
+  'gameDevelopment',
+  'graphicDesign',
+  'contentWriting',
+  'digitalMarketing',
+  'videoEditing',
+  'other',
+];
+
+const PORTFOLIO_CATEGORY_LABELS: Record<string, string> = {
+  webDevelopment: 'Web Development',
+  mobileDevelopment: 'Mobile Development',
+  uiUX: 'UI/UX',
+  dataScience: 'Data Science',
+  machineLearning: 'Machine Learning',
+  devOps: 'DevOps',
+  cyberSecurity: 'Cyber Security',
+  gameDevelopment: 'Game Development',
+  graphicDesign: 'Graphic Design',
+  contentWriting: 'Content Writing',
+  digitalMarketing: 'Digital Marketing',
+  videoEditing: 'Video Editing',
+  other: 'Other',
+};
+
+const formatPortfolioCategoryLabel = (value: string): string =>
+  PORTFOLIO_CATEGORY_LABELS[value] ?? value;
 
 const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
@@ -72,9 +111,19 @@ const Navbar = () => {
   const [freelancerPortfolio, setFreelancerPortfolio] = useState<
     PortfolioItem[]
   >([]);
-  const [freelancerDocs, setFreelancerDocs] = useState<File[]>([]);
   const [applicantCV, setApplicantCV] = useState<File | null>(null);
   const [employerCompanies, setEmployerCompanies] = useState<CompanyItem[]>([]);
+  const [freelancerCountry, setFreelancerCountry] = useState("");
+  const [freelancerPhoneNumber, setFreelancerPhoneNumber] = useState("");
+  const [freelancerHourlyRate, setFreelancerHourlyRate] = useState("");
+  const [portfolioFileError, setPortfolioFileError] = useState("");
+  const [addRoleError, setAddRoleError] = useState("");
+  const [isAddingRole, setIsAddingRole] = useState(false);
+  const portfolioCategories = DEFAULT_PORTFOLIO_CATEGORIES;
+  const portfolioCategoryOptions = portfolioCategories.map((category) => ({
+    value: category,
+    label: formatPortfolioCategoryLabel(category),
+  }));
 
   const availableRoles = publicRoleOptions;
 
@@ -122,6 +171,7 @@ const Navbar = () => {
 
     void loadPublicRoles();
   }, [isAuthenticated, showRoleModal, publicRolesLoaded]);
+
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -220,24 +270,75 @@ const Navbar = () => {
 
   const resetDocumentStates = () => {
     setFreelancerPortfolio([]);
-    setFreelancerDocs([]);
     setApplicantCV(null);
     setEmployerCompanies([]);
+    setFreelancerCountry("");
+    setFreelancerPhoneNumber("");
+    setFreelancerHourlyRate("");
+    setPortfolioFileError("");
+    setAddRoleError("");
+  };
+
+  const validatePortfolioFile = (file: File | undefined): string => {
+    if (!file) return "Portfolio file is required.";
+    if (!PORTFOLIO_ALLOWED_TYPES.includes(file.type)) {
+      return "Portfolio file must be JPG, PNG, WEBP, or PDF.";
+    }
+    const maxBytes = PORTFOLIO_MAX_SIZE_MB * 1024 * 1024;
+    if (file.size > maxBytes) {
+      return `Portfolio file must be ${PORTFOLIO_MAX_SIZE_MB}MB or less.`;
+    }
+    return "";
   };
 
   const handleSubmitRoleDocuments = async () => {
     if (!pendingRole) return;
+    setAddRoleError("");
 
     if (pendingRole === "freelancer" && freelancerPortfolio.length === 0) {
-      alert("Please add at least one portfolio item");
+      setAddRoleError("Please add at least one portfolio item");
       return;
     }
+    if (pendingRole === "freelancer") {
+      if (
+        !freelancerCountry.trim() ||
+        !freelancerPhoneNumber.trim() ||
+        !freelancerHourlyRate.trim()
+      ) {
+        setAddRoleError("Please complete all required freelancer fields");
+        return;
+      }
+
+      const incompleteItem = freelancerPortfolio.find(
+        (item) =>
+          !item.title.trim() ||
+          !item.description.trim() ||
+          !item.category.trim() ||
+          !item.file,
+      );
+
+      if (incompleteItem) {
+        setAddRoleError("Please complete all portfolio fields and upload a file");
+        return;
+      }
+
+      const invalidFile = freelancerPortfolio.find((item) => {
+        const error = validatePortfolioFile(item.file ?? undefined);
+        return error.length > 0;
+      });
+      if (invalidFile) {
+        const error = validatePortfolioFile(invalidFile.file ?? undefined);
+        setPortfolioFileError(error);
+        setAddRoleError(error);
+        return;
+      }
+    }
     if (pendingRole === "applicant" && !applicantCV) {
-      alert("Please upload your CV");
+      setAddRoleError("Please upload your CV");
       return;
     }
     if (pendingRole === "employer" && employerCompanies.length === 0) {
-      alert("Please add at least one company");
+      setAddRoleError("Please add at least one company");
       return;
     }
 
@@ -246,21 +347,35 @@ const Navbar = () => {
 
   const submitRoleAssignment = async (role: UserRole) => {
     const formData = new FormData();
-    const roleName = getRoleApiName(role);
+    const roleName = role === "freelancer" ? "Freelancer" : getRoleApiName(role);
 
     formData.append("RoleName", roleName);
-    formData.append("Country", "");
-    formData.append("PhoneNumber", "");
-    formData.append("HourlyRate", "");
+
+    setIsAddingRole(true);
+    setAddRoleError("");
 
     if (role === "applicant" && applicantCV) {
       formData.append("CvFile", applicantCV);
     }
 
     if (role === "freelancer") {
-      const portfolioFile = freelancerPortfolio.find((item) => item.file instanceof File)?.file ?? null;
-      if (portfolioFile) {
-        formData.append("PortfolioFile", portfolioFile);
+      formData.append("country", freelancerCountry.trim());
+      formData.append("phoneNumber", freelancerPhoneNumber.trim());
+      formData.append("hourlyRate", freelancerHourlyRate.trim());
+      const portfolioItem = freelancerPortfolio.find(
+        (item) => item.file instanceof File,
+      );
+      if (portfolioItem?.file) {
+        formData.append("portfolioFile.title", portfolioItem.title.trim());
+        formData.append(
+          "portfolioFile.description",
+          portfolioItem.description.trim(),
+        );
+        formData.append(
+          "portfolioFile.category",
+          portfolioItem.category.trim(),
+        );
+        formData.append("portfolioFile.file", portfolioItem.file);
       }
     }
 
@@ -272,8 +387,20 @@ const Navbar = () => {
         documents: company.documents.map((doc) => doc.name),
       }));
       formData.append("Companies", JSON.stringify(payload));
-    } else {
-      formData.append("Companies", JSON.stringify([]));
+    }
+
+    if (import.meta.env?.DEV) {
+      Array.from(formData.entries()).forEach(([key, value]) => {
+        if (value instanceof File) {
+          console.info("[assignNewRole]", key, {
+            name: value.name,
+            size: value.size,
+            type: value.type,
+          });
+        } else {
+          console.info("[assignNewRole]", key, value);
+        }
+      });
     }
 
     try {
@@ -285,21 +412,27 @@ const Navbar = () => {
       setPendingRole(null);
       resetDocumentStates();
     } catch (err) {
-      console.error("Failed to assign role", err);
+      setAddRoleError(
+        err instanceof Error
+          ? err.message
+          : "We could not add this role right now. Please try again.",
+      );
+    } finally {
+      setIsAddingRole(false);
     }
   };
 
   const addPortfolioItem = () => {
     setFreelancerPortfolio([
       ...freelancerPortfolio,
-      { id: Date.now().toString(), title: "", description: "" },
+      { id: Date.now().toString(), title: "", description: "", category: "" },
     ]);
   };
 
   const updatePortfolioItem = (
     id: string,
     field: string,
-    value: string | File,
+    value: string | File | null,
   ) => {
     setFreelancerPortfolio(
       freelancerPortfolio.map((item) =>
@@ -903,7 +1036,7 @@ const Navbar = () => {
                 </h3>
                 <p className="text-sm text-white/50">
                   {pendingRole === "freelancer" &&
-                    "Add your portfolio items and professional documents to become a freelancer"}
+                    "Add your portfolio details to become a freelancer"}
                   {pendingRole === "applicant" &&
                     "Upload your CV to apply for jobs"}
                   {pendingRole === "employer" &&
@@ -923,6 +1056,11 @@ const Navbar = () => {
             </div>
 
             <div className="p-6">
+              {addRoleError && (
+                <div className="mb-4 p-3 rounded-lg text-sm border bg-red-500/10 border-red-500/30 text-red-300">
+                  {addRoleError}
+                </div>
+              )}
               {/* Applicant CV Upload */}
               {pendingRole === "applicant" && (
                 <div>
@@ -973,6 +1111,34 @@ const Navbar = () => {
               {/* Freelancer Portfolio Upload */}
               {pendingRole === "freelancer" && (
                 <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <input
+                      type="text"
+                      placeholder="Country"
+                      value={freelancerCountry}
+                      onChange={(e) => setFreelancerCountry(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/40 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:outline-none"
+                      required
+                    />
+                    <input
+                      type="tel"
+                      placeholder="Phone number"
+                      value={freelancerPhoneNumber}
+                      onChange={(e) => setFreelancerPhoneNumber(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/40 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:outline-none"
+                      required
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="Hourly rate"
+                      value={freelancerHourlyRate}
+                      onChange={(e) => setFreelancerHourlyRate(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/40 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:outline-none"
+                      required
+                    />
+                  </div>
+
                   <div>
                     <div className="flex items-center justify-between mb-4">
                       <h4 className="text-lg font-semibold text-white">
@@ -1035,14 +1201,32 @@ const Navbar = () => {
                             rows={3}
                           />
 
+                          <CustomSelect
+                            value={item.category}
+                            onChange={(value) =>
+                              updatePortfolioItem(item.id, "category", value)
+                            }
+                            options={portfolioCategoryOptions}
+                            placeholder="Select category"
+                            className="w-full mb-3"
+                          />
+
                           <input
                             type="file"
                             id={`portfolio-modal-${item.id}`}
-                            accept="image/*,.pdf"
+                            accept=".jpg,.jpeg,.png,.webp,.pdf"
                             onChange={(e) => {
                               const file = e.target.files?.[0];
-                              if (file)
+                              if (!file) {
+                                updatePortfolioItem(item.id, "file", null);
+                                setPortfolioFileError("Portfolio file is required.");
+                                return;
+                              }
+                              const validation = validatePortfolioFile(file);
+                              setPortfolioFileError(validation);
+                              if (!validation) {
                                 updatePortfolioItem(item.id, "file", file);
+                              }
                             }}
                             className="hidden"
                           />
@@ -1055,6 +1239,12 @@ const Navbar = () => {
                               {item.file ? item.file.name : "Upload file"}
                             </div>
                           </label>
+                          {portfolioFileError && (
+                            <p className="text-xs text-red-400 flex items-center gap-1 mt-2">
+                              <i className="ri-error-warning-line"></i>
+                              {portfolioFileError}
+                            </p>
+                          )}
                         </div>
                       ))}
 
@@ -1065,61 +1255,6 @@ const Navbar = () => {
                         </div>
                       )}
                     </div>
-                  </div>
-
-                  <div className="pt-6 border-t border-white/10">
-                    <h4 className="text-lg font-semibold text-white mb-4">
-                      {t("roles.additionalDocs")}
-                    </h4>
-                    <input
-                      type="file"
-                      id="freelancer-docs-modal"
-                      multiple
-                      accept=".pdf,.doc,.docx"
-                      onChange={(e) => {
-                        const files = Array.from(e.target.files || []);
-                        setFreelancerDocs([...freelancerDocs, ...files]);
-                      }}
-                      className="hidden"
-                    />
-                    <label
-                      htmlFor="freelancer-docs-modal"
-                      className="flex items-center justify-center w-full p-6 border-2 border-dashed border-white/20 rounded-xl cursor-pointer hover:border-purple-400 hover:bg-purple-500/10 transition-all"
-                    >
-                      <div className="text-center">
-                        <i className="ri-file-add-line text-3xl text-white/50 mb-2"></i>
-                        <div className="text-sm text-white/50">
-                          Upload certificates, licenses, etc.
-                        </div>
-                      </div>
-                    </label>
-
-                    {freelancerDocs.length > 0 && (
-                      <div className="mt-3 space-y-2">
-                        {freelancerDocs.map((doc, index) => (
-                          <div
-                            key={index}
-                            className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/10"
-                          >
-                            <div className="flex items-center text-white/70 text-sm">
-                              <i className="ri-file-text-line mr-2 text-purple-400"></i>
-                              {doc.name}
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setFreelancerDocs(
-                                  freelancerDocs.filter((_, i) => i !== index),
-                                )
-                              }
-                              className="text-red-400 hover:text-red-300 cursor-pointer"
-                            >
-                              <i className="ri-close-line"></i>
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 </div>
               )}
@@ -1262,9 +1397,10 @@ const Navbar = () => {
               </button>
               <button
                 onClick={handleSubmitRoleDocuments}
+                disabled={isAddingRole}
                 className="flex-1 py-3 bg-gradient-to-r from-purple-500 to-violet-600 text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-purple-500/30 transition-all cursor-pointer"
               >
-                {t("roles.completeAddRole")}
+                {isAddingRole ? "Saving..." : t("roles.completeAddRole")}
               </button>
             </div>
           </div>

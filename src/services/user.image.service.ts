@@ -36,7 +36,7 @@ export const uploadSharedUserImage = async (file: File): Promise<string> => {
   const formData = new FormData();
   formData.append('ImageUrl', file);
 
-  const response = await fetch(`${API_BASE}/AppUser/sharedUserImage`, {
+  const response = await fetch(`${API_BASE}/AppUser/userImage`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,

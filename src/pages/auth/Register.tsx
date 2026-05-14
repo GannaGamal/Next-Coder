@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { UserRole } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
 import { registerUser, confirmEmailOtp, resendOtp } from '../../services/auth.service';
+import CustomSelect from '../../components/base/CustomSelect';
 import rocketImage from '../../assets/space-rocket.png';
 
 interface Company {
@@ -40,6 +41,42 @@ const getPasswordStrength = (pw: string): { label: string; color: string; width:
 };
 
 const RESEND_COOLDOWN = 60; // seconds
+const PORTFOLIO_ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+const PORTFOLIO_MAX_SIZE_MB = 10;
+const DEFAULT_PORTFOLIO_CATEGORIES = [
+  'webDevelopment',
+  'mobileDevelopment',
+  'uiUX',
+  'dataScience',
+  'machineLearning',
+  'devOps',
+  'cyberSecurity',
+  'gameDevelopment',
+  'graphicDesign',
+  'contentWriting',
+  'digitalMarketing',
+  'videoEditing',
+  'other',
+];
+
+const PORTFOLIO_CATEGORY_LABELS: Record<string, string> = {
+  webDevelopment: 'Web Development',
+  mobileDevelopment: 'Mobile Development',
+  uiUX: 'UI/UX',
+  dataScience: 'Data Science',
+  machineLearning: 'Machine Learning',
+  devOps: 'DevOps',
+  cyberSecurity: 'Cyber Security',
+  gameDevelopment: 'Game Development',
+  graphicDesign: 'Graphic Design',
+  contentWriting: 'Content Writing',
+  digitalMarketing: 'Digital Marketing',
+  videoEditing: 'Video Editing',
+  other: 'Other',
+};
+
+const formatPortfolioCategoryLabel = (value: string): string =>
+  PORTFOLIO_CATEGORY_LABELS[value] ?? value;
 
 const toApiRoleName = (role: UserRole): string => {
   if (role === 'applicant') return 'Job Seeker';
@@ -73,6 +110,19 @@ const Register = () => {
 
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [freelancerCountry, setFreelancerCountry] = useState('');
+  const [freelancerPhoneNumber, setFreelancerPhoneNumber] = useState('');
+  const [freelancerHourlyRate, setFreelancerHourlyRate] = useState('');
+  const [portfolioTitle, setPortfolioTitle] = useState('');
+  const [portfolioDescription, setPortfolioDescription] = useState('');
+  const [portfolioCategory, setPortfolioCategory] = useState('');
+  const [portfolioFile, setPortfolioFile] = useState<File | null>(null);
+  const [portfolioFileError, setPortfolioFileError] = useState('');
+  const portfolioCategories = DEFAULT_PORTFOLIO_CATEGORIES;
+  const portfolioCategoryOptions = portfolioCategories.map((category) => ({
+    value: category,
+    label: formatPortfolioCategoryLabel(category),
+  }));
 
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -92,6 +142,7 @@ const Register = () => {
       return () => clearTimeout(timer);
     }
   }, [otpSuccess, navigate]);
+
 
   const roleOptions = [
     { value: 'freelancer' as UserRole, label: t('auth.roleFreelancer'), icon: 'ri-briefcase-line', description: t('auth.roleDescFreelancer'), requiresUpload: true },
@@ -153,6 +204,26 @@ const Register = () => {
       setError('Please upload a company image for each company.');
       return;
     }
+    if (formData.roles.includes('freelancer')) {
+      if (!freelancerCountry.trim() || !freelancerPhoneNumber.trim() || !freelancerHourlyRate.trim()) {
+        setError('Please complete all required freelancer fields.');
+        return;
+      }
+      if (!portfolioTitle.trim() || !portfolioDescription.trim() || !portfolioCategory.trim()) {
+        setError('Please complete all portfolio fields.');
+        return;
+      }
+      if (!portfolioFile) {
+        setError('Please upload your portfolio file.');
+        return;
+      }
+      const validationError = validatePortfolioFile(portfolioFile);
+      if (validationError) {
+        setPortfolioFileError(validationError);
+        setError(validationError);
+        return;
+      }
+    }
     setError('');
     setApiErrors([]);
     setLoading(true);
@@ -166,6 +237,17 @@ const Register = () => {
       payload.append('RememberMe', 'false');
       formData.roles.forEach((role) => payload.append('Roles', toApiRoleName(role)));
       if (cvFile) payload.append('CvFile', cvFile);
+      if (formData.roles.includes('freelancer')) {
+        payload.append('country', freelancerCountry.trim());
+        payload.append('phoneNumber', freelancerPhoneNumber.trim());
+        payload.append('hourlyRate', freelancerHourlyRate.trim());
+        payload.append('portfolioFile.title', portfolioTitle.trim());
+        payload.append('portfolioFile.description', portfolioDescription.trim());
+        payload.append('portfolioFile.category', portfolioCategory.trim());
+        if (portfolioFile) {
+          payload.append('portfolioFile.file', portfolioFile);
+        }
+      }
       companies.forEach((company, index) => {
         payload.append(`Companies[${index}].name`, company.name);
         payload.append(`Companies[${index}].industry`, company.industry);
@@ -214,6 +296,18 @@ const Register = () => {
   const handleStep3Submit = (e: React.FormEvent) => {
     e.preventDefault();
     handleSubmitApi();
+  };
+
+  const validatePortfolioFile = (file: File | null): string => {
+    if (!file) return 'Portfolio file is required.';
+    if (!PORTFOLIO_ALLOWED_TYPES.includes(file.type)) {
+      return 'Portfolio file must be JPG, PNG, WEBP, or PDF.';
+    }
+    const maxBytes = PORTFOLIO_MAX_SIZE_MB * 1024 * 1024;
+    if (file.size > maxBytes) {
+      return `Portfolio file must be ${PORTFOLIO_MAX_SIZE_MB}MB or less.`;
+    }
+    return '';
   };
 
   /* ─── OTP input handlers ─── */
@@ -557,6 +651,112 @@ const Register = () => {
               <div>
                 <h3 className="text-xl font-semibold text-white mb-2">{t('auth.uploadDocsTitle')}</h3>
                 <p className="text-sm text-white/60 mb-6">{t('auth.uploadDocsDesc')}</p>
+
+                {/* Freelancer Fields + Portfolio */}
+                {formData.roles.includes('freelancer') && (
+                  <div className="mb-6 p-5 bg-white/5 border border-white/10 rounded-xl">
+                    <div className="flex items-center mb-4">
+                      <div className="w-10 h-10 flex items-center justify-center bg-gradient-to-br from-purple-500 to-violet-500 rounded-lg mr-3">
+                        <i className="ri-briefcase-line text-white text-xl"></i>
+                      </div>
+                      <div>
+                        <h4 className="text-white font-semibold">{t('auth.roleFreelancer')}</h4>
+                        <p className="text-xs text-white/60">Complete your freelancer details and portfolio</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+                      <input
+                        type="text"
+                        placeholder="Country"
+                        value={freelancerCountry}
+                        onChange={(e) => setFreelancerCountry(e.target.value)}
+                        className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/40 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:outline-none"
+                        required
+                      />
+                      <input
+                        type="tel"
+                        placeholder="Phone number"
+                        value={freelancerPhoneNumber}
+                        onChange={(e) => setFreelancerPhoneNumber(e.target.value)}
+                        className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/40 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:outline-none"
+                        required
+                      />
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="Hourly rate"
+                        value={freelancerHourlyRate}
+                        onChange={(e) => setFreelancerHourlyRate(e.target.value)}
+                        className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/40 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:outline-none"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-3">
+                      <input
+                        type="text"
+                        placeholder="Portfolio title"
+                        value={portfolioTitle}
+                        onChange={(e) => setPortfolioTitle(e.target.value)}
+                        className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/40 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:outline-none"
+                        required
+                      />
+                      <textarea
+                        placeholder="Portfolio description"
+                        value={portfolioDescription}
+                        onChange={(e) => setPortfolioDescription(e.target.value)}
+                        className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/40 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 resize-none focus:outline-none"
+                        rows={3}
+                        required
+                      />
+                      <CustomSelect
+                        value={portfolioCategory}
+                        onChange={setPortfolioCategory}
+                        options={portfolioCategoryOptions}
+                        placeholder="Select category"
+                        className="w-full"
+                      />
+
+                      <input
+                        type="file"
+                        id="portfolio-upload"
+                        accept=".jpg,.jpeg,.png,.webp,.pdf"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] || null;
+                          const validation = validatePortfolioFile(file);
+                          setPortfolioFileError(validation);
+                          setPortfolioFile(validation ? null : file);
+                        }}
+                        className="hidden"
+                      />
+                      <label
+                        htmlFor="portfolio-upload"
+                        className="flex items-center justify-center w-full p-4 border-2 border-dashed border-white/20 rounded-lg cursor-pointer hover:border-purple-500/50 hover:bg-white/5 transition-all"
+                      >
+                        {portfolioFile ? (
+                          <div className="flex items-center text-white">
+                            <i className="ri-file-text-line text-2xl mr-3 text-purple-400"></i>
+                            <div>
+                              <div className="font-medium text-sm">{portfolioFile.name}</div>
+                              <div className="text-xs text-white/60">{(portfolioFile.size / 1024).toFixed(2)} KB</div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-center">
+                            <i className="ri-upload-cloud-line text-3xl text-white/40 mb-2"></i>
+                            <div className="text-sm text-white/60">Upload portfolio file (JPG, PNG, WEBP, PDF)</div>
+                          </div>
+                        )}
+                      </label>
+                      {portfolioFileError && (
+                        <p className="text-xs text-red-400 flex items-center gap-1">
+                          <i className="ri-error-warning-line"></i>{portfolioFileError}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Applicant CV */}
                 {formData.roles.includes('applicant') && (
