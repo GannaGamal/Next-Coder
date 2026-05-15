@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import Navbar from '../../components/feature/Navbar';
 import Footer from '../../components/feature/Footer';
@@ -6,7 +7,7 @@ import ProfilePhotoModal from '../../components/feature/ProfilePhotoModal';
 import LearnerEditModal from '../../components/feature/LearnerEditModal';
 import type { LearnerEditData } from '../../components/feature/LearnerEditModal';
 import useProfilePhoto from '../../hooks/useProfilePhoto';
-import { getLearnerProfile, updateLearnerProfile, buildLearnerImageUrl, type LearnerProfileDto } from '../../services/learner.service';
+import { getLearnerProfile, updateLearnerProfile, addLearnerInterest, deleteLearnerInterest, buildLearnerImageUrl, type LearnerProfileDto } from '../../services/learner.service';
 
 interface Roadmap {
   id: string;
@@ -30,6 +31,7 @@ interface CompletedProject {
 
 const LearnerProfile = () => {
   const { user, updateUser } = useAuth();
+  const navigate = useNavigate();
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
   const [contactInfo] = useState({
@@ -45,9 +47,9 @@ const LearnerProfile = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   const [profile, setProfile] = useState({
-    bio: 'Passionate learner focused on web development and data science',
-    interests: ['Web Development', 'Data Science', 'Machine Learning', 'UI/UX Design'],
-    goals: 'Become a full-stack developer within 12 months',
+    bio: '',
+    interests: [],
+    goals: '',
   });
 
   useEffect(() => {
@@ -59,11 +61,11 @@ const LearnerProfile = () => {
       .then((data) => {
         if (!active) return;
         setLearnerProfile(data);
-        setProfile((prev) => ({
-          bio: data.bio ?? prev.bio,
-          interests: data.interests.length > 0 ? data.interests : prev.interests,
-          goals: data.learningGoals ?? prev.goals,
-        }));
+        setProfile({
+          bio: data.bio ?? '',
+          interests: data.interests ?? [],
+          goals: data.learningGoals ?? '',
+        });
 
         if ((!user?.avatar || user.avatar === '/' || user.avatar.trim() === '') && data.imageUrl) {
           updateUser({ avatar: buildLearnerImageUrl(data.imageUrl) ?? undefined });
@@ -126,6 +128,9 @@ const LearnerProfile = () => {
   ]);
 
   const [newInterest, setNewInterest] = useState('');
+  const [isAddingInterest, setIsAddingInterest] = useState(false);
+  const [isDeletingInterest, setIsDeletingInterest] = useState<string | null>(null);
+  const [interestError, setInterestError] = useState<string | null>(null);
 
   const learnerRoadmaps: Roadmap[] = learnerProfile?.enrollments?.map((enrollment) => ({
     id: String(enrollment.enrollmentId),
@@ -173,15 +178,53 @@ const LearnerProfile = () => {
     goals: learnerProfile?.learningGoals ?? profile.goals,
   };
 
-  const handleAddInterest = () => {
-    if (newInterest.trim() && !profile.interests.includes(newInterest.trim())) {
-      setProfile({ ...profile, interests: [...profile.interests, newInterest.trim()] });
+  const handleAddInterest = async () => {
+    if (!newInterest.trim()) return;
+    if (profile.interests.includes(newInterest.trim())) {
+      setInterestError('This interest already exists.');
+      return;
+    }
+
+    setIsAddingInterest(true);
+    setInterestError(null);
+    
+    try {
+      const updated = await addLearnerInterest(newInterest.trim());
+      setLearnerProfile(updated);
+      setProfile(prev => ({
+        ...prev,
+        interests: updated.interests,
+      }));
       setNewInterest('');
+    } catch (error: unknown) {
+      setInterestError(error instanceof Error ? error.message : 'Failed to add interest');
+      console.error('Unable to add interest', error);
+    } finally {
+      setIsAddingInterest(false);
     }
   };
 
-  const handleRemoveInterest = (interest: string) => {
-    setProfile({ ...profile, interests: profile.interests.filter(i => i !== interest) });
+  const handleRemoveInterest = async (interest: string) => {
+    setIsDeletingInterest(interest);
+    setInterestError(null);
+    
+    try {
+      const updated = await deleteLearnerInterest(interest);
+      setLearnerProfile(updated);
+      setProfile(prev => ({
+        ...prev,
+        interests: updated.interests,
+      }));
+    } catch (error: unknown) {
+      setInterestError(error instanceof Error ? error.message : 'Failed to delete interest');
+      console.error('Unable to delete interest', error);
+    } finally {
+      setIsDeletingInterest(null);
+    }
+  };
+
+  const handleContinueLearning = (trackName: string) => {
+    navigate(`/roadmaps/learn/${trackName}`);
   };
 
   const { handlePhotoUpload, handlePhotoRemove } = useProfilePhoto();
@@ -304,7 +347,10 @@ const LearnerProfile = () => {
 
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
                     <span className="text-emerald-400 font-semibold text-sm sm:text-base">{roadmap.progress}% Complete</span>
-                    <button className="w-full sm:w-auto px-4 sm:px-6 py-2 bg-emerald-500 text-white text-sm sm:text-base font-semibold rounded-lg hover:bg-emerald-600 transition-colors whitespace-nowrap cursor-pointer">
+                    <button 
+                      onClick={() => handleContinueLearning(roadmap.category)}
+                      className="w-full sm:w-auto px-4 sm:px-6 py-2 bg-emerald-500 text-white text-sm sm:text-base font-semibold rounded-lg hover:bg-emerald-600 transition-colors whitespace-nowrap cursor-pointer"
+                    >
                       Continue Learning
                     </button>
                   </div>
@@ -379,7 +425,7 @@ const LearnerProfile = () => {
               {profile.bio ? (
                 <p className="text-sm sm:text-base text-gray-300 leading-relaxed">{profile.bio}</p>
               ) : (
-                <p className="text-sm text-gray-500 italic">No bio added yet. Click Edit to add yours.</p>
+                <p className="text-sm text-gray-500 italic">Tell us about yourself!</p>
               )}
             </div>
 
@@ -391,7 +437,7 @@ const LearnerProfile = () => {
               {profile.goals ? (
                 <p className="text-sm sm:text-base text-gray-300 leading-relaxed">{profile.goals}</p>
               ) : (
-                <p className="text-sm text-gray-500 italic">No goals added yet. Click Edit to add yours.</p>
+                <p className="text-sm text-gray-500 italic">Tell us about your learning goals!</p>
               )}
             </div>
           </div>
@@ -399,6 +445,11 @@ const LearnerProfile = () => {
           {/* Interests */}
           <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 sm:p-6 lg:p-8 mb-6 sm:mb-8 border border-white/10">
             <h2 className="text-xl sm:text-2xl font-bold text-white mb-3 sm:mb-4">Interests</h2>
+            {interestError && (
+              <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-400/20 text-sm text-red-200">
+                {interestError}
+              </div>
+            )}
             <div className="flex flex-wrap gap-2 sm:gap-3 mb-3 sm:mb-4">
               {profile.interests.map((interest) => (
                 <div
@@ -408,9 +459,14 @@ const LearnerProfile = () => {
                   <span className="text-sm sm:text-base text-white font-medium">{interest}</span>
                   <button
                     onClick={() => handleRemoveInterest(interest)}
-                    className="w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center text-white hover:text-red-400 transition-colors cursor-pointer"
+                    disabled={isDeletingInterest === interest}
+                    className="w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center text-white hover:text-red-400 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <i className="ri-close-line text-sm sm:text-base"></i>
+                    {isDeletingInterest === interest ? (
+                      <i className="ri-loader-4-line text-sm sm:text-base animate-spin"></i>
+                    ) : (
+                      <i className="ri-close-line text-sm sm:text-base"></i>
+                    )}
                   </button>
                 </div>
               ))}
@@ -420,15 +476,24 @@ const LearnerProfile = () => {
                 type="text"
                 value={newInterest}
                 onChange={(e) => setNewInterest(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleAddInterest()}
-                className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500"
+                onKeyPress={(e) => e.key === 'Enter' && !isAddingInterest && handleAddInterest()}
+                disabled={isAddingInterest}
+                className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 placeholder="Add an interest..."
               />
               <button
                 onClick={handleAddInterest}
-                className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 bg-emerald-500 text-white text-sm sm:text-base font-semibold rounded-lg hover:bg-emerald-600 transition-colors whitespace-nowrap cursor-pointer"
+                disabled={isAddingInterest}
+                className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 bg-emerald-500 text-white text-sm sm:text-base font-semibold rounded-lg hover:bg-emerald-600 transition-colors whitespace-nowrap cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                Add Interest
+                {isAddingInterest ? (
+                  <>
+                    <i className="ri-loader-4-line animate-spin"></i>
+                    Adding...
+                  </>
+                ) : (
+                  'Add Interest'
+                )}
               </button>
             </div>
           </div>

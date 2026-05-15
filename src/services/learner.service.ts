@@ -239,3 +239,69 @@ export const updateLearnerProfile = async (
     throw new Error(getErrorMessage(err));
   }
 };
+
+export const addLearnerInterest = async (name: string): Promise<LearnerProfileDto> => {
+  const token = getToken();
+  if (!token) {
+    throw new Error('You must be signed in to add an interest.');
+  }
+
+  const response = await fetch(`${API_BASE}/learner/interests`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ name }),
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+
+  const rawText = await response.text();
+  if (!rawText.trim()) {
+    throw new Error('Empty response from server.');
+  }
+
+  try {
+    const parsed = JSON.parse(rawText) as Record<string, unknown>;
+    const data = (parsed.data ?? parsed) as Record<string, unknown>;
+    return parseLearnerProfileData(data);
+  } catch (err) {
+    throw new Error(getErrorMessage(err));
+  }
+};
+
+export const deleteLearnerInterest = async (name: string): Promise<LearnerProfileDto> => {
+  const token = getToken();
+  if (!token) {
+    throw new Error('You must be signed in to delete an interest.');
+  }
+
+  const response = await fetch(`${API_BASE}/learner/interests`, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ name }),
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+
+  const rawText = await response.text();
+  if (!rawText.trim()) {
+    throw new Error('Empty response from server.');
+  }
+
+  try {
+    const parsed = JSON.parse(rawText) as Record<string, unknown>;
+    const data = (parsed.data ?? parsed) as Record<string, unknown>;
+    return parseLearnerProfileData(data);
+  } catch (err) {
+    throw new Error(getErrorMessage(err));
+  }
+};
