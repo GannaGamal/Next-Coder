@@ -110,8 +110,8 @@ const Register = () => {
 
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [companies, setCompanies] = useState<Company[]>([]);
-  const [freelancerCountry, setFreelancerCountry] = useState('');
-  const [freelancerPhoneNumber, setFreelancerPhoneNumber] = useState('');
+  const [country, setCountry] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [freelancerHourlyRate, setFreelancerHourlyRate] = useState('');
   const [portfolioTitle, setPortfolioTitle] = useState('');
   const [portfolioDescription, setPortfolioDescription] = useState('');
@@ -191,8 +191,8 @@ const Register = () => {
       setStep(2);
     } else if (step === 2) {
       if (formData.roles.length === 0) { setError(t('auth.selectOneRole')); return; }
-      const requiresUploads = formData.roles.some(role => ['freelancer', 'applicant', 'employer'].includes(role));
-      if (requiresUploads) { setStep(3); } else { handleSubmitApi(); }
+      const requiresDetails = formData.roles.some(role => ['freelancer', 'client', 'applicant', 'employer'].includes(role));
+      if (requiresDetails) { setStep(3); } else { handleSubmitApi(); }
     }
   };
 
@@ -204,8 +204,13 @@ const Register = () => {
       setError('Please upload a company image for each company.');
       return;
     }
+    const needsContactDetails = formData.roles.some(role => ['freelancer', 'client'].includes(role));
+    if (needsContactDetails && (!country.trim() || !phoneNumber.trim())) {
+      setError('Please enter your country and phone number.');
+      return;
+    }
     if (formData.roles.includes('freelancer')) {
-      if (!freelancerCountry.trim() || !freelancerPhoneNumber.trim() || !freelancerHourlyRate.trim()) {
+      if (!freelancerHourlyRate.trim()) {
         setError('Please complete all required freelancer fields.');
         return;
       }
@@ -237,9 +242,11 @@ const Register = () => {
       payload.append('RememberMe', 'false');
       formData.roles.forEach((role) => payload.append('Roles', toApiRoleName(role)));
       if (cvFile) payload.append('CvFile', cvFile);
+      if (formData.roles.some(role => ['freelancer', 'client'].includes(role))) {
+        payload.append('country', country.trim());
+        payload.append('phoneNumber', phoneNumber.trim());
+      }
       if (formData.roles.includes('freelancer')) {
-        payload.append('country', freelancerCountry.trim());
-        payload.append('phoneNumber', freelancerPhoneNumber.trim());
         payload.append('hourlyRate', freelancerHourlyRate.trim());
         payload.append('portfolioFile.title', portfolioTitle.trim());
         payload.append('portfolioFile.description', portfolioDescription.trim());
@@ -652,6 +659,40 @@ const Register = () => {
                 <h3 className="text-xl font-semibold text-white mb-2">{t('auth.uploadDocsTitle')}</h3>
                 <p className="text-sm text-white/60 mb-6">{t('auth.uploadDocsDesc')}</p>
 
+                {/* Shared contact details for marketplace roles */}
+                {formData.roles.some(role => ['freelancer', 'client'].includes(role)) && (
+                  <div className="mb-6 p-5 bg-white/5 border border-white/10 rounded-xl">
+                    <div className="flex items-center mb-4">
+                      <div className="w-10 h-10 flex items-center justify-center bg-gradient-to-br from-purple-500 to-violet-500 rounded-lg mr-3">
+                        <i className="ri-phone-line text-white text-xl"></i>
+                      </div>
+                      <div>
+                        <h4 className="text-white font-semibold">Contact details</h4>
+                        <p className="text-xs text-white/60">Use the same country and phone number for your marketplace roles</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <input
+                        type="text"
+                        placeholder="Country"
+                        value={country}
+                        onChange={(e) => setCountry(e.target.value)}
+                        className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/40 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:outline-none"
+                        required
+                      />
+                      <input
+                        type="tel"
+                        placeholder="Phone number"
+                        value={phoneNumber}
+                        onChange={(e) => setPhoneNumber(e.target.value)}
+                        className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/40 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:outline-none"
+                        required
+                      />
+                    </div>
+                  </div>
+                )}
+
                 {/* Freelancer Fields + Portfolio */}
                 {formData.roles.includes('freelancer') && (
                   <div className="mb-6 p-5 bg-white/5 border border-white/10 rounded-xl">
@@ -665,30 +706,14 @@ const Register = () => {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
-                      <input
-                        type="text"
-                        placeholder="Country"
-                        value={freelancerCountry}
-                        onChange={(e) => setFreelancerCountry(e.target.value)}
-                        className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/40 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:outline-none"
-                        required
-                      />
-                      <input
-                        type="tel"
-                        placeholder="Phone number"
-                        value={freelancerPhoneNumber}
-                        onChange={(e) => setFreelancerPhoneNumber(e.target.value)}
-                        className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/40 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:outline-none"
-                        required
-                      />
+                    <div className="mb-4">
                       <input
                         type="number"
                         min="0"
                         placeholder="Hourly rate"
                         value={freelancerHourlyRate}
                         onChange={(e) => setFreelancerHourlyRate(e.target.value)}
-                        className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/40 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:outline-none"
+                        className="w-full md:max-w-xs px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/40 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:outline-none"
                         required
                       />
                     </div>
