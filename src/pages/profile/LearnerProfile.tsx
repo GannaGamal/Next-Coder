@@ -7,7 +7,7 @@ import ProfilePhotoModal from '../../components/feature/ProfilePhotoModal';
 import LearnerEditModal from '../../components/feature/LearnerEditModal';
 import type { LearnerEditData } from '../../components/feature/LearnerEditModal';
 import useProfilePhoto from '../../hooks/useProfilePhoto';
-import { getLearnerProfile, updateLearnerProfile, addLearnerInterest, deleteLearnerInterest, buildLearnerImageUrl, type LearnerProfileDto } from '../../services/learner.service';
+import { getLearnerProfile, updateLearnerProfile, addLearnerInterest, deleteLearnerInterest, type LearnerProfileDto } from '../../services/learner.service';
 
 interface Roadmap {
   id: string;
@@ -30,7 +30,7 @@ interface CompletedProject {
 }
 
 const LearnerProfile = () => {
-  const { user, updateUser } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
@@ -66,10 +66,6 @@ const LearnerProfile = () => {
           interests: data.interests ?? [],
           goals: data.learningGoals ?? '',
         });
-
-        if ((!user?.avatar || user.avatar === '/' || user.avatar.trim() === '') && data.imageUrl) {
-          updateUser({ avatar: buildLearnerImageUrl(data.imageUrl) ?? undefined });
-        }
       })
       .catch((error: unknown) => {
         if (!active) return;
@@ -83,7 +79,7 @@ const LearnerProfile = () => {
     return () => {
       active = false;
     };
-  }, [updateUser, user?.avatar]);
+  }, []);
 
   const [roadmaps] = useState<Roadmap[]>([
     {

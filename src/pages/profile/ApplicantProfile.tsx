@@ -9,7 +9,6 @@ import ContactInfoModal from '../../components/feature/ContactInfoModal';
 import type { ContactInfo } from '../../components/feature/ContactInfoModal';
 import useProfilePhoto from '../../hooks/useProfilePhoto';
 import {
-  buildJobSeekerImageUrl,
   canCurrentUserEditJobSeekerProfile,
   getJobSeekerProfile,
   updateJobSeekerProfile,
@@ -66,7 +65,6 @@ const ApplicantProfile = () => {
   const [profileError, setProfileError] = useState('');
   const [profileSuccessMessage, setProfileSuccessMessage] = useState('');
   const [profileOwnerId, setProfileOwnerId] = useState('');
-  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
   const [imageLoadFailed, setImageLoadFailed] = useState(false);
 
   const [contactInfo, setContactInfo] = useState<ContactInfo>({
@@ -133,9 +131,6 @@ const ApplicantProfile = () => {
         education: String(data.education ?? ''),
       });
 
-      setImageLoadFailed(false);
-      setProfileImageUrl(buildJobSeekerImageUrl(data.imageUrl));
-
       const updatedName = String(data.fullName ?? '').trim();
       const updatedEmail = String(data.email ?? '').trim();
       if (updatedName || updatedEmail) {
@@ -157,6 +152,10 @@ const ApplicantProfile = () => {
     void loadApplicantSkills();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewedJobSeekerId]);
+
+  useEffect(() => {
+    setImageLoadFailed(false);
+  }, [user?.avatar]);
 
   useEffect(() => {
     if (!user) {
@@ -445,9 +444,9 @@ const ApplicantProfile = () => {
                 onClick={() => canEditProfile && setShowPhotoModal(true)}
                 className={`w-20 h-20 sm:w-24 sm:h-24 lg:w-32 lg:h-32 flex items-center justify-center rounded-2xl bg-gradient-to-br from-pink-500 to-rose-500 flex-shrink-0 relative group ${canEditProfile ? 'cursor-pointer' : 'cursor-default'}`}
               >
-                {profileImageUrl && !imageLoadFailed ? (
+                {user?.avatar && !imageLoadFailed ? (
                   <img
-                    src={profileImageUrl}
+                    src={user.avatar}
                     alt={headerName}
                     onError={() => setImageLoadFailed(true)}
                     className="w-full h-full rounded-2xl object-cover"
@@ -712,7 +711,7 @@ const ApplicantProfile = () => {
       <ProfilePhotoModal
         isOpen={showPhotoModal}
         onClose={() => setShowPhotoModal(false)}
-        currentPhoto={profileImageUrl ?? user?.avatar}
+        currentPhoto={user?.avatar}
         userName={headerName}
         onUpload={handlePhotoUpload}
         onRemove={handlePhotoRemove}

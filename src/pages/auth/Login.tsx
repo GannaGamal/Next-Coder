@@ -140,9 +140,6 @@ const Login = () => {
       // Persist token if present
       if (data.token) localStorage.setItem('authToken', data.token);
 
-      // Save imageUrl if present
-      if (data.imageUrl) localStorage.setItem('pendingImageUrl', data.imageUrl);
-
       setVerifySuccess(true);
       if (cooldownRef.current) clearInterval(cooldownRef.current);
 

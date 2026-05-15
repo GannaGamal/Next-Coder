@@ -28,7 +28,7 @@ export const buildImageUrl = (imagePath: string): string => {
 
 /**
  * POST /AppUser/sharedUserImage
- * Uploads a new profile photo using the shared endpoint. Returns the relative image path.
+ * Uploads the single shared user profile photo. Returns the image path if the API includes it.
  * Response: { "success": true, "message": "Image uploaded successfully.", "data": "UserImage/..." }
  */
 export const uploadSharedUserImage = async (file: File): Promise<string> => {
@@ -36,7 +36,7 @@ export const uploadSharedUserImage = async (file: File): Promise<string> => {
   const formData = new FormData();
   formData.append('ImageUrl', file);
 
-  const response = await fetch(`${API_BASE}/AppUser/userImage`, {
+  const response = await fetch(`${API_BASE}/AppUser/sharedUserImage`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -54,39 +54,6 @@ export const uploadSharedUserImage = async (file: File): Promise<string> => {
     const data = JSON.parse(rawText);
     // Extract the image path from the data field
     const imagePath = data.data ?? data.imageUrl ?? data.url ?? data.image ?? data;
-    return buildImageUrl(imagePath as string);
-  } catch {
-    return buildImageUrl(rawText.trim());
-  }
-};
-
-/**
- * GET /AppUser/userImage
- * Returns the authenticated user's profile photo URL.
- * Returns empty string if no photo is set (404).
- */
-export const getUserImage = async (): Promise<string> => {
-  const token = getToken();
-  if (!token) return '';
-
-  const response = await fetch(`${API_BASE}/AppUser/sharedUserImage`, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  if (response.status === 404) return '';
-
-  if (!response.ok) {
-    const message = await parseApiError(response);
-    throw new Error(message);
-  }
-
-  const rawText = await response.text();
-  try {
-    const data = JSON.parse(rawText);
-    const imagePath = data.imageUrl ?? data.url ?? data.image ?? data ?? '';
     return buildImageUrl(imagePath as string);
   } catch {
     return buildImageUrl(rawText.trim());

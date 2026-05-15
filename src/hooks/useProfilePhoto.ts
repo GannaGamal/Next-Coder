@@ -9,6 +9,14 @@ interface UseProfilePhotoReturn {
   handlePhotoRemove: () => Promise<void>;
 }
 
+const readImagePreview = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+    reader.onerror = () => reject(new Error('Could not preview this image.'));
+    reader.readAsDataURL(file);
+  });
+
 /**
  * Shared hook for all profile pages to upload / delete a profile photo
  * via the real API, with optimistic UI update.
@@ -22,11 +30,10 @@ const useProfilePhoto = (): UseProfilePhotoReturn => {
     setPhotoLoading(true);
     setPhotoError(null);
 
-    // Optimistic preview while uploading
-    const preview = URL.createObjectURL(file);
-    updateUser({ avatar: preview });
-
     try {
+      const preview = await readImagePreview(file);
+      updateUser({ avatar: preview });
+
       const url = await uploadSharedUserImage(file);
       // Replace preview with the real server URL when available
       if (url) updateUser({ avatar: url });

@@ -2,12 +2,9 @@ import { useState, useEffect } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 
 export interface ClientEditData {
-  phone: string;
-  location: string;
-  website: string;
-  linkedin: string;
-  github: string;
-  twitter: string;
+  phoneNumber: string;
+  country: string;
+  websiteUrl: string;
   bio: string;
 }
 
@@ -15,7 +12,8 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   data: ClientEditData;
-  onSave: (data: ClientEditData) => void;
+  onSave: (data: ClientEditData) => void | Promise<void>;
+  error?: string | null;
   accentColor?: 'violet' | 'purple' | 'pink' | 'orange' | 'emerald' | 'teal';
 }
 
@@ -29,17 +27,15 @@ const colorConfig = {
 };
 
 const contactFields = [
-  { key: 'phone' as keyof ClientEditData,    label: 'Phone',       icon: 'ri-phone-line',        placeholder: '+1 234 567 8900',         type: 'tel'  },
-  { key: 'location' as keyof ClientEditData, label: 'Location',    icon: 'ri-map-pin-line',       placeholder: 'City, State / Country'               },
-  { key: 'website' as keyof ClientEditData,  label: 'Website',     icon: 'ri-global-line',        placeholder: 'https://yourwebsite.com'             },
-  { key: 'linkedin' as keyof ClientEditData, label: 'LinkedIn',    icon: 'ri-linkedin-box-line',  placeholder: 'linkedin.com/in/username'            },
-  { key: 'github' as keyof ClientEditData,   label: 'GitHub',      icon: 'ri-github-fill',        placeholder: 'github.com/username'                },
-  { key: 'twitter' as keyof ClientEditData,  label: 'Twitter / X', icon: 'ri-twitter-x-line',     placeholder: '@username'                          },
+  { key: 'phoneNumber' as keyof ClientEditData, label: 'Phone Number', icon: 'ri-phone-line', placeholder: '+1 234 567 8900', type: 'tel' },
+  { key: 'country' as keyof ClientEditData, label: 'Country', icon: 'ri-map-pin-line', placeholder: 'Egypt' },
+  { key: 'websiteUrl' as keyof ClientEditData, label: 'Website', icon: 'ri-global-line', placeholder: 'https://yourwebsite.com' },
 ];
 
-const ClientEditModal = ({ isOpen, onClose, data, onSave, accentColor = 'orange' }: Props) => {
+const ClientEditModal = ({ isOpen, onClose, data, onSave, error, accentColor = 'orange' }: Props) => {
   const { isLightMode } = useTheme();
   const [form, setForm] = useState<ClientEditData>({ ...data });
+  const [saving, setSaving] = useState(false);
   const cfg = colorConfig[accentColor];
 
   useEffect(() => {
@@ -48,9 +44,14 @@ const ClientEditModal = ({ isOpen, onClose, data, onSave, accentColor = 'orange'
 
   if (!isOpen) return null;
 
-  const handleSave = () => {
-    onSave(form);
-    onClose();
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await onSave(form);
+      onClose();
+    } finally {
+      setSaving(false);
+    }
   };
 
   const set = (key: keyof ClientEditData, value: string) =>
@@ -76,6 +77,12 @@ const ClientEditModal = ({ isOpen, onClose, data, onSave, accentColor = 'orange'
             <p className={`text-sm ${isLightMode ? 'text-gray-500' : 'text-gray-400'}`}>Update your contact info and profile description</p>
           </div>
         </div>
+
+        {error && (
+          <div className="mb-4 p-3 rounded-lg text-sm border bg-red-500/10 border-red-500/30 text-red-300">
+            {error}
+          </div>
+        )}
 
         <div className="space-y-4">
           {contactFields.map(field => (
@@ -115,15 +122,25 @@ const ClientEditModal = ({ isOpen, onClose, data, onSave, accentColor = 'orange'
         <div className="flex gap-3 mt-6">
           <button
             onClick={onClose}
+            disabled={saving}
             className={`flex-1 px-5 py-3 font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap ${isLightMode ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' : 'bg-white/5 text-white hover:bg-white/10'}`}
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
-            className={`flex-1 px-5 py-3 ${cfg.btn} text-white font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap`}
+            disabled={saving}
+            className={`flex-1 px-5 py-3 ${cfg.btn} text-white font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed`}
           >
-            <i className="ri-save-line mr-2"></i>Save Changes
+            {saving ? (
+              <>
+                <i className="ri-loader-4-line animate-spin mr-2"></i>Saving...
+              </>
+            ) : (
+              <>
+                <i className="ri-save-line mr-2"></i>Save Changes
+              </>
+            )}
           </button>
         </div>
       </div>

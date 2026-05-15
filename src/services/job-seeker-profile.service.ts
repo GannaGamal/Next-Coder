@@ -28,7 +28,6 @@ interface StoredUserAuth {
   jobSeekerId: string;
 }
 
-const API_ORIGIN = API_BASE.replace(/\/api\/?$/i, '');
 const getToken = () => localStorage.getItem('authToken') ?? '';
 
 const toNullableTrimmedString = (value: unknown): string | null => {
@@ -79,25 +78,6 @@ export const canCurrentUserEditJobSeekerProfile = (
     normalizedOwnerId.length > 0 &&
     jobSeekerId === normalizedOwnerId
   );
-};
-
-export const buildJobSeekerImageUrl = (imageUrl: string | null | undefined): string | null => {
-  const normalized = toNullableTrimmedString(imageUrl);
-
-  if (!normalized || normalized === '/' || normalized === './') {
-    return null;
-  }
-
-  if (/^https?:\/\//i.test(normalized)) {
-    return normalized;
-  }
-
-  const slashNormalized = normalized.replace(/\\/g, '/').replace(/^\/+/, '');
-  if (!slashNormalized) {
-    return null;
-  }
-
-  return `${API_ORIGIN}/${slashNormalized}`;
 };
 
 const getErrorMessage = (err: unknown): string => {

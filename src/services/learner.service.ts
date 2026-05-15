@@ -43,7 +43,6 @@ export interface UpdateLearnerProfilePayload {
   learningGoals: string;
 }
 
-const API_ORIGIN = API_BASE.replace(/\/api\/?$/i, '');
 const getToken = () => localStorage.getItem('authToken') ?? '';
 
 const toNullableString = (value: unknown): string | null => {
@@ -57,22 +56,6 @@ const normalizeStringArray = (value: unknown): string[] => {
   return value
     .map((item) => (item === null || item === undefined ? '' : String(item).trim()))
     .filter((item) => item.length > 0);
-};
-
-export const buildLearnerImageUrl = (imageUrl: string | null | undefined): string | null => {
-  if (!imageUrl) return null;
-
-  const normalized = String(imageUrl).trim();
-  if (!normalized || normalized === '/' || normalized === './') return null;
-
-  if (/^https?:\/\//i.test(normalized)) {
-    return normalized;
-  }
-
-  const slashNormalized = normalized.replace(/\\/g, '/').replace(/^\/+/, '');
-  if (!slashNormalized) return null;
-
-  return `${API_ORIGIN}/${slashNormalized}`;
 };
 
 const parseLearnerProfileData = (payload: Record<string, unknown>): LearnerProfileDto => ({
