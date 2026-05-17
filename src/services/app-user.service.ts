@@ -1,13 +1,14 @@
 import { API_BASE } from './api.config';
 import { parseApiError } from './api.utils';
 import { normalizeUserRole } from '../utils/dashboard';
+import type { UserRole } from '../types';
 
 export interface AppUserSearchResult {
   id: string;
   name: string;
   username?: string | null;
   avatar?: string | null;
-  roles: string[];
+  roles: UserRole[];
   skills?: string[];
   rating?: number | null;
   completedProjects?: number | null;
@@ -76,10 +77,10 @@ const buildUserImageUrl = (imageUrl: string | null): string | null => {
   return `${API_ORIGIN}/${slashNormalized}`;
 };
 
-const normalizeRoles = (rawRoles: unknown): string[] => {
+const normalizeRoles = (rawRoles: unknown): UserRole[] => {
   const roles = toStringArray(rawRoles)
-    .map((role) => normalizeUserRole(role) ?? '')
-    .filter((role): role is string => Boolean(role));
+    .map((role) => normalizeUserRole(role))
+    .filter((role): role is UserRole => Boolean(role));
 
   return Array.from(new Set(roles));
 };
@@ -128,48 +129,115 @@ const parseSearchUser = (raw: Record<string, unknown>): AppUserSearchResult | nu
   };
 };
 
-const parseSearchResults = (data: unknown): AppUserSearchResult[] => {
-  if (!data || typeof data !== 'object') {
+const extractList = (payload: unknown): unknown[] => {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  if (!payload || typeof payload !== 'object') {
     return [];
   }
 
-  const candidate = data as Record<string, unknown>;
-  const list = Array.isArray(candidate.value)
-    ? candidate.value
-    : Array.isArray(candidate.data)
-      ? candidate.data
-      : Array.isArray(candidate.items)
-        ? candidate.items
-        : Array.isArray(data)
-          ? data
-          : [];
+  const candidate = payload as Record<string, unknown>;
+  const listCandidates = [
+    candidate.value,
+    candidate.data,
+    candidate.items,
+    candidate.results,
+    candidate.users,
+  ];
+
+  for (const entry of listCandidates) {
+    if (Array.isArray(entry)) {
+      return entry;
+    }
+  }
+
+  const nestedCandidates = [candidate.data, candidate.result, candidate.payload];
+  for (const nested of nestedCandidates) {
+    if (!nested || typeof nested !== 'object') {
+      continue;
+    }
+    const nestedRecord = nested as Record<string, unknown>;
+    const nestedList = nestedRecord.items ?? nestedRecord.value ?? nestedRecord.data;
+    if (Array.isArray(nestedList)) {
+      return nestedList;
+    }
+  }
+
+  return [];
+};
+
+const parseSearchResults = (data: unknown): AppUserSearchResult[] => {
+  const list = extractList(data);
 
   return list
     .map((item) => (item && typeof item === 'object' ? parseSearchUser(item as Record<string, unknown>) : null))
     .filter((item): item is AppUserSearchResult => Boolean(item));
 };
 
-export const searchAppUsers = async (query: string): Promise<AppUserSearchResult[]> => {
+const toApiRoleName = (role: UserRole): string => {
+  switch (role) {
+    case 'freelancer':
+      return 'Freelancer';
+    case 'client':
+      return 'Client';
+    case 'employer':
+      return 'Employer';
+    case 'applicant':
+      return 'Applicant';
+    case 'learner':
+      return 'Learner';
+    case 'admin':
+      return 'Admin';
+    default:
+      return role;
+  }
+};
+
+export const searchAppUsers = async (
+  query: string,
+  options?: { roles?: UserRole[] }
+): Promise<AppUserSearchResult[]> => {
   const normalizedQuery = String(query ?? '').trim();
   if (!normalizedQuery) {
     return [];
   }
 
   const token = localStorage.getItem('authToken') ?? '';
-  const params = new URLSearchParams({ search: normalizedQuery });
+  const params = new URLSearchParams({ Keyword: normalizedQuery });
+  const roles = options?.roles ?? [];
+  for (const role of roles) {
+    params.append('Roles', toApiRoleName(role));
+  }
+  const requestUrl = `${API_BASE}/AppUser/search?${params.toString()}`;
 
   let response: Response;
   try {
-    response = await fetch(`${API_BASE}/AppUser/search?${params.toString()}`, {
+    response = await fetch(requestUrl, {
       method: 'GET',
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        Accept: 'application/json',
+      },
     });
   } catch {
     throw new Error('We could not search users right now. Please check your connection and try again.');
   }
 
   if (!response.ok) {
-    throw new Error(await parseApiError(response));
+    let apiMessage = '';
+    try {
+      apiMessage = await parseApiError(response);
+    } catch {
+      apiMessage = '';
+    }
+    const statusMessage = response.status ? ` (HTTP ${response.status})` : '';
+    if (response.status === 401 || response.status === 403) {
+      throw new Error(`Please sign in to search users.${statusMessage}`);
+    }
+    const message = apiMessage || 'Search request failed. Please try again.';
+    throw new Error(`${message}${statusMessage}`);
   }
 
   const rawText = await response.text();
@@ -179,8 +247,22 @@ export const searchAppUsers = async (query: string): Promise<AppUserSearchResult
 
   try {
     const parsed = JSON.parse(rawText) as unknown;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const wrapper = parsed as Record<string, unknown>;
+      const success = typeof wrapper.success === 'boolean' ? wrapper.success : undefined;
+      const message = typeof wrapper.message === 'string' ? wrapper.message : '';
+      const data = 'data' in wrapper ? wrapper.data : parsed;
+      if (success === false) {
+        throw new Error(message || 'Search request failed.');
+      }
+      return parseSearchResults(data);
+    }
+
     return parseSearchResults(parsed);
-  } catch {
+  } catch (err) {
+    if (err instanceof Error) {
+      throw err;
+    }
     return [];
   }
 };

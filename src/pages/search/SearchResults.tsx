@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import Navbar from '../../components/feature/Navbar';
 import Footer from '../../components/feature/Footer';
 import { searchAppUsers, type AppUserSearchResult } from '../../services/app-user.service';
+import type { UserRole } from '../../types';
 
 const SearchResults = () => {
   const [searchParams] = useSearchParams();
@@ -11,13 +12,13 @@ const SearchResults = () => {
   const { t } = useTranslation();
   
   const [users, setUsers] = useState<AppUserSearchResult[]>([]);
-  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
+  const [selectedRoles, setSelectedRoles] = useState<UserRole[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const allRoles = ['freelancer', 'client', 'employer', 'applicant', 'learner'];
+  const allRoles: UserRole[] = ['freelancer', 'client', 'employer', 'applicant', 'learner'];
 
   useEffect(() => {
     const normalizedQuery = query.trim();
@@ -34,7 +35,7 @@ const SearchResults = () => {
     setErrorMessage('');
 
     const timeout = window.setTimeout(() => {
-      searchAppUsers(normalizedQuery)
+      searchAppUsers(normalizedQuery, { roles: selectedRoles })
         .then((data) => {
           if (!isActive) return;
           setUsers(data);
@@ -58,9 +59,9 @@ const SearchResults = () => {
       isActive = false;
       window.clearTimeout(timeout);
     };
-  }, [query, refreshKey]);
+  }, [query, refreshKey, selectedRoles]);
 
-  const toggleRole = (role: string) => {
+  const toggleRole = (role: UserRole) => {
     setSelectedRoles(prev => prev.includes(role) ? prev.filter(r => r !== role) : [...prev, role]);
   };
 
