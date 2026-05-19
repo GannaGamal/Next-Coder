@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import Navbar from '../../components/feature/Navbar';
 import Footer from '../../components/feature/Footer';
@@ -6,6 +6,7 @@ import ProfilePhotoModal from '../../components/feature/ProfilePhotoModal';
 import FreelancerEditModal from '../../components/feature/FreelancerEditModal';
 import type { FreelancerEditData } from '../../components/feature/FreelancerEditModal';
 import useProfilePhoto from '../../hooks/useProfilePhoto';
+import CustomSelect from '../../components/base/CustomSelect';
 import {
   getFreelancerProfile,
   updateFreelancerProfile,
@@ -17,6 +18,14 @@ import {
   getFreelancerSkills,
   type FreelancerSkill,
 } from '../../services/freelancer-skills.service';
+import {
+  addFreelancerPortfolio,
+  deleteFreelancerPortfolio,
+  getFreelancerPortfolioCategories,
+  getFreelancerPortfolios,
+  type PortfolioCategoryOption,
+  type FreelancerPortfolioDto,
+} from '../../services/freelancer-portfolio.service';
 
 interface PortfolioItem {
   id: string;
@@ -48,6 +57,46 @@ interface CompletedProject {
   review: string;
   category: string;
 }
+
+const formatPortfolioCategoryLabel = (value: string): string =>
+  value
+    .replace(/_/g, ' ')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+    .trim();
+
+const resolvePortfolioFileExtension = (url: string): string => {
+  if (!url) return '';
+  const noQuery = url.split('?')[0];
+  const last = noQuery.split('/').pop() || '';
+  const dot = last.lastIndexOf('.');
+  return dot > -1 ? last.slice(dot) : '';
+};
+
+const formatPortfolioDate = (value: string): string => {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  const date = parsed.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+  const time = parsed.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+  return `${date} at ${time}`;
+};
+
+const toPortfolioItem = (item: FreelancerPortfolioDto): PortfolioItem => ({
+  id: String(item.id),
+  title: item.title,
+  description: item.description,
+  pdfName: `${item.title || 'Portfolio'}${resolvePortfolioFileExtension(item.portfolioUrl) || '.pdf'}`,
+  pdfUrl: item.portfolioUrl,
+  category: item.categoryName ? formatPortfolioCategoryLabel(item.categoryName) : 'Uncategorized',
+  completedDate: formatPortfolioDate(item.uploadedAt),
+});
 
 const FreelancerProfile = () => {
   const { user } = useAuth();
@@ -81,38 +130,16 @@ const FreelancerProfile = () => {
   const [isAddingSkill, setIsAddingSkill] = useState(false);
   const [deletingSkillId, setDeletingSkillId] = useState<number | null>(null);
 
-  const [portfolio, setPortfolio] = useState<PortfolioItem[]>([
-    {
-      id: '1',
-      title: 'E-commerce Platform',
-      description: 'Built a full-featured e-commerce platform with payment integration and admin dashboard',
-      pdfName: 'E-commerce_Platform_Portfolio.pdf',
-      pdfUrl: '#',
-      pdfSize: 2.4,
-      category: 'Web Development',
-      completedDate: '2024-01-15'
-    },
-    {
-      id: '2',
-      title: 'Mobile Banking App',
-      description: 'Developed a secure mobile banking application with biometric authentication',
-      pdfName: 'Mobile_Banking_App_Portfolio.pdf',
-      pdfUrl: '#',
-      pdfSize: 3.1,
-      category: 'Mobile Development',
-      completedDate: '2023-11-20'
-    },
-    {
-      id: '3',
-      title: 'Analytics Dashboard',
-      description: 'Created a real-time analytics dashboard with data visualization and reporting',
-      pdfName: 'Analytics_Dashboard_Portfolio.pdf',
-      pdfUrl: '#',
-      pdfSize: 1.8,
-      category: 'Data Visualization',
-      completedDate: '2023-09-10'
-    }
-  ]);
+  const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
+  const [portfolioLoading, setPortfolioLoading] = useState(true);
+  const [portfolioError, setPortfolioError] = useState('');
+  const [portfolioActionError, setPortfolioActionError] = useState('');
+  const [portfolioActionLoading, setPortfolioActionLoading] = useState(false);
+  const [portfolioDeleteError, setPortfolioDeleteError] = useState('');
+  const [deletingPortfolioId, setDeletingPortfolioId] = useState<string | null>(null);
+  const [portfolioCategories, setPortfolioCategories] = useState<PortfolioCategoryOption[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [categoriesError, setCategoriesError] = useState('');
 
   const [completedProjects] = useState<CompletedProject[]>([
     {
@@ -177,9 +204,17 @@ const FreelancerProfile = () => {
     title: '',
     description: '',
     category: '',
-    completedDate: ''
   });
   const [newPortfolioPdf, setNewPortfolioPdf] = useState<File | null>(null);
+
+  const portfolioCategoryOptions = useMemo(
+    () =>
+      portfolioCategories.map((category) => ({
+        value: category.value,
+        label: category.label || formatPortfolioCategoryLabel(category.value),
+      })),
+    [portfolioCategories]
+  );
 
   const handleAddSkill = async () => {
     const trimmed = newSkill.trim();
@@ -228,19 +263,56 @@ const FreelancerProfile = () => {
     }
   };
 
-  const handleAddPortfolio = () => {
-    if (newPortfolio.title && newPortfolio.description && newPortfolioPdf) {
-      const item: PortfolioItem = {
-        id: Date.now().toString(),
-        ...newPortfolio,
-        pdfName: newPortfolioPdf.name,
-        pdfUrl: URL.createObjectURL(newPortfolioPdf),
-        pdfSize: parseFloat((newPortfolioPdf.size / (1024 * 1024)).toFixed(2)),
-      };
-      setPortfolio([...portfolio, item]);
-      setNewPortfolio({ title: '', description: '', category: '', completedDate: '' });
+  const handleAddPortfolio = async () => {
+    if (!newPortfolio.title.trim() || !newPortfolio.description.trim() || !newPortfolio.category || !newPortfolioPdf) {
+      setPortfolioActionError('Please complete the title, description, category, and file before submitting.');
+      return;
+    }
+
+    setPortfolioActionError('');
+    setPortfolioActionLoading(true);
+
+    try {
+      await addFreelancerPortfolio({
+        title: newPortfolio.title,
+        description: newPortfolio.description,
+        category: newPortfolio.category,
+        file: newPortfolioPdf,
+      });
+      const refreshed = await getFreelancerPortfolios();
+      setPortfolio(refreshed.map(toPortfolioItem));
+      setNewPortfolio({ title: '', description: '', category: '' });
       setNewPortfolioPdf(null);
       setShowPortfolioForm(false);
+    } catch (error) {
+      setPortfolioActionError(
+        error instanceof Error
+          ? error.message
+          : 'We could not add your portfolio right now. Please try again.'
+      );
+    } finally {
+      setPortfolioActionLoading(false);
+    }
+  };
+
+  const handleDeletePortfolio = async (portfolioId: string) => {
+    if (!window.confirm('Are you sure you want to delete this portfolio item?')) return;
+
+    setPortfolioDeleteError('');
+    setDeletingPortfolioId(portfolioId);
+
+    try {
+      await deleteFreelancerPortfolio(portfolioId);
+      const refreshed = await getFreelancerPortfolios();
+      setPortfolio(refreshed.map(toPortfolioItem));
+    } catch (error) {
+      setPortfolioDeleteError(
+        error instanceof Error
+          ? error.message
+          : 'We could not delete this portfolio right now. Please try again.'
+      );
+    } finally {
+      setDeletingPortfolioId(null);
     }
   };
 
@@ -299,6 +371,57 @@ const FreelancerProfile = () => {
     };
 
     loadProfile();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadPortfolios = async () => {
+      setPortfolioLoading(true);
+      setPortfolioError('');
+
+      try {
+        const data = await getFreelancerPortfolios();
+        if (!isMounted) return;
+        setPortfolio(data.map(toPortfolioItem));
+      } catch (error) {
+        if (!isMounted) return;
+        setPortfolioError(
+          error instanceof Error
+            ? error.message
+            : 'We could not load your portfolios right now. Please try again.'
+        );
+      } finally {
+        if (isMounted) setPortfolioLoading(false);
+      }
+    };
+
+    const loadCategories = async () => {
+      setCategoriesLoading(true);
+      setCategoriesError('');
+
+      try {
+        const data = await getFreelancerPortfolioCategories();
+        if (!isMounted) return;
+        setPortfolioCategories(data);
+      } catch (error) {
+        if (!isMounted) return;
+        setCategoriesError(
+          error instanceof Error
+            ? error.message
+            : 'We could not load categories right now. Please try again.'
+        );
+      } finally {
+        if (isMounted) setCategoriesLoading(false);
+      }
+    };
+
+    loadPortfolios();
+    loadCategories();
+
     return () => {
       isMounted = false;
     };
@@ -680,6 +803,23 @@ const FreelancerProfile = () => {
                 </button>
               </div>
 
+              {portfolioLoading && (
+                <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-400 flex items-center gap-2">
+                  <i className="ri-loader-4-line animate-spin text-purple-300"></i>
+                  Loading portfolio...
+                </div>
+              )}
+              {portfolioError && (
+                <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+                  {portfolioError}
+                </div>
+              )}
+              {portfolioDeleteError && (
+                <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+                  {portfolioDeleteError}
+                </div>
+              )}
+
               {showPortfolioForm && (
                 <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 sm:p-6 lg:p-8 border border-white/10">
                   <h3 className="text-lg sm:text-xl font-bold text-white mb-3 sm:mb-4">Add New Portfolio</h3>
@@ -687,31 +827,40 @@ const FreelancerProfile = () => {
                     <input
                       type="text"
                       value={newPortfolio.title}
-                      onChange={(e) => setNewPortfolio({ ...newPortfolio, title: e.target.value })}
+                      onChange={(e) => {
+                        setNewPortfolio({ ...newPortfolio, title: e.target.value });
+                        if (portfolioActionError) setPortfolioActionError('');
+                      }}
                       className="w-full bg-white/5 border border-white/10 rounded-lg px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
                       placeholder="Portfolio Title"
                     />
                     <textarea
                       value={newPortfolio.description}
-                      onChange={(e) => setNewPortfolio({ ...newPortfolio, description: e.target.value })}
+                      onChange={(e) => {
+                        setNewPortfolio({ ...newPortfolio, description: e.target.value });
+                        if (portfolioActionError) setPortfolioActionError('');
+                      }}
                       className="w-full bg-white/5 border border-white/10 rounded-lg px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 resize-none"
                       rows={3}
                       placeholder="Portfolio Description"
                     />
-                    <input
-                      type="text"
-                      value={newPortfolio.category}
-                      onChange={(e) => setNewPortfolio({ ...newPortfolio, category: e.target.value })}
-                      className="w-full bg-white/5 border border-white/10 rounded-lg px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
-                      placeholder="Category (e.g., Web Development)"
-                    />
-                    <input
-                      type="date"
-                      value={newPortfolio.completedDate}
-                      onChange={(e) => setNewPortfolio({ ...newPortfolio, completedDate: e.target.value })}
-                      className="w-full bg-white/5 border border-white/10 rounded-lg px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base text-white focus:outline-none focus:border-purple-500"
-                    />
-
+                    <div className="space-y-2">
+                      <CustomSelect
+                        value={newPortfolio.category}
+                        onChange={(value) => {
+                          setNewPortfolio({ ...newPortfolio, category: value });
+                          if (portfolioActionError) setPortfolioActionError('');
+                        }}
+                        options={portfolioCategoryOptions}
+                        placeholder={categoriesLoading ? 'Loading categories...' : 'Select category'}
+                        className="w-full"
+                      />
+                      {categoriesError && (
+                        <p className="text-xs text-red-400 flex items-center gap-1">
+                          <i className="ri-error-warning-line"></i>{categoriesError}
+                        </p>
+                      )}
+                    </div>
                     {/* PDF Upload */}
                     <div>
                       <label className="block text-sm text-gray-400 mb-2">Portfolio PDF File</label>
@@ -743,23 +892,36 @@ const FreelancerProfile = () => {
                           <input
                             type="file"
                             accept=".pdf"
-                            onChange={(e) => setNewPortfolioPdf(e.target.files?.[0] || null)}
+                            onChange={(e) => {
+                              setNewPortfolioPdf(e.target.files?.[0] || null);
+                              if (portfolioActionError) setPortfolioActionError('');
+                            }}
                             className="hidden"
                           />
                         </label>
                       )}
                     </div>
 
+                    {portfolioActionError && (
+                      <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+                        {portfolioActionError}
+                      </div>
+                    )}
+
                     <div className="flex flex-col sm:flex-row gap-3">
                       <button
                         onClick={handleAddPortfolio}
-                        disabled={!newPortfolioPdf}
+                        disabled={portfolioActionLoading || categoriesLoading || !newPortfolioPdf}
                         className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 bg-purple-500 text-white text-sm sm:text-base font-semibold rounded-lg hover:bg-purple-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap cursor-pointer"
                       >
-                        Add Portfolio
+                        {portfolioActionLoading ? 'Adding...' : 'Add Portfolio'}
                       </button>
                       <button
-                        onClick={() => { setShowPortfolioForm(false); setNewPortfolioPdf(null); }}
+                        onClick={() => {
+                          setShowPortfolioForm(false);
+                          setNewPortfolioPdf(null);
+                          setPortfolioActionError('');
+                        }}
                         className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 bg-white/5 text-white text-sm sm:text-base font-semibold rounded-lg hover:bg-white/10 transition-colors whitespace-nowrap cursor-pointer"
                       >
                         Cancel
@@ -792,6 +954,19 @@ const FreelancerProfile = () => {
                       >
                         <i className="ri-download-line text-sm"></i>
                       </a>
+                      <button
+                        type="button"
+                        onClick={() => handleDeletePortfolio(item.id)}
+                        disabled={deletingPortfolioId === item.id}
+                        className="absolute top-3 left-3 w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 hover:bg-red-500/30 border border-white/10 hover:border-red-500/40 text-gray-300 hover:text-red-300 transition-all cursor-pointer disabled:opacity-60"
+                        title="Delete Portfolio"
+                      >
+                        {deletingPortfolioId === item.id ? (
+                          <i className="ri-loader-4-line animate-spin text-sm"></i>
+                        ) : (
+                          <i className="ri-delete-bin-line text-sm"></i>
+                        )}
+                      </button>
                     </div>
 
                     {/* Card Info */}
@@ -809,7 +984,7 @@ const FreelancerProfile = () => {
                 ))}
               </div>
 
-              {portfolio.length === 0 && (
+              {!portfolioLoading && portfolio.length === 0 && (
                 <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-8 sm:p-12 border border-white/10 text-center">
                   <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-4">
                     <i className="ri-file-pdf-line text-3xl text-white/40"></i>
