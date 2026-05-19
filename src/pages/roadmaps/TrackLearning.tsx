@@ -874,10 +874,10 @@ const TrackLearning = () => {
                               )}
 
                               {/* Project image */}
-                              {submittedProject.fileUrl && (
+                              {submittedProject.imageUrl && (
                                 <div className="rounded-xl overflow-hidden border border-white/10 bg-white/5 group relative">
                                   <img
-                                    src={`https://nextcoder.runasp.net/${submittedProject.fileUrl}`}
+                                    src={`https://nextcoder.runasp.net/${submittedProject.imageUrl}`}
                                     alt={submittedProject.title}
                                     className="w-full max-h-64 object-cover transition-transform duration-300 group-hover:scale-[1.02]"
                                     onError={(e) => {
@@ -886,7 +886,7 @@ const TrackLearning = () => {
                                     }}
                                   />
                                   <a
-                                    href={`https://nextcoder.runasp.net/${submittedProject.fileUrl}`}
+                                    href={`https://nextcoder.runasp.net/${submittedProject.imageUrl}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40"
@@ -953,11 +953,11 @@ const TrackLearning = () => {
                               </div>
                             </div>
 
-                            {/* Project image — from API fileUrl */}
-                            {submittedProject?.fileUrl && (
+                            {/* Project image — from API imageUrl */}
+                            {submittedProject?.imageUrl && (
                               <div className="rounded-xl overflow-hidden border border-white/10 bg-white/5 group relative">
                                 <img
-                                  src={`https://nextcoder.runasp.net/${submittedProject.fileUrl}`}
+                                  src={`https://nextcoder.runasp.net/${submittedProject.imageUrl}`}
                                   alt={submittedProject.title}
                                   className="w-full max-h-64 object-cover transition-transform duration-300 group-hover:scale-[1.02]"
                                   onError={(e) => {
@@ -966,7 +966,7 @@ const TrackLearning = () => {
                                   }}
                                 />
                                 <a
-                                  href={`https://nextcoder.runasp.net/${submittedProject.fileUrl}`}
+                                  href={`https://nextcoder.runasp.net/${submittedProject.imageUrl}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40"

@@ -272,7 +272,7 @@ export interface ProjectSubmission {
   userId: string;
   title: string;
   description: string;
-  fileUrl: string;
+  imageUrl: string;
   repoUrl: string;
   submittedAt: string;
 }
