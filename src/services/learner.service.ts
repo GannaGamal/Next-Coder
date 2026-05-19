@@ -18,6 +18,7 @@ export interface LearnerProjectDto {
   description: string;
   repoUrl: string;
   fileUrl: string;
+  imageUrl: string;
   submittedAt: string;
 }
 
@@ -98,8 +99,7 @@ const parseLearnerProfileData = (payload: Record<string, unknown>): LearnerProfi
         title: String(entry.title ?? entry.Title ?? ''),
         description: String(entry.description ?? entry.Description ?? ''),
         repoUrl: String(entry.repoUrl ?? entry.RepoUrl ?? ''),
-        fileUrl: String(entry.fileUrl ?? entry.FileUrl ?? ''),
-        submittedAt: String(entry.submittedAt ?? entry.SubmittedAt ?? ''),
+        fileUrl: String(entry.fileUrl ?? entry.FileUrl ?? ''),        imageUrl: String(entry.imageUrl ?? entry.ImageUrl ?? ''),        submittedAt: String(entry.submittedAt ?? entry.SubmittedAt ?? ''),
       };
     });
   })(),
@@ -178,6 +178,7 @@ export const getLearnerProfile = async (): Promise<LearnerProfileDto> => {
             description: String(entry.description ?? entry.Description ?? ''),
             repoUrl: String(entry.repoUrl ?? entry.RepoUrl ?? ''),
             fileUrl: String(entry.fileUrl ?? entry.FileUrl ?? ''),
+            imageUrl: String(entry.imageUrl ?? entry.ImageUrl ?? ''),
             submittedAt: String(entry.submittedAt ?? entry.SubmittedAt ?? ''),
           };
         });
@@ -287,4 +288,28 @@ export const deleteLearnerInterest = async (name: string): Promise<LearnerProfil
   } catch (err) {
     throw new Error(getErrorMessage(err));
   }
+};
+
+export const getProjectLikesCount = async (projectId: number): Promise<number> => {
+  try {
+    const response = await fetch(`${API_BASE}/ProjectLike/count/${projectId}`);
+    
+    if (!response.ok) {
+      return 0;
+    }
+    
+    const data = await response.json() as Record<string, unknown>;
+    return Number(data.data ?? data ?? 0);
+  } catch (err) {
+    console.error(`Failed to fetch likes count for project ${projectId}:`, err);
+    return 0;
+  }
+};
+
+export const getProjectImageUrl = (relativeUrl: string): string => {
+  if (!relativeUrl) return '';
+  if (relativeUrl.startsWith('http://') || relativeUrl.startsWith('https://')) {
+    return relativeUrl;
+  }
+  return `https://nextcoder.runasp.net/${relativeUrl}`;
 };

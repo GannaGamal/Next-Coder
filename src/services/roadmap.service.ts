@@ -277,19 +277,42 @@ export interface ProjectSubmission {
   submittedAt: string;
 }
 
+export interface CommunityAchievement {
+  learnerId: number;
+  userId: string;
+  fullName: string;
+  trackName: string;
+  projectId: number;
+  title: string;
+  description: string;
+  repoUrl: string;
+  imageUrl: string;
+  submittedAt: string;
+  completedAt: string;
+  totalLikes: number;
+}
+
+export interface CommunityAchievementsStats {
+  totalProjects: number;
+  totalLikes: number;
+  tracksCovered: number;
+  achievements: CommunityAchievement[];
+}
+
 export interface SubmitProjectPayload {
   trackName: string;
   title: string;
   description?: string;
   repoUrl?: string;
   /** Optional screenshot / cover image for the project */
+  photo?: File | null;
   file?: File | null;
 }
 
 /**
  * Submits a project for a given track.
  * POST /roadmap/projects/SubmitProject  (multipart/form-data)
- * Fields: TrackName, Title, Description, RepoUrl, file (image)
+ * Fields: TrackName, Title, Description, RepoUrl, Photo (image)
  */
 export const submitProject = async (payload: SubmitProjectPayload): Promise<ProjectSubmission> => {
   const token = localStorage.getItem('authToken');
@@ -297,9 +320,10 @@ export const submitProject = async (payload: SubmitProjectPayload): Promise<Proj
   const formData = new FormData();
   formData.append('TrackName', payload.trackName);
   formData.append('Title', payload.title);
-  if (payload.description) formData.append('Description', payload.description);
-  if (payload.repoUrl)     formData.append('RepoUrl', payload.repoUrl);
-  if (payload.file)        formData.append('file', payload.file);
+  formData.append('Description', payload.description ?? '');
+  formData.append('RepoUrl', payload.repoUrl ?? '');
+  const photo = payload.photo ?? payload.file;
+  if (photo) formData.append('Photo', photo);
 
   const response = await fetch(`${API_BASE}/roadmap/projects/SubmitProject`, {
     method: 'POST',
@@ -359,6 +383,57 @@ export const deleteMyProject = async (trackName: string): Promise<void> => {
   if (!response.ok) {
     throw new Error(await parseApiError(response));
   }
+};
+
+/**
+ * Fetches public community achievements with aggregate stats.
+ * GET /Achievement
+ */
+export const fetchCommunityAchievements = async (): Promise<CommunityAchievementsStats> => {
+  const response = await fetch(`${API_BASE}/Achievement`, {
+    headers: { ...authHeaders() },
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+
+  const responseData = await response.json();
+  const data = responseData.data ?? responseData;
+
+  return {
+    totalProjects: Number(data?.totalProjects ?? 0),
+    totalLikes: Number(data?.totalLikes ?? 0),
+    tracksCovered: Number(data?.tracksCovered ?? 0),
+    achievements: Array.isArray(data?.achievements) ? data.achievements : [],
+  };
+};
+
+const updateProjectLike = async (projectId: number, action: 'like' | 'unlike'): Promise<void> => {
+  const response = await fetch(`${API_BASE}/ProjectLike/${action}?projectId=${encodeURIComponent(projectId)}`, {
+    method: 'POST',
+    headers: { ...authHeaders() },
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+};
+
+export const likeProject = (projectId: number): Promise<void> => updateProjectLike(projectId, 'like');
+
+export const unlikeProject = (projectId: number): Promise<void> => updateProjectLike(projectId, 'unlike');
+
+/**
+ * Converts a relative image URL to absolute URL for project images.
+ * If the URL is already absolute, it returns it as-is.
+ */
+export const getProjectImageUrl = (relativeUrl: string): string => {
+  if (!relativeUrl) return '';
+  if (relativeUrl.startsWith('http://') || relativeUrl.startsWith('https://')) {
+    return relativeUrl;
+  }
+  return `https://nextcoder.runasp.net/${relativeUrl}`;
 };
 
 /** Returns the link icon class for a given link type */

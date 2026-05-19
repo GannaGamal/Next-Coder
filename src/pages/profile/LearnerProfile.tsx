@@ -7,7 +7,7 @@ import ProfilePhotoModal from '../../components/feature/ProfilePhotoModal';
 import LearnerEditModal from '../../components/feature/LearnerEditModal';
 import type { LearnerEditData } from '../../components/feature/LearnerEditModal';
 import useProfilePhoto from '../../hooks/useProfilePhoto';
-import { getLearnerProfile, updateLearnerProfile, addLearnerInterest, deleteLearnerInterest, type LearnerProfileDto } from '../../services/learner.service';
+import { getLearnerProfile, updateLearnerProfile, addLearnerInterest, deleteLearnerInterest, getProjectLikesCount, getProjectImageUrl, type LearnerProfileDto } from '../../services/learner.service';
 
 interface Roadmap {
   id: string;
@@ -27,6 +27,8 @@ interface CompletedProject {
   githubLink: string;
   completedDate: string;
   technologies: string[];
+  imageUrl: string;
+  likes: number;
 }
 
 const LearnerProfile = () => {
@@ -45,8 +47,9 @@ const LearnerProfile = () => {
   const [learnerProfile, setLearnerProfile] = useState<LearnerProfileDto | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [projectLikes, setProjectLikes] = useState<Map<number, number>>(new Map());
 
-  const [profile, setProfile] = useState({
+  const [profile, setProfile] = useState<{ bio: string; interests: string[]; goals: string }>({
     bio: '',
     interests: [],
     goals: '',
@@ -66,6 +69,30 @@ const LearnerProfile = () => {
           interests: data.interests ?? [],
           goals: data.learningGoals ?? '',
         });
+
+        // Fetch likes for each project
+        if (data.projects && data.projects.length > 0) {
+          const likesMap = new Map<number, number>();
+          const likeFetches = data.projects.map((project) =>
+            getProjectLikesCount(project.projectId)
+              .then((likes) => {
+                if (active) {
+                  likesMap.set(project.projectId, likes);
+                }
+              })
+              .catch(() => {
+                if (active) {
+                  likesMap.set(project.projectId, 0);
+                }
+              })
+          );
+          
+          Promise.all(likeFetches).then(() => {
+            if (active) {
+              setProjectLikes(likesMap);
+            }
+          });
+        }
       })
       .catch((error: unknown) => {
         if (!active) return;
@@ -110,7 +137,9 @@ const LearnerProfile = () => {
       description: 'A full-stack e-commerce platform with React frontend, Node.js backend, PostgreSQL database, and Docker deployment. Features include user authentication, product catalog, shopping cart, and payment integration.',
       githubLink: 'https://github.com/user/fullstack-ecommerce',
       completedDate: '2024-01-15',
-      technologies: ['React', 'Node.js', 'PostgreSQL', 'Docker']
+      technologies: ['React', 'Node.js', 'PostgreSQL', 'Docker'],
+      imageUrl: '',
+      likes: 0,
     },
     {
       id: '2',
@@ -119,7 +148,9 @@ const LearnerProfile = () => {
       description: 'A collaborative task management application with real-time updates, drag-and-drop functionality, and team collaboration features.',
       githubLink: 'https://github.com/user/task-manager',
       completedDate: '2023-11-20',
-      technologies: ['React', 'Redux', 'Firebase', 'Tailwind CSS']
+      technologies: ['React', 'Redux', 'Firebase', 'Tailwind CSS'],
+      imageUrl: '',
+      likes: 0,
     }
   ]);
 
@@ -145,6 +176,8 @@ const LearnerProfile = () => {
     githubLink: project.repoUrl || project.fileUrl || '#',
     completedDate: project.submittedAt ? new Date(project.submittedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'Unknown',
     technologies: [],
+    imageUrl: project.imageUrl || '',
+    likes: projectLikes.get(project.projectId) || 0,
   })) ?? completedProjects;
   const totalSteps = learnerProfile?.totalSteps ?? learnerRoadmaps.reduce((acc, item) => acc + item.totalSteps, 0);
   const completedSteps = learnerProfile?.completedSteps ?? learnerRoadmaps.reduce((acc, item) => acc + item.completedSteps, 0);
@@ -363,39 +396,64 @@ const LearnerProfile = () => {
             </h2>
             <div className="space-y-4 sm:space-y-6">
               {learnerProjects.map((project) => (
-                <div key={project.id} className="bg-white/5 rounded-xl p-4 sm:p-5 lg:p-6 border border-white/10">
-                  <div className="flex flex-col gap-3 sm:gap-4 mb-3 sm:mb-4">
-                    <div className="flex-1">
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 mb-2">
-                        <span className="px-3 py-1 bg-emerald-500/20 border border-emerald-500/30 rounded-lg text-emerald-300 text-xs font-medium whitespace-nowrap">
-                          {project.courseName}
-                        </span>
-                        <span className="text-gray-500 text-xs sm:text-sm">
-                          <i className="ri-calendar-line mr-1"></i>
-                          {new Date(project.completedDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
-                        </span>
+                <div key={project.id} className="bg-white/5 rounded-xl p-4 sm:p-5 lg:p-6 border border-white/10 overflow-hidden">
+                  <div className="flex flex-col lg:flex-row gap-4 sm:gap-6">
+                    {/* Project Image */}
+                    {project.imageUrl && (
+                      <div className="flex-shrink-0 w-full lg:w-48 h-40 lg:h-40 rounded-lg overflow-hidden bg-white/10 border border-white/10">
+                        <img 
+                          src={getProjectImageUrl(project.imageUrl)} 
+                          alt={project.projectTitle}
+                          className="w-full h-full object-cover"
+                        />
                       </div>
-                      <h3 className="text-lg sm:text-xl font-bold text-white mb-2">{project.projectTitle}</h3>
-                      <p className="text-sm sm:text-base text-gray-400 mb-3 sm:mb-4">{project.description}</p>
-                      <div className="flex flex-wrap gap-2 mb-3 sm:mb-4">
-                        {project.technologies.map((tech) => (
-                          <span key={tech} className="px-2 sm:px-3 py-1 bg-white/10 rounded-full text-white/70 text-xs font-medium">
-                            {tech}
-                          </span>
-                        ))}
+                    )}
+                    
+                    {/* Project Info */}
+                    <div className="flex-1">
+                      <div className="flex flex-col gap-3 sm:gap-4 mb-3 sm:mb-4">
+                        <div className="flex-1">
+                          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 mb-2">
+                            <span className="px-3 py-1 bg-emerald-500/20 border border-emerald-500/30 rounded-lg text-emerald-300 text-xs font-medium whitespace-nowrap">
+                              {project.courseName}
+                            </span>
+                            <span className="text-gray-500 text-xs sm:text-sm">
+                              <i className="ri-calendar-line mr-1"></i>
+                              {new Date(project.completedDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                            </span>
+                          </div>
+                          <h3 className="text-lg sm:text-xl font-bold text-white mb-2">{project.projectTitle}</h3>
+                          <p className="text-sm sm:text-base text-gray-400 mb-3 sm:mb-4">{project.description}</p>
+                          <div className="flex flex-wrap gap-2 mb-3 sm:mb-4">
+                            {project.technologies.map((tech) => (
+                              <span key={tech} className="px-2 sm:px-3 py-1 bg-white/10 rounded-full text-white/70 text-xs font-medium">
+                                {tech}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+                        <a
+                          href={project.githubLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 rounded-lg text-white text-sm sm:text-base hover:bg-white/20 transition-all cursor-pointer"
+                        >
+                          <i className="ri-github-fill text-base sm:text-lg"></i>
+                          View on GitHub
+                          <i className="ri-external-link-line text-xs sm:text-sm"></i>
+                        </a>
+                        
+                        {/* Likes Count */}
+                        <div className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-pink-500/10 rounded-lg border border-pink-500/20">
+                          <i className="ri-heart-fill text-pink-400 text-lg"></i>
+                          <span className="text-pink-300 font-semibold text-sm sm:text-base">{project.likes} Likes</span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                  <a
-                    href={project.githubLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 rounded-lg text-white text-sm sm:text-base hover:bg-white/20 transition-all cursor-pointer"
-                  >
-                    <i className="ri-github-fill text-base sm:text-lg"></i>
-                    View on GitHub
-                    <i className="ri-external-link-line text-xs sm:text-sm"></i>
-                  </a>
                 </div>
               ))}
 

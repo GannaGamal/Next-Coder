@@ -264,8 +264,12 @@ const TrackLearning = () => {
       setProjectError('Please enter a project title.');
       return;
     }
-    if (!projectFile && !projectUrl.trim()) {
-      setProjectError('Please attach a file or provide a repository URL.');
+    if (!projectFile) {
+      setProjectError('Please upload a project image.');
+      return;
+    }
+    if (!projectFile.type.startsWith('image/')) {
+      setProjectError('Project photo must be an image file.');
       return;
     }
     setProjectLoading(true);
@@ -275,9 +279,9 @@ const TrackLearning = () => {
       const result = await submitProject({
         trackName: trackName ?? '',
         title: projectTitle.trim(),
-        description: projectDescription.trim() || undefined,
-        repoUrl: projectUrl.trim() || undefined,
-        file: projectFile,
+        description: projectDescription.trim(),
+        repoUrl: projectUrl.trim(),
+        photo: projectFile,
       });
       setSubmittedProject(result);
       setProjectSuccess(true);
@@ -291,6 +295,21 @@ const TrackLearning = () => {
     } finally {
       setProjectLoading(false);
     }
+  };
+
+  const handleProjectImageChange = (file?: File) => {
+    if (!file) {
+      setProjectFile(null);
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      setProjectError('Project photo must be an image file.');
+      setProjectFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+    setProjectError('');
+    setProjectFile(file);
   };
 
   const handleRateSubmit = async (e: React.FormEvent) => {
@@ -1024,10 +1043,10 @@ const TrackLearning = () => {
 
                             <div className="h-px bg-white/8"></div>
 
-                            {/* File upload */}
+                            {/* Image upload */}
                             <div>
                               <label className="block text-white/70 text-sm font-medium mb-2">
-                                Project File <span className="text-white/30">(zip, pdf, etc.)</span>
+                                Project Image <span className="text-red-400">*</span>
                               </label>
                               <div
                                 onClick={() => fileInputRef.current?.click()}
@@ -1035,7 +1054,7 @@ const TrackLearning = () => {
                               >
                                 {projectFile ? (
                                   <div className="flex items-center justify-center gap-3 text-white">
-                                    <i className="ri-file-line text-2xl text-purple-400"></i>
+                                    <i className="ri-image-line text-2xl text-purple-400"></i>
                                     <span className="text-sm font-medium truncate max-w-[240px]">{projectFile.name}</span>
                                     <button
                                       type="button"
@@ -1047,30 +1066,25 @@ const TrackLearning = () => {
                                   </div>
                                 ) : (
                                   <>
-                                    <i className="ri-upload-cloud-2-line text-4xl text-white/20 block mb-3"></i>
-                                    <p className="text-white/50 text-sm font-medium">Click to upload file</p>
-                                    <p className="text-white/30 text-xs mt-1">Max 50 MB &mdash; zip, pdf, or any format</p>
+                                    <i className="ri-image-add-line text-4xl text-white/20 block mb-3"></i>
+                                    <p className="text-white/50 text-sm font-medium">Click to upload project image</p>
+                                    <p className="text-white/30 text-xs mt-1">PNG, JPG, WebP, or GIF</p>
                                   </>
                                 )}
                               </div>
                               <input
                                 ref={fileInputRef}
                                 type="file"
+                                accept="image/*"
                                 className="hidden"
-                                onChange={(e) => setProjectFile(e.target.files?.[0] ?? null)}
+                                onChange={(e) => handleProjectImageChange(e.target.files?.[0])}
                               />
-                            </div>
-
-                            <div className="flex items-center gap-3">
-                              <div className="flex-1 h-px bg-white/10"></div>
-                              <span className="text-white/30 text-xs font-medium">OR</span>
-                              <div className="flex-1 h-px bg-white/10"></div>
                             </div>
 
                             {/* Repo URL */}
                             <div>
                               <label className="block text-white/70 text-sm font-medium mb-2">
-                                Repository URL <span className="text-white/30">(GitHub, GitLab, etc.)</span>
+                                Repository URL <span className="text-white/30">(optional)</span>
                               </label>
                               <input
                                 type="url"

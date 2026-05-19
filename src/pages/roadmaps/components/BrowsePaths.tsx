@@ -3,7 +3,9 @@ import {
   fetchRoadmapTracks,
   enrollInTrack,
   clearRoadmapCache,
+  getUserEnrollments,
 } from '../../../services/roadmap.service';
+import { useAuth } from '../../../contexts/AuthContext';
 import type { RoadmapTrack } from '../../../services/roadmap.service';
 import TrackDetailModal from './TrackDetailModal';
 
@@ -85,6 +87,27 @@ const BrowsePaths = () => {
   }, []);
 
   useEffect(() => { loadTracks(); }, [loadTracks]);
+
+  // Load user's current enrollments to mark already-enrolled tracks
+  const { isAuthenticated } = useAuth();
+  useEffect(() => {
+    let active = true;
+    const loadUserEnrollments = async () => {
+      if (!isAuthenticated) return;
+      try {
+        const data = await getUserEnrollments();
+        if (!active) return;
+        const set = new Set<string>();
+        data.forEach(e => set.add(e.trackName));
+        setEnrolledSet(set);
+      } catch (err) {
+        // silently ignore; user can still enroll
+      }
+    };
+
+    loadUserEnrollments();
+    return () => { active = false; };
+  }, [isAuthenticated]);
 
   const handleRetry = () => { clearRoadmapCache(); loadTracks(); };
 

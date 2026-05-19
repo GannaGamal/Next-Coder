@@ -12,6 +12,7 @@ import {
 } from '../../services/roadmap.service';
 import type { EnrollmentDetail } from '../../services/roadmap.service';
 
+
 // ─── Accent palette (deterministic per track name) ────────────────────────────
 const ACCENT_COLORS = [
   { gradient: 'from-purple-500 to-pink-500',   card: 'border-purple-500/30 bg-purple-500/10',  text: 'text-purple-400'  },
@@ -392,7 +393,7 @@ const Roadmaps = () => {
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {inProgress.map((e) => (
                           <EnrollmentCard
-                            key={e.id}
+                            key={e.trackId}
                             enrollment={e}
                             onContinue={() => navigate(`/roadmaps/learn/${e.trackName}`)}
                             onUnenroll={() => handleUnenroll(e.trackName)}
@@ -414,7 +415,7 @@ const Roadmaps = () => {
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {notStarted.map((e) => (
                           <EnrollmentCard
-                            key={e.id}
+                            key={e.trackId}
                             enrollment={e}
                             onContinue={() => navigate(`/roadmaps/learn/${e.trackName}`)}
                             onUnenroll={() => handleUnenroll(e.trackName)}
@@ -436,7 +437,7 @@ const Roadmaps = () => {
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {completed.map((e) => (
                           <EnrollmentCard
-                            key={e.id}
+                            key={e.trackId}
                             enrollment={e}
                             onContinue={() => navigate(`/roadmaps/learn/${e.trackName}`)}
                             onUnenroll={() => handleUnenroll(e.trackName)}
