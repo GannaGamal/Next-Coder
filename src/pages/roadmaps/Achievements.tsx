@@ -262,14 +262,6 @@ const Achievements = () => {
               <div className="text-sm text-white/50">Tracks Covered</div>
             </div>
           </div>
-
-          <Link
-            to="/roadmaps"
-            className="inline-flex items-center gap-2 text-sm text-purple-400 hover:text-purple-300 transition-colors"
-          >
-            <i className="ri-arrow-left-line"></i>
-            Back to Roadmaps
-          </Link>
         </div>
       </section>
 

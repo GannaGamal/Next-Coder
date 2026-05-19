@@ -70,7 +70,7 @@ const LearnerEditModal = ({ isOpen, onClose, data, onSave, accentColor = 'emeral
 
             <div className="mb-4">
               <label className={`flex items-center gap-2 text-sm mb-1.5 ${isLightMode ? 'text-gray-600' : 'text-gray-400'}`}>
-                <i className={`ri-file-text-line ${cfg.icon}`}></i>
+                <i className={`ri-map-pin-line ${cfg.icon}`}></i>
                 Address
               </label>
               <textarea
