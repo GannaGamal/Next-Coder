@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import Navbar from '../../components/feature/Navbar';
 import Footer from '../../components/feature/Footer';
@@ -6,6 +6,17 @@ import ProfilePhotoModal from '../../components/feature/ProfilePhotoModal';
 import FreelancerEditModal from '../../components/feature/FreelancerEditModal';
 import type { FreelancerEditData } from '../../components/feature/FreelancerEditModal';
 import useProfilePhoto from '../../hooks/useProfilePhoto';
+import {
+  getFreelancerProfile,
+  updateFreelancerProfile,
+  type FreelancerProfileDto,
+} from '../../services/freelancer-profile.service';
+import {
+  addFreelancerSkill,
+  deleteFreelancerSkill,
+  getFreelancerSkills,
+  type FreelancerSkill,
+} from '../../services/freelancer-skills.service';
 
 interface PortfolioItem {
   id: string;
@@ -39,26 +50,36 @@ interface CompletedProject {
 }
 
 const FreelancerProfile = () => {
-  const { user, updateUser } = useAuth();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'profile' | 'portfolio' | 'completed' | 'documents'>('profile');
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
-  const [contactInfo, setContactInfo] = useState({
-    phone: '+1 234 567 8900',
-    location: 'San Francisco, CA',
-    website: 'freelancer.example.com',
-    linkedin: 'linkedin.com/in/johndoe',
-    github: 'github.com/johndoe',
-    twitter: '',
+  const [freelancerProfile, setFreelancerProfile] = useState<FreelancerEditData>({
+    title: '',
+    hourlyRate: 0,
+    country: '',
+    phoneNumber: '',
+    yearsOfExperience: 0,
+    isAvailable: false,
+    websiteUrl: '',
+    bio: '',
+    linkedInUrl: '',
+    gitHubUrl: '',
   });
-  
-  const [profile, setProfile] = useState({
-    bio: 'Experienced full-stack developer with 5+ years of expertise in React, Node.js, and cloud technologies.',
-    skills: ['React', 'TypeScript', 'Node.js', 'Python', 'AWS', 'MongoDB'],
-    hourlyRate: 50,
-    rating: 4.9,
-    completedProjects: 47
+  const [profileMeta] = useState({
+    rating: 0,
+    completedProjects: 0,
   });
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [profileError, setProfileError] = useState('');
+  const [saveStatus, setSaveStatus] = useState<null | { type: 'success' | 'error'; message: string }>(null);
+
+  const [skills, setSkills] = useState<FreelancerSkill[]>([]);
+  const [skillsLoading, setSkillsLoading] = useState(true);
+  const [skillsError, setSkillsError] = useState('');
+  const [skillsActionError, setSkillsActionError] = useState('');
+  const [isAddingSkill, setIsAddingSkill] = useState(false);
+  const [deletingSkillId, setDeletingSkillId] = useState<number | null>(null);
 
   const [portfolio, setPortfolio] = useState<PortfolioItem[]>([
     {
@@ -160,15 +181,51 @@ const FreelancerProfile = () => {
   });
   const [newPortfolioPdf, setNewPortfolioPdf] = useState<File | null>(null);
 
-  const handleAddSkill = () => {
-    if (newSkill.trim() && !profile.skills.includes(newSkill.trim())) {
-      setProfile({ ...profile, skills: [...profile.skills, newSkill.trim()] });
+  const handleAddSkill = async () => {
+    const trimmed = newSkill.trim();
+    if (!trimmed) {
+      setSkillsActionError('Enter a skill name before adding.');
+      return;
+    }
+
+    if (skills.some((skill) => skill.name.toLowerCase() === trimmed.toLowerCase())) {
+      setSkillsActionError('This skill already exists.');
+      return;
+    }
+
+    try {
+      setSkillsActionError('');
+      setIsAddingSkill(true);
+      await addFreelancerSkill(trimmed);
+      const refreshed = await getFreelancerSkills();
+      setSkills(refreshed);
       setNewSkill('');
+    } catch (error) {
+      setSkillsActionError(
+        error instanceof Error
+          ? error.message
+          : 'We could not update your skills right now. Please try again.'
+      );
+    } finally {
+      setIsAddingSkill(false);
     }
   };
 
-  const handleRemoveSkill = (skill: string) => {
-    setProfile({ ...profile, skills: profile.skills.filter(s => s !== skill) });
+  const handleRemoveSkill = async (skillId: number) => {
+    try {
+      setSkillsActionError('');
+      setDeletingSkillId(skillId);
+      await deleteFreelancerSkill(skillId);
+      setSkills((prev) => prev.filter((skill) => skill.id !== skillId));
+    } catch (error) {
+      setSkillsActionError(
+        error instanceof Error
+          ? error.message
+          : 'We could not update your skills right now. Please try again.'
+      );
+    } finally {
+      setDeletingSkillId(null);
+    }
   };
 
   const handleAddPortfolio = () => {
@@ -206,23 +263,93 @@ const FreelancerProfile = () => {
 
   const { handlePhotoUpload, handlePhotoRemove } = useProfilePhoto();
 
-  const handleSaveEdit = (data: FreelancerEditData) => {
-    setContactInfo({
-      phone: data.phone,
-      location: data.location,
-      website: data.website,
-      linkedin: data.linkedin,
-      github: data.github,
-      twitter: data.twitter,
-    });
-    setProfile(prev => ({ ...prev, bio: data.bio, hourlyRate: data.hourlyRate }));
+  const toEditData = (data: FreelancerProfileDto): FreelancerEditData => ({
+    title: data.title ?? '',
+    hourlyRate: data.hourlyRate ?? 0,
+    country: data.country ?? '',
+    phoneNumber: data.phoneNumber ?? '',
+    yearsOfExperience: data.yearsOfExperience ?? 0,
+    isAvailable: data.isAvailable ?? false,
+    websiteUrl: data.websiteUrl ?? '',
+    bio: data.bio ?? '',
+    linkedInUrl: data.linkedInUrl ?? '',
+    gitHubUrl: data.gitHubUrl ?? '',
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadProfile = async () => {
+      setProfileLoading(true);
+      setProfileError('');
+
+      try {
+        const data = await getFreelancerProfile();
+        if (!isMounted) return;
+        setFreelancerProfile(toEditData(data));
+      } catch (error) {
+        if (!isMounted) return;
+        setProfileError(
+          error instanceof Error
+            ? error.message
+            : 'We could not load your profile right now. Please try again.'
+        );
+      } finally {
+        if (isMounted) setProfileLoading(false);
+      }
+    };
+
+    loadProfile();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadSkills = async () => {
+      setSkillsLoading(true);
+      setSkillsError('');
+
+      try {
+        const data = await getFreelancerSkills();
+        if (!isMounted) return;
+        setSkills(data);
+      } catch (error) {
+        if (!isMounted) return;
+        setSkillsError(
+          error instanceof Error
+            ? error.message
+            : 'We could not load your skills right now. Please try again.'
+        );
+      } finally {
+        if (isMounted) setSkillsLoading(false);
+      }
+    };
+
+    loadSkills();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleSaveEdit = async (data: FreelancerEditData) => {
+    setSaveStatus(null);
+
+    try {
+      const result = await updateFreelancerProfile(data);
+      setFreelancerProfile(result.profile);
+      setSaveStatus({ type: 'success', message: result.message });
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'We could not update your profile right now. Please try again.';
+      setSaveStatus({ type: 'error', message });
+      throw error;
+    }
   };
 
-  const editData: FreelancerEditData = {
-    ...contactInfo,
-    bio: profile.bio,
-    hourlyRate: profile.hourlyRate,
-  };
+  const editData: FreelancerEditData = freelancerProfile;
 
   const renderStars = (rating: number) => {
     return Array.from({ length: 5 }, (_, i) => (
@@ -233,12 +360,55 @@ const FreelancerProfile = () => {
     ));
   };
 
+  const normalizeUrl = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return '';
+    if (/^https?:\/\//i.test(trimmed)) return trimmed;
+    return `https://${trimmed}`;
+  };
+
+  const prettyUrlText = (value: string) =>
+    value
+      .trim()
+      .replace(/^https?:\/\//i, '')
+      .replace(/^www\./i, '')
+      .replace(/\/$/, '');
+
+  const prettyEmailText = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed.includes('@')) return trimmed;
+    const [local] = trimmed.split('@');
+    return `${local}@...`;
+  };
+
   return (
     <div className="min-h-screen bg-navy-900">
       <Navbar />
       
       <div className="pt-24 sm:pt-32 pb-12 sm:pb-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
+          {profileLoading && (
+            <div className="mb-6 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80 flex items-center gap-2">
+              <i className="ri-loader-4-line animate-spin text-purple-300"></i>
+              Loading your profile...
+            </div>
+          )}
+          {profileError && (
+            <div className="mb-6 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+              {profileError}
+            </div>
+          )}
+          {saveStatus && (
+            <div
+              className={`mb-6 rounded-2xl border px-4 py-3 text-sm ${
+                saveStatus.type === 'success'
+                  ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
+                  : 'border-red-500/30 bg-red-500/10 text-red-200'
+              }`}
+            >
+              {saveStatus.message}
+            </div>
+          )}
           {/* Profile Header */}
           <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 sm:p-6 lg:p-8 mb-6 sm:mb-8 border border-white/10">
             <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-6">
@@ -257,33 +427,90 @@ const FreelancerProfile = () => {
               </div>
               <div className="flex-1 w-full">
                 <div className="flex items-start justify-between gap-3 mb-1">
-                  <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white">{user?.name || 'John Doe'}</h1>
+                  <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white">{user?.name || 'Profile'}</h1>
                   <button
                     onClick={() => setShowContactModal(true)}
-                    className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-lg text-purple-300 text-xs font-medium transition-colors cursor-pointer whitespace-nowrap"
+                    disabled={profileLoading || Boolean(profileError)}
+                    className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-lg text-purple-300 text-xs font-medium transition-colors cursor-pointer whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <i className="ri-edit-line"></i>
                     Edit Contact
                   </button>
                 </div>
-                <p className="text-sm sm:text-base text-gray-400 mb-2 break-all">{user?.email || 'john@example.com'}</p>
+                {freelancerProfile.title && (
+                  <p className="text-sm sm:text-base text-gray-300 mb-1">{freelancerProfile.title}</p>
+                )}
+                {/* {user?.email && (
+                  <p className="text-sm sm:text-base text-gray-400 mb-2 break-all">{user.email}</p>
+                )} */}
                 <div className="flex flex-wrap items-center gap-3 mb-3">
-                  {contactInfo.phone && <span className="flex items-center gap-1.5 text-xs text-gray-300"><i className="ri-phone-line text-purple-400"></i>{contactInfo.phone}</span>}
-                  {contactInfo.location && <span className="flex items-center gap-1.5 text-xs text-gray-300"><i className="ri-map-pin-line text-purple-400"></i>{contactInfo.location}</span>}
-                  {contactInfo.website && <span className="flex items-center gap-1.5 text-xs text-gray-300"><i className="ri-global-line text-purple-400"></i>{contactInfo.website}</span>}
-                  {contactInfo.linkedin && <span className="flex items-center gap-1.5 text-xs text-gray-300"><i className="ri-linkedin-box-line text-purple-400"></i>{contactInfo.linkedin}</span>}
-                  {contactInfo.github && <span className="flex items-center gap-1.5 text-xs text-gray-300"><i className="ri-github-fill text-purple-400"></i>{contactInfo.github}</span>}
-                  {contactInfo.twitter && <span className="flex items-center gap-1.5 text-xs text-gray-300"><i className="ri-twitter-x-line text-purple-400"></i>{contactInfo.twitter}</span>}
+                  {freelancerProfile.phoneNumber && (
+                    <a
+                      href={`tel:${freelancerProfile.phoneNumber}`}
+                      className="flex items-center gap-1.5 text-xs text-gray-300 hover:text-white transition-colors"
+                    >
+                      <i className="ri-phone-line text-purple-400"></i>
+                      {freelancerProfile.phoneNumber}
+                    </a>
+                  )}
+                  {user?.email && (
+                    <a
+                      href={`mailto:${user.email}`}
+                      className="flex items-center gap-1.5 text-xs text-gray-300 hover:text-white transition-colors"
+                    >
+                      <i className="ri-mail-line text-purple-400"></i>
+                      {prettyEmailText(user.email)}
+                    </a>
+                  )}
+                  {freelancerProfile.country && (
+                    <span className="flex items-center gap-1.5 text-xs text-gray-300">
+                      <i className="ri-map-pin-line text-purple-400"></i>
+                      {freelancerProfile.country}
+                    </span>
+                  )}
+                  {freelancerProfile.websiteUrl && (
+                    <a
+                      href={normalizeUrl(freelancerProfile.websiteUrl)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 text-xs text-gray-300 hover:text-white transition-colors"
+                    >
+                      <i className="ri-global-line text-purple-400"></i>
+                      {prettyUrlText(freelancerProfile.websiteUrl)}
+                    </a>
+                  )}
+                  {freelancerProfile.linkedInUrl && (
+                    <a
+                      href={normalizeUrl(freelancerProfile.linkedInUrl)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 text-xs text-gray-300 hover:text-white transition-colors"
+                    >
+                      <i className="ri-linkedin-box-line text-purple-400"></i>
+                      {prettyUrlText(freelancerProfile.linkedInUrl)}
+                    </a>
+                  )}
+                  {freelancerProfile.gitHubUrl && (
+                    <a
+                      href={normalizeUrl(freelancerProfile.gitHubUrl)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 text-xs text-gray-300 hover:text-white transition-colors"
+                    >
+                      <i className="ri-github-fill text-purple-400"></i>
+                      {prettyUrlText(freelancerProfile.gitHubUrl)}
+                    </a>
+                  )}
                 </div>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-6">
                   <div className="flex items-center gap-2">
                     <i className="ri-star-fill text-yellow-400 text-lg sm:text-xl"></i>
-                    <span className="text-sm sm:text-base text-white font-semibold">{profile.rating}</span>
-                    <span className="text-xs sm:text-sm text-gray-400">({profile.completedProjects} projects)</span>
+                    <span className="text-sm sm:text-base text-white font-semibold">{profileMeta.rating}</span>
+                    <span className="text-xs sm:text-sm text-gray-400">({profileMeta.completedProjects} projects)</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <i className="ri-money-dollar-circle-line text-green-400 text-lg sm:text-xl"></i>
-                    <span className="text-sm sm:text-base text-white font-semibold">${profile.hourlyRate}/hr</span>
+                    <span className="text-sm sm:text-base text-white font-semibold">${freelancerProfile.hourlyRate}/hr</span>
                   </div>
                 </div>
               </div>
@@ -343,14 +570,15 @@ const FreelancerProfile = () => {
                   <h2 className="text-xl sm:text-2xl font-bold text-white">About Me</h2>
                   <button
                     onClick={() => setShowContactModal(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-lg text-purple-300 text-xs font-medium transition-colors cursor-pointer whitespace-nowrap"
+                    disabled={profileLoading || Boolean(profileError)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-lg text-purple-300 text-xs font-medium transition-colors cursor-pointer whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <i className="ri-edit-line"></i>
                     Edit
                   </button>
                 </div>
-                {profile.bio ? (
-                  <p className="text-sm sm:text-base text-gray-300 leading-relaxed">{profile.bio}</p>
+                {freelancerProfile.bio ? (
+                  <p className="text-sm sm:text-base text-gray-300 leading-relaxed">{freelancerProfile.bio}</p>
                 ) : (
                   <p className="text-sm text-gray-500 italic">No bio added yet. Click Edit to add yours.</p>
                 )}
@@ -359,36 +587,60 @@ const FreelancerProfile = () => {
               {/* Skills */}
               <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 sm:p-6 lg:p-8 border border-white/10">
                 <h2 className="text-xl sm:text-2xl font-bold text-white mb-3 sm:mb-4">Skills</h2>
+                {skillsLoading && (
+                  <div className="mb-3 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-400 flex items-center gap-2">
+                    <i className="ri-loader-4-line animate-spin text-purple-300"></i>
+                    Loading skills...
+                  </div>
+                )}
+                {skillsError && (
+                  <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+                    {skillsError}
+                  </div>
+                )}
+                {skillsActionError && (
+                  <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+                    {skillsActionError}
+                  </div>
+                )}
                 <div className="flex flex-wrap gap-2 sm:gap-3 mb-3 sm:mb-4">
-                  {profile.skills.map((skill) => (
+                  {skills.map((skill) => (
                     <div
-                      key={skill}
+                      key={skill.id}
                       className="flex items-center gap-2 bg-purple-500/20 border border-purple-500/30 rounded-lg px-3 sm:px-4 py-1.5 sm:py-2"
                     >
-                      <span className="text-sm sm:text-base text-white font-medium">{skill}</span>
+                      <span className="text-sm sm:text-base text-white font-medium">{skill.name}</span>
                       <button
-                        onClick={() => handleRemoveSkill(skill)}
-                        className="w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center text-white hover:text-red-400 transition-colors cursor-pointer"
+                        onClick={() => handleRemoveSkill(skill.id)}
+                        disabled={deletingSkillId === skill.id}
+                        className="w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center text-white hover:text-red-400 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                       >
-                        <i className="ri-close-line text-sm sm:text-base"></i>
+                        <i className={`ri-close-line text-sm sm:text-base ${deletingSkillId === skill.id ? 'animate-pulse' : ''}`}></i>
                       </button>
                     </div>
                   ))}
+                  {!skillsLoading && skills.length === 0 && (
+                    <div className="text-xs text-gray-500">No skills added yet.</div>
+                  )}
                 </div>
                 <div className="flex flex-col sm:flex-row gap-3">
                   <input
                     type="text"
                     value={newSkill}
-                    onChange={(e) => setNewSkill(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleAddSkill()}
+                    onChange={(e) => {
+                      setNewSkill(e.target.value);
+                      if (skillsActionError) setSkillsActionError('');
+                    }}
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddSkill()}
                     className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
                     placeholder="Add a skill..."
                   />
                   <button
                     onClick={handleAddSkill}
-                    className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 bg-purple-500 text-white text-sm sm:text-base font-semibold rounded-lg hover:bg-purple-600 transition-colors whitespace-nowrap cursor-pointer"
+                    disabled={isAddingSkill || skillsLoading || !newSkill.trim()}
+                    className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 bg-purple-500 text-white text-sm sm:text-base font-semibold rounded-lg hover:bg-purple-600 transition-colors whitespace-nowrap cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    Add Skill
+                    {isAddingSkill ? 'Adding...' : 'Add Skill'}
                   </button>
                 </div>
               </div>
@@ -399,14 +651,15 @@ const FreelancerProfile = () => {
                   <h2 className="text-xl sm:text-2xl font-bold text-white">Hourly Rate</h2>
                   <button
                     onClick={() => setShowContactModal(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-lg text-purple-300 text-xs font-medium transition-colors cursor-pointer whitespace-nowrap"
+                    disabled={profileLoading || Boolean(profileError)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-lg text-purple-300 text-xs font-medium transition-colors cursor-pointer whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <i className="ri-edit-line"></i>
                     Edit
                   </button>
                 </div>
                 <div className="flex items-end gap-2">
-                  <span className="text-3xl sm:text-4xl font-bold text-white">${profile.hourlyRate}</span>
+                  <span className="text-3xl sm:text-4xl font-bold text-white">${freelancerProfile.hourlyRate}</span>
                   <span className="text-base sm:text-lg text-gray-400 pb-1">/hour</span>
                 </div>
               </div>

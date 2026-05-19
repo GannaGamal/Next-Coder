@@ -2,21 +2,23 @@ import { useState, useEffect } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 
 export interface FreelancerEditData {
-  phone: string;
-  location: string;
-  website: string;
-  linkedin: string;
-  github: string;
-  twitter: string;
-  bio: string;
+  title: string;
   hourlyRate: number;
+  country: string;
+  phoneNumber: string;
+  yearsOfExperience: number;
+  isAvailable: boolean;
+  websiteUrl: string;
+  bio: string;
+  linkedInUrl: string;
+  gitHubUrl: string;
 }
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   data: FreelancerEditData;
-  onSave: (data: FreelancerEditData) => void;
+  onSave: (data: FreelancerEditData) => void | Promise<void>;
   accentColor?: 'violet' | 'purple' | 'pink' | 'orange' | 'emerald' | 'teal';
 }
 
@@ -29,32 +31,106 @@ const colorConfig = {
   teal:    { btn: 'bg-teal-500 hover:bg-teal-600',      icon: 'text-teal-400',    border: 'focus:border-teal-500'    },
 };
 
-const contactFields = [
-  { key: 'phone' as keyof FreelancerEditData,    label: 'Phone',       icon: 'ri-phone-line',        placeholder: '+1 234 567 8900',         type: 'tel'  },
-  { key: 'location' as keyof FreelancerEditData, label: 'Location',    icon: 'ri-map-pin-line',       placeholder: 'City, State / Country'               },
-  { key: 'website' as keyof FreelancerEditData,  label: 'Website',     icon: 'ri-global-line',        placeholder: 'https://yourwebsite.com'             },
-  { key: 'linkedin' as keyof FreelancerEditData, label: 'LinkedIn',    icon: 'ri-linkedin-box-line',  placeholder: 'linkedin.com/in/username'            },
-  { key: 'github' as keyof FreelancerEditData,   label: 'GitHub',      icon: 'ri-github-fill',        placeholder: 'github.com/username'                },
-  { key: 'twitter' as keyof FreelancerEditData,  label: 'Twitter / X', icon: 'ri-twitter-x-line',     placeholder: '@username'                          },
+const basicFields = [
+  {
+    key: 'title' as keyof FreelancerEditData,
+    label: 'Professional Title',
+    icon: 'ri-briefcase-4-line',
+    placeholder: 'Senior Frontend Developer',
+  },
+  {
+    key: 'country' as keyof FreelancerEditData,
+    label: 'Country',
+    icon: 'ri-map-pin-line',
+    placeholder: 'Country',
+  },
+  {
+    key: 'phoneNumber' as keyof FreelancerEditData,
+    label: 'Phone Number',
+    icon: 'ri-phone-line',
+    placeholder: '+1 234 567 8900',
+    type: 'tel',
+  },
+  {
+    key: 'yearsOfExperience' as keyof FreelancerEditData,
+    label: 'Years of Experience',
+    icon: 'ri-time-line',
+    placeholder: '0',
+    type: 'number',
+  },
+];
+
+const linkFields = [
+  {
+    key: 'websiteUrl' as keyof FreelancerEditData,
+    label: 'Website',
+    icon: 'ri-global-line',
+    placeholder: 'https://yourwebsite.com',
+  },
+  {
+    key: 'linkedInUrl' as keyof FreelancerEditData,
+    label: 'LinkedIn',
+    icon: 'ri-linkedin-box-line',
+    placeholder: 'https://linkedin.com/in/username',
+  },
+  {
+    key: 'gitHubUrl' as keyof FreelancerEditData,
+    label: 'GitHub',
+    icon: 'ri-github-fill',
+    placeholder: 'https://github.com/username',
+  },
 ];
 
 const FreelancerEditModal = ({ isOpen, onClose, data, onSave, accentColor = 'purple' }: Props) => {
   const { isLightMode } = useTheme();
   const [form, setForm] = useState<FreelancerEditData>({ ...data });
+  const [saveError, setSaveError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
   const cfg = colorConfig[accentColor];
 
   useEffect(() => {
-    if (isOpen) setForm({ ...data });
+    if (isOpen) {
+      setForm({ ...data });
+      setSaveError('');
+      setIsSaving(false);
+    }
   }, [isOpen, data]);
 
   if (!isOpen) return null;
 
-  const handleSave = () => {
-    onSave(form);
-    onClose();
+  const validateForm = () => {
+    if (!form.title.trim()) return 'Title is required.';
+    if (!form.country.trim()) return 'Country is required.';
+    if (!form.phoneNumber.trim()) return 'Phone number is required.';
+    if (form.yearsOfExperience < 0) return 'Years of experience must be 0 or more.';
+    if (form.hourlyRate < 0) return 'Hourly rate must be 0 or more.';
+    return '';
   };
 
-  const set = (key: keyof FreelancerEditData, value: string | number) =>
+  const handleSave = async () => {
+    const validationError = validateForm();
+    if (validationError) {
+      setSaveError(validationError);
+      return;
+    }
+
+    try {
+      setSaveError('');
+      setIsSaving(true);
+      await onSave(form);
+      onClose();
+    } catch (error) {
+      setSaveError(
+        error instanceof Error
+          ? error.message
+          : 'We could not update your profile right now. Please try again.'
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const set = (key: keyof FreelancerEditData, value: string | number | boolean) =>
     setForm(prev => ({ ...prev, [key]: value }));
 
   return (
@@ -78,29 +154,79 @@ const FreelancerEditModal = ({ isOpen, onClose, data, onSave, accentColor = 'pur
           </div>
         </div>
 
-        <div className="space-y-4">
-          {/* Contact Fields */}
-          {contactFields.map(field => (
-            <div key={field.key}>
-              <label className={`flex items-center gap-2 text-sm mb-1.5 ${isLightMode ? 'text-gray-600' : 'text-gray-400'}`}>
-                <i className={`${field.icon} ${cfg.icon}`}></i>
-                {field.label}
-              </label>
-              <input
-                type={field.type || 'text'}
-                value={form[field.key] as string}
-                onChange={e => set(field.key, e.target.value)}
-                placeholder={field.placeholder}
-                className={`w-full border rounded-lg px-4 py-3 text-sm focus:outline-none ${cfg.border} transition-colors ${isLightMode ? 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400' : 'bg-white/5 border-white/10 text-white placeholder-gray-500'}`}
-              />
-            </div>
-          ))}
+        {saveError && (
+          <div className={`mb-4 p-3 rounded-lg text-sm border ${isLightMode ? 'bg-red-50 border-red-200 text-red-700' : 'bg-red-500/10 border-red-500/30 text-red-300'}`}>
+            {saveError}
+          </div>
+        )}
 
-          {/* Profile Section */}
+        <div className="space-y-4">
+          <div>
+            <p className={`text-xs font-semibold uppercase tracking-wider mb-3 ${isLightMode ? 'text-gray-400' : 'text-gray-500'}`}>Basics</p>
+            {basicFields.map(field => (
+              <div key={field.key} className="mb-4">
+                <label className={`flex items-center gap-2 text-sm mb-1.5 ${isLightMode ? 'text-gray-600' : 'text-gray-400'}`}>
+                  <i className={`${field.icon} ${cfg.icon}`}></i>
+                  {field.label}
+                </label>
+                <input
+                  type={field.type || 'text'}
+                  value={form[field.key] as string | number}
+                  onChange={e =>
+                    set(
+                      field.key,
+                      field.type === 'number' ? Number(e.target.value || 0) : e.target.value
+                    )
+                  }
+                  placeholder={field.placeholder}
+                  min={field.type === 'number' ? 0 : undefined}
+                  disabled={isSaving}
+                  className={`w-full border rounded-lg px-4 py-3 text-sm focus:outline-none ${cfg.border} transition-colors ${isLightMode ? 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400' : 'bg-white/5 border-white/10 text-white placeholder-gray-500'}`}
+                />
+              </div>
+            ))}
+
+            <div className={`flex items-center gap-3 p-3 rounded-lg border ${isLightMode ? 'border-gray-200 bg-gray-50' : 'border-white/10 bg-white/5'}`}>
+              <input
+                id="freelancer-availability"
+                type="checkbox"
+                checked={form.isAvailable}
+                onChange={e => set('isAvailable', e.target.checked)}
+                disabled={isSaving}
+                className="h-4 w-4 cursor-pointer"
+              />
+              <label
+                htmlFor="freelancer-availability"
+                className={`text-sm ${isLightMode ? 'text-gray-700' : 'text-gray-300'}`}
+              >
+                Available for new work
+              </label>
+            </div>
+          </div>
+
+          <div className={`border-t pt-4 ${isLightMode ? 'border-gray-200' : 'border-white/10'}`}>
+            <p className={`text-xs font-semibold uppercase tracking-wider mb-3 ${isLightMode ? 'text-gray-400' : 'text-gray-500'}`}>Links</p>
+            {linkFields.map(field => (
+              <div key={field.key} className="mb-4">
+                <label className={`flex items-center gap-2 text-sm mb-1.5 ${isLightMode ? 'text-gray-600' : 'text-gray-400'}`}>
+                  <i className={`${field.icon} ${cfg.icon}`}></i>
+                  {field.label}
+                </label>
+                <input
+                  type={field.type || 'text'}
+                  value={form[field.key] as string}
+                  onChange={e => set(field.key, e.target.value)}
+                  placeholder={field.placeholder}
+                  disabled={isSaving}
+                  className={`w-full border rounded-lg px-4 py-3 text-sm focus:outline-none ${cfg.border} transition-colors ${isLightMode ? 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400' : 'bg-white/5 border-white/10 text-white placeholder-gray-500'}`}
+                />
+              </div>
+            ))}
+          </div>
+
           <div className={`border-t pt-4 ${isLightMode ? 'border-gray-200' : 'border-white/10'}`}>
             <p className={`text-xs font-semibold uppercase tracking-wider mb-3 ${isLightMode ? 'text-gray-400' : 'text-gray-500'}`}>Profile Info</p>
 
-            {/* Bio */}
             <div className="mb-4">
               <label className={`flex items-center gap-2 text-sm mb-1.5 ${isLightMode ? 'text-gray-600' : 'text-gray-400'}`}>
                 <i className={`ri-file-text-line ${cfg.icon}`}></i>
@@ -111,11 +237,11 @@ const FreelancerEditModal = ({ isOpen, onClose, data, onSave, accentColor = 'pur
                 onChange={e => set('bio', e.target.value)}
                 placeholder="Tell clients about yourself, your expertise and experience..."
                 rows={4}
+                disabled={isSaving}
                 className={`w-full border rounded-lg px-4 py-3 text-sm focus:outline-none resize-none ${cfg.border} transition-colors ${isLightMode ? 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400' : 'bg-white/5 border-white/10 text-white placeholder-gray-500'}`}
               />
             </div>
 
-            {/* Hourly Rate */}
             <div>
               <label className={`flex items-center gap-2 text-sm mb-1.5 ${isLightMode ? 'text-gray-600' : 'text-gray-400'}`}>
                 <i className={`ri-money-dollar-circle-line ${cfg.icon}`}></i>
@@ -127,7 +253,8 @@ const FreelancerEditModal = ({ isOpen, onClose, data, onSave, accentColor = 'pur
                   type="number"
                   min="0"
                   value={form.hourlyRate}
-                  onChange={e => set('hourlyRate', Number(e.target.value) || 0)}
+                  onChange={e => set('hourlyRate', Number(e.target.value || 0))}
+                  disabled={isSaving}
                   className={`w-32 border rounded-lg px-4 py-3 text-sm font-bold focus:outline-none ${cfg.border} transition-colors ${isLightMode ? 'bg-gray-50 border-gray-300 text-gray-900' : 'bg-white/5 border-white/10 text-white'}`}
                 />
                 <span className={`text-sm ${isLightMode ? 'text-gray-500' : 'text-gray-400'}`}>/hour</span>
@@ -139,15 +266,27 @@ const FreelancerEditModal = ({ isOpen, onClose, data, onSave, accentColor = 'pur
         <div className="flex gap-3 mt-6">
           <button
             onClick={onClose}
+            disabled={isSaving}
             className={`flex-1 px-5 py-3 font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap ${isLightMode ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' : 'bg-white/5 text-white hover:bg-white/10'}`}
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
-            className={`flex-1 px-5 py-3 ${cfg.btn} text-white font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap`}
+            disabled={isSaving}
+            className={`flex-1 px-5 py-3 ${cfg.btn} text-white font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap ${isSaving ? 'opacity-70 cursor-not-allowed' : ''}`}
           >
-            <i className="ri-save-line mr-2"></i>Save Changes
+            {isSaving ? (
+              <span className="flex items-center justify-center">
+                <i className="ri-loader-4-line animate-spin mr-2"></i>
+                Saving...
+              </span>
+            ) : (
+              <span className="flex items-center justify-center">
+                <i className="ri-save-line mr-2"></i>
+                Save Changes
+              </span>
+            )}
           </button>
         </div>
       </div>
