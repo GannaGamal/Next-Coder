@@ -245,6 +245,7 @@ const LearnerProfile = () => {
                   <i className="ri-camera-line text-2xl text-white"></i>
                 </div>
               </div>
+             
               <div className="flex-1 w-full">
                 <div className="flex items-start justify-between gap-3 mb-1">
                   <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white">{user?.name}</h1>
@@ -257,6 +258,9 @@ const LearnerProfile = () => {
                   </button>
                 </div>
                 <p className="text-sm sm:text-base text-gray-400 mb-2 break-all">{user?.email}</p>
+                 <span className="flex items-center gap-1.5 text-xs sm:text-sm text-gray-300">
+                    <i className="ri-map-pin-line text-pink-400"></i>{learnerProfile?.address || 'Unknown Location'}
+                  </span>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-6">
                   <div className="flex items-center gap-2">
                     <i className="ri-road-map-line text-emerald-400 text-lg sm:text-xl"></i>
