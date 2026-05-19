@@ -36,21 +36,14 @@ const LearnerProfile = () => {
   const navigate = useNavigate();
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
-  const [contactInfo] = useState({
-    phone: '',
-    location: '',
-    website: '',
-    linkedin: '',
-    github: '',
-    twitter: '',
-  });
   const [learnerProfile, setLearnerProfile] = useState<LearnerProfileDto | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [projectLikes, setProjectLikes] = useState<Map<number, number>>(new Map());
 
-  const [profile, setProfile] = useState<{ bio: string; interests: string[]; goals: string }>({
+  const [profile, setProfile] = useState<{ bio: string; interests: string[]; goals: string; address: string }>({
     bio: '',
+    address: '',
     interests: [],
     goals: '',
   });
@@ -66,6 +59,7 @@ const LearnerProfile = () => {
         setLearnerProfile(data);
         setProfile({
           bio: data.bio ?? '',
+          address: data.address ?? '',
           interests: data.interests ?? [],
           goals: data.learningGoals ?? '',
         });
@@ -108,51 +102,9 @@ const LearnerProfile = () => {
     };
   }, []);
 
-  const [roadmaps] = useState<Roadmap[]>([
-    {
-      id: '1',
-      title: 'Full-Stack Web Development',
-      description: 'Master frontend and backend development',
-      progress: 65,
-      totalSteps: 20,
-      completedSteps: 13,
-      category: 'Web Development'
-    },
-    {
-      id: '2',
-      title: 'Data Science Fundamentals',
-      description: 'Learn Python, statistics, and machine learning',
-      progress: 30,
-      totalSteps: 15,
-      completedSteps: 5,
-      category: 'Data Science'
-    }
-  ]);
+  const [roadmaps] = useState<Roadmap[]>([]);
 
-  const [completedProjects] = useState<CompletedProject[]>([
-    {
-      id: '1',
-      courseName: 'Full Stack Web Development',
-      projectTitle: 'E-Commerce Platform',
-      description: 'A full-stack e-commerce platform with React frontend, Node.js backend, PostgreSQL database, and Docker deployment. Features include user authentication, product catalog, shopping cart, and payment integration.',
-      githubLink: 'https://github.com/user/fullstack-ecommerce',
-      completedDate: '2024-01-15',
-      technologies: ['React', 'Node.js', 'PostgreSQL', 'Docker'],
-      imageUrl: '',
-      likes: 0,
-    },
-    {
-      id: '2',
-      courseName: 'React Developer Path',
-      projectTitle: 'Task Management App',
-      description: 'A collaborative task management application with real-time updates, drag-and-drop functionality, and team collaboration features.',
-      githubLink: 'https://github.com/user/task-manager',
-      completedDate: '2023-11-20',
-      technologies: ['React', 'Redux', 'Firebase', 'Tailwind CSS'],
-      imageUrl: '',
-      likes: 0,
-    }
-  ]);
+  const [completedProjects] = useState<CompletedProject[]>([]);
 
   const [newInterest, setNewInterest] = useState('');
   const [isAddingInterest, setIsAddingInterest] = useState(false);
@@ -187,14 +139,16 @@ const LearnerProfile = () => {
   const handleSaveEdit = async (data: LearnerEditData) => {
     try {
       const updated = await updateLearnerProfile({
-        bio: data.bio,
-        learningGoals: data.goals,
+        bio: data?.bio,
+        address: data?.address,
+        learningGoals: data?.goals,
       });
 
       setLearnerProfile(updated);
       setProfile(prev => ({
         ...prev,
         bio: updated.bio ?? prev.bio,
+        address: updated.address ?? prev.address,
         goals: updated.learningGoals ?? prev.goals,
       }));
     } catch (error: unknown) {
@@ -204,6 +158,7 @@ const LearnerProfile = () => {
 
   const editData: LearnerEditData = {
     bio: learnerProfile?.bio ?? profile.bio,
+    address: learnerProfile?.address ?? profile.address,
     goals: learnerProfile?.learningGoals ?? profile.goals,
   };
 
@@ -302,16 +257,6 @@ const LearnerProfile = () => {
                   </button>
                 </div>
                 <p className="text-sm sm:text-base text-gray-400 mb-2 break-all">{user?.email}</p>
-                {(contactInfo.phone || contactInfo.location || contactInfo.website || contactInfo.linkedin || contactInfo.github || contactInfo.twitter) && (
-                  <div className="flex flex-wrap items-center gap-3 mb-3">
-                    {contactInfo.phone && <span className="flex items-center gap-1.5 text-xs text-gray-300"><i className="ri-phone-line text-emerald-400"></i>{contactInfo.phone}</span>}
-                    {contactInfo.location && <span className="flex items-center gap-1.5 text-xs text-gray-300"><i className="ri-map-pin-line text-emerald-400"></i>{contactInfo.location}</span>}
-                    {contactInfo.website && <span className="flex items-center gap-1.5 text-xs text-gray-300"><i className="ri-global-line text-emerald-400"></i>{contactInfo.website}</span>}
-                    {contactInfo.linkedin && <span className="flex items-center gap-1.5 text-xs text-gray-300"><i className="ri-linkedin-box-line text-emerald-400"></i>{contactInfo.linkedin}</span>}
-                    {contactInfo.github && <span className="flex items-center gap-1.5 text-xs text-gray-300"><i className="ri-github-fill text-emerald-400"></i>{contactInfo.github}</span>}
-                    {contactInfo.twitter && <span className="flex items-center gap-1.5 text-xs text-gray-300"><i className="ri-twitter-x-line text-emerald-400"></i>{contactInfo.twitter}</span>}
-                  </div>
-                )}
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-6">
                   <div className="flex items-center gap-2">
                     <i className="ri-road-map-line text-emerald-400 text-lg sm:text-xl"></i>

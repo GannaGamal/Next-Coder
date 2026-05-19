@@ -29,6 +29,7 @@ export interface LearnerProfileDto {
   email: string;
   imageUrl: string | null;
   bio: string | null;
+  address: string | null;
   learningGoals: string | null;
   interests: string[];
   activeRoadmaps: number;
@@ -41,6 +42,7 @@ export interface LearnerProfileDto {
 
 export interface UpdateLearnerProfilePayload {
   bio: string;
+  address: string;
   learningGoals: string;
 }
 
@@ -66,6 +68,7 @@ const parseLearnerProfileData = (payload: Record<string, unknown>): LearnerProfi
   email: String(payload.email ?? payload.Email ?? ''),
   imageUrl: toNullableString(payload.imageUrl ?? payload.ImageUrl),
   bio: toNullableString(payload.bio ?? payload.Bio),
+  address: toNullableString(payload.address ?? payload.Address),
   learningGoals: toNullableString(payload.learningGoals ?? payload.LearningGoals),
   interests: normalizeStringArray(payload.interests ?? payload.Interests),
   activeRoadmaps: Number(payload.activeRoadmaps ?? payload.ActiveRoadmaps ?? 0),
@@ -144,6 +147,7 @@ export const getLearnerProfile = async (): Promise<LearnerProfileDto> => {
       email: String(payload.email ?? payload.Email ?? ''),
       imageUrl: toNullableString(payload.imageUrl ?? payload.ImageUrl),
       bio: toNullableString(payload.bio ?? payload.Bio),
+      address: toNullableString(payload.address ?? payload.Address),
       learningGoals: toNullableString(payload.learningGoals ?? payload.LearningGoals),
       interests: normalizeStringArray(payload.interests ?? payload.Interests),
       activeRoadmaps: Number(payload.activeRoadmaps ?? payload.ActiveRoadmaps ?? 0),

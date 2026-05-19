@@ -3,6 +3,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 
 export interface LearnerEditData {
   bio: string;
+  address: string;
   goals: string;
 }
 
@@ -59,13 +60,27 @@ const LearnerEditModal = ({ isOpen, onClose, data, onSave, accentColor = 'emeral
           </div>
           <div>
             <h3 className={`text-xl font-bold ${isLightMode ? 'text-gray-900' : 'text-white'}`}>Edit Learner Profile</h3>
-            <p className={`text-sm ${isLightMode ? 'text-gray-500' : 'text-gray-400'}`}>Update your bio and learning goals</p>
+            <p className={`text-sm ${isLightMode ? 'text-gray-500' : 'text-gray-400'}`}>Update your information</p>
           </div>
         </div>
 
         <div className="space-y-4">
           <div className={`border-t pt-4 ${isLightMode ? 'border-gray-200' : 'border-white/10'}`}>
             <p className={`text-xs font-semibold uppercase tracking-wider mb-3 ${isLightMode ? 'text-gray-400' : 'text-gray-500'}`}>Learning Profile</p>
+
+            <div className="mb-4">
+              <label className={`flex items-center gap-2 text-sm mb-1.5 ${isLightMode ? 'text-gray-600' : 'text-gray-400'}`}>
+                <i className={`ri-file-text-line ${cfg.icon}`}></i>
+                Address
+              </label>
+              <textarea
+                value={form.address}
+                onChange={e => setField('address', e.target.value)}
+                placeholder="Enter your address..."
+                rows={4}
+                className={`w-full border rounded-lg px-4 py-3 text-sm focus:outline-none resize-none ${cfg.border} transition-colors ${isLightMode ? 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400' : 'bg-white/5 border-white/10 text-white placeholder-gray-500'}`}
+              />
+            </div>
 
             <div className="mb-4">
               <label className={`flex items-center gap-2 text-sm mb-1.5 ${isLightMode ? 'text-gray-600' : 'text-gray-400'}`}>
