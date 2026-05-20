@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReportModal from '../../../components/feature/ReportModal';
 import { useTheme } from '../../../contexts/ThemeContext';
+import * as clientDashboardService from '../../../services/clientDashboard.service';
 
 interface MilestoneComment {
   id: string;
@@ -106,264 +107,124 @@ const ClientDashboard = () => {
   const [expandedMilestone, setExpandedMilestone] = useState<string | null>(null);
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
 
-  const [postedProjects, setPostedProjects] = useState<Project[]>([
-    {
-      id: '6',
-      title: 'E-commerce Website Development',
-      description: 'Looking for an experienced React developer to build a modern e-commerce platform',
-      budget: 2500,
-      status: 'open',
-      postedDate: '2024-01-15',
-      applicants: [
-        {
-          id: 'f1',
-          name: 'John Smith',
-          avatar: 'https://readdy.ai/api/search-image?query=professional%20male%20software%20developer%20portrait%20modern%20clean%20background%20confident%20friendly&width=200&height=200&seq=freelancer1&orientation=squarish',
-          rating: 4.9,
-          hourlyRate: 50,
-          skills: ['React', 'Node.js', 'TypeScript'],
-          proposal: 'I have 5+ years of experience building e-commerce platforms with React.',
-          proposedBudget: 2400,
-        },
-        {
-          id: 'f2',
-          name: 'Sarah Johnson',
-          avatar: 'https://readdy.ai/api/search-image?query=professional%20female%20web%20developer%20portrait%20modern%20clean%20background%20confident%20friendly&width=200&height=200&seq=freelancer2&orientation=squarish',
-          rating: 5.0,
-          hourlyRate: 60,
-          skills: ['React', 'TypeScript', 'MongoDB'],
-          proposal: 'I specialize in e-commerce development and have built 10+ successful platforms.',
-          proposedBudget: 2500,
-        },
-      ],
-      milestones: [],
-      totalPaid: 0,
-      comments: [],
-    },
-    {
-      id: '7',
-      title: 'Mobile App UI Design',
-      description: 'Need a talented UI designer for a mobile fitness app',
-      budget: 1800,z
-      status: 'open',
-      postedDate: '2024-01-12',
-      applicants: [
-        {
-          id: 'f3',
-          name: 'Emma Wilson',
-          avatar: 'https://readdy.ai/api/search-image?query=professional%20female%20ui%20designer%20portrait%20modern%20clean%20background%20creative%20friendly&width=200&height=200&seq=freelancer3&orientation=squarish',
-          rating: 4.8,
-          hourlyRate: 45,
-          skills: ['Figma', 'UI Design', 'Mobile Design'],
-          proposal: 'I have extensive experience designing mobile apps with a focus on user experience.',
-          proposedBudget: 1750,
-        },
-      ],
-      milestones: [],
-      totalPaid: 0,
-      comments: [],
-    },
-  ]);
+  // Data states
+  const [postedProjects, setPostedProjects] = useState<Project[]>([]);
+  const [activeProjects, setActiveProjects] = useState<Project[]>([]);
+  const [completedProjects, setCompletedProjects] = useState<Project[]>([]);
 
-  const [activeProjects, setActiveProjects] = useState<Project[]>([
-    {
-      id: '8',
-      title: 'WordPress Blog Setup',
-      description: 'Setting up a professional WordPress blog with custom theme',
-      budget: 1500,
-      status: 'in-progress',
-      postedDate: '2024-01-08',
-      freelancer: {
-        name: 'Michael Chen',
-        avatar: 'https://readdy.ai/api/search-image?query=professional%20male%20wordpress%20developer%20portrait%20modern%20clean%20background%20confident%20friendly&width=200&height=200&seq=freelancer4&orientation=squarish',
-      },
-      applicants: [],
-      milestones: [
-        {
-          id: 'm9',
-          title: 'Initial Setup & Theme Installation',
-          deliverables: 'WordPress installed, hosting configured, theme set up and customized with brand colors',
-          amount: 500,
-          duration: '1 week',
-          deadline: '2024-01-15',
-          status: 'finished',
-          submittedDate: '2024-01-10',
-          approvedDate: '2024-01-11',
-          finishedDate: '2024-01-12',
-          comments: [
-            { id: 'mc1', author: 'Michael Chen', authorRole: 'freelancer', text: 'Setup complete, please review.', date: '2024-01-10' },
-            { id: 'mc2', author: 'You', authorRole: 'client', text: 'Looks great, approved!', date: '2024-01-11' },
-          ],
-        },
-        {
-          id: 'm10',
-          title: 'Content Migration & Plugin Setup',
-          deliverables: 'All existing blog posts migrated, SEO plugin configured, contact form plugin installed',
-          amount: 600,
-          duration: '1 week',
-          deadline: '2024-01-22',
-          status: 'submitted',
-          submittedDate: '2024-01-18',
-          comments: [
-            { id: 'mc3', author: 'Michael Chen', authorRole: 'freelancer', text: 'All content migrated and plugins configured. Ready for review.', date: '2024-01-18' },
-          ],
-        },
-        {
-          id: 'm11',
-          title: 'Final Testing & Launch',
-          deliverables: 'Cross-browser testing complete, performance optimized, site launched on production domain',
-          amount: 400,
-          duration: '3 days',
-          deadline: '2024-01-25',
-          status: 'pending',
-          comments: [],
-        },
-        {
-          id: 'm12',
-          title: 'Performance Monitoring',
-          deliverables: 'Analytics dashboard setup, performance monitoring tools configured',
-          amount: 300,
-          duration: '2 days',
-          deadline: '2024-01-10',
-          status: 'late',
-          comments: [],
-        },
-        {
-          id: 'm13',
-          title: 'SEO Optimization',
-          deliverables: 'On-page SEO, meta tags, sitemap, robots.txt configuration',
-          amount: 350,
-          duration: '3 days',
-          deadline: '2024-01-28',
-          status: 'rejected',
-          rejectionComment: 'Budget is too high for basic SEO setup. Can you reduce to $200?',
-          comments: [
-            { id: 'mc4', author: 'You', authorRole: 'client', text: 'Budget is too high for basic SEO setup. Can you reduce to $200?', date: '2024-01-19' },
-          ],
-        },
-      ],
-      totalPaid: 500,
-      comments: [
-        { id: 'c4', author: 'You', text: 'Great work on the initial setup! The theme looks perfect.', date: '2024-01-11' },
-      ],
-    },
-  ]);
+  const loadDashboardData = async () => {
+    try {
+      // Fetch all three project types in parallel
+      const [postedData, activeData, completedData] = await Promise.all([
+        clientDashboardService.getPostedProjects(),
+        clientDashboardService.getActiveProjects(),
+        clientDashboardService.getCompletedProjects(),
+      ]);
 
-  const [completedProjects, setCompletedProjects] = useState<Project[]>([
-    {
-      id: '10',
-      title: 'Brand Identity & Visual Design System',
-      description: 'Created a comprehensive brand identity package including logo suite, color palette, typography system, and full design guidelines document',
-      budget: 2200,
-      status: 'completed',
-      postedDate: '2024-02-10',
-      freelancer: {
-        name: 'David Park',
-        avatar: 'https://readdy.ai/api/search-image?query=professional%20male%20brand%20designer%20portrait%20modern%20clean%20background%20confident%20creative%20studio&width=200&height=200&seq=freelancer9&orientation=squarish',
-      },
-      applicants: [],
-      milestones: [
-        {
-          id: 'm20',
-          title: 'Brand Discovery & Moodboard',
-          deliverables: '3 mood boards, brand direction document, competitor analysis',
-          amount: 500,
-          duration: '3 days',
-          deadline: '2024-02-13',
-          status: 'finished',
-          submittedDate: '2024-02-12',
-          approvedDate: '2024-02-13',
-          finishedDate: '2024-02-13',
-          comments: [
-            { id: 'dp1', author: 'David Park', authorRole: 'freelancer', text: 'Mood boards are ready for review. I went with a minimalist direction that aligns with your target audience.', date: '2024-02-12' },
-            { id: 'dp2', author: 'You', authorRole: 'client', text: 'Love the second concept! Let\'s go with that direction.', date: '2024-02-13' },
-          ],
-        },
-        {
-          id: 'm21',
-          title: 'Logo Design & Variations',
-          deliverables: 'Primary logo, secondary logo, icon mark, all in SVG/PNG/PDF formats',
-          amount: 800,
-          duration: '5 days',
-          deadline: '2024-02-18',
-          status: 'finished',
-          submittedDate: '2024-02-17',
-          approvedDate: '2024-02-18',
-          finishedDate: '2024-02-18',
-          comments: [
-            { id: 'dp3', author: 'David Park', authorRole: 'freelancer', text: 'Logo suite complete. Includes all variations and export formats.', date: '2024-02-17' },
-          ],
-        },
-        {
-          id: 'm22',
-          title: 'Full Brand Guidelines Document',
-          deliverables: '40-page PDF brand book: color codes, typography scale, logo usage rules, imagery style, do\'s & don\'ts',
-          amount: 900,
-          duration: '4 days',
-          deadline: '2024-02-22',
-          status: 'finished',
-          submittedDate: '2024-02-21',
-          approvedDate: '2024-02-22',
-          finishedDate: '2024-02-22',
-          comments: [
-            { id: 'dp4', author: 'David Park', authorRole: 'freelancer', text: 'Brand guidelines are ready. This has been a pleasure to work on!', date: '2024-02-21' },
-            { id: 'dp5', author: 'You', authorRole: 'client', text: 'Outstanding work, David. Exactly what we needed!', date: '2024-02-22' },
-          ],
-        },
-      ],
-      totalPaid: 2200,
-      comments: [
-        { id: 'c10', author: 'You', text: 'The brand identity looks absolutely stunning. Way beyond expectations!', date: '2024-02-22' },
-      ],
-    },
-    {
-      id: '9',
-      title: 'Logo Design for Restaurant',
-      description: 'Created a modern logo for a restaurant brand',
-      budget: 800,
-      status: 'completed',
-      postedDate: '2023-12-20',
-      freelancer: {
-        name: 'Lisa Anderson',
-        avatar: 'https://readdy.ai/api/search-image?query=professional%20female%20graphic%20designer%20portrait%20modern%20clean%20background%20creative%20friendly&width=200&height=200&seq=freelancer6&orientation=squarish',
-      },
-      applicants: [],
-      milestones: [
-        {
-          id: 'm14',
-          title: 'Initial Concepts',
-          deliverables: '3 initial logo concepts with color variations',
-          amount: 300,
-          duration: '3 days',
-          deadline: '2023-12-23',
-          status: 'finished',
-          submittedDate: '2023-12-22',
-          approvedDate: '2023-12-22',
-          finishedDate: '2023-12-23',
+      // Transform PostedProject[] to Project[]
+      const transformedPosted: Project[] = await Promise.all(
+        postedData.map(async (p) => {
+          const proposals = await clientDashboardService.getProjectProposals(p.id);
+          return {
+            id: String(p.id),
+            title: p.title,
+            description: '', // Backend doesn't provide description for posted projects
+            budget: p.budget,
+            status: (p.status.toLowerCase() as 'open' | 'in-progress' | 'completed'),
+            postedDate: p.createdAt,
+            applicants: proposals.map((proposal) => ({
+              id: String(proposal.id),
+              name: proposal.freelancerName,
+              avatar: proposal.freelancerImageUrl,
+              rating: 5, // Backend doesn't provide rating for proposals
+              hourlyRate: 0, // Backend doesn't provide hourly rate
+              skills: [], // Backend doesn't provide skills
+              proposal: proposal.coverLetter,
+              proposedBudget: proposal.totalAmount,
+            })),
+            milestones: [],
+            totalPaid: 0,
+            comments: [],
+          };
+        })
+      );
+
+      // Transform ActiveProject[] to Project[]
+      const transformedActive: Project[] = activeData.map((ap) => ({
+        id: String(ap.id),
+        title: ap.title,
+        description: '', // Backend doesn't provide description
+        budget: ap.totalBudget,
+        status: 'in-progress',
+        postedDate: '', // Backend doesn't provide posted date
+        freelancer: ap.freelancerName ? { name: ap.freelancerName, avatar: ap.freelancerImageUrl } : undefined,
+        applicants: [],
+        milestones: ap.milestones.map((m) => ({
+          id: String(m.id),
+          title: m.title,
+          deliverables: m.description,
+          amount: m.amount,
+          duration: '', // Backend doesn't provide duration
+          deadline: '', // Backend doesn't provide deadline
+          status: (m.status.toLowerCase() as any),
           comments: [],
-        },
-        {
-          id: 'm15',
-          title: 'Revisions & Final Design',
-          deliverables: 'Final logo files in all formats (SVG, PNG, PDF)',
-          amount: 500,
-          duration: '2 days',
-          deadline: '2023-12-27',
-          status: 'finished',
-          submittedDate: '2023-12-26',
-          approvedDate: '2023-12-26',
-          finishedDate: '2023-12-27',
-          comments: [],
-        },
-      ],
-      totalPaid: 800,
-      comments: [
-        { id: 'c5', author: 'You', text: 'Absolutely love the final design! Thank you for your creativity.', date: '2023-12-27' },
-      ],
-      freelancerRating: 5,
-      myRating: 5,
-    },
-  ]);
+        })),
+        totalPaid: ap.totalPaid,
+        comments: [],
+      }));
+
+      // Transform CompletedProject[] to Project[]
+      const transformedCompleted: Project[] = completedData.map((cp) => ({
+        id: String(cp.id),
+        title: cp.title,
+        description: '',
+        budget: cp.totalPaid,
+        status: 'completed',
+        postedDate: cp.completedAt,
+        freelancer: cp.freelancerName ? { name: cp.freelancerName, avatar: cp.freelancerImageUrl } : undefined,
+        applicants: [],
+        milestones: Array(cp.milestonesCompletedCount)
+          .fill(null)
+          .map((_, i) => ({
+            id: String(i),
+            title: `Milestone ${i + 1}`,
+            deliverables: '',
+            amount: 0,
+            duration: '',
+            deadline: '',
+            status: 'finished' as const,
+            comments: [],
+          })),
+        totalPaid: cp.totalPaid,
+        comments: [],
+        freelancerRating: cp.freelancerRatingGivenByClient ?? undefined,
+        myRating: cp.clientRatingFromFreelancer ?? undefined,
+      }));
+
+      setPostedProjects(transformedPosted);
+      setActiveProjects(transformedActive);
+      setCompletedProjects(transformedCompleted);
+    } catch (err) {
+      console.error('Error fetching dashboard data:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
+
+  const handleAcceptFreelancer = async (proposalId: string) => {
+    if (!selectedProject) return;
+
+    try {
+      await clientDashboardService.acceptProposal(Number(selectedProject.id), Number(proposalId));
+      setShowApplicantsModal(false);
+      setSelectedProject(null);
+      await loadDashboardData();
+    } catch (err) {
+      console.error('Error accepting proposal:', err);
+    }
+  };
 
   const stats = {
     activeProjects: activeProjects.length,
@@ -400,8 +261,6 @@ const ClientDashboard = () => {
     const finished = milestones.filter(m => m.status === 'finished').length;
     return Math.round((finished / milestones.length) * 100);
   };
-
-  const handleAcceptFreelancer = () => setShowApplicantsModal(false);
 
   const handleApproveMilestone = () => {
     if (!reviewingMilestone || !selectedProject) return;
@@ -668,7 +527,7 @@ const ClientDashboard = () => {
               <div className="flex justify-between items-start mb-6">
                 <div className="flex items-center gap-4">
                   {project.freelancer && (
-                    <img src={project.freelancer.avatar} alt={project.freelancer.name} className="w-12 h-12 rounded-lg object-cover" />
+                    <img src={`https://nextcoder.runasp.net/${project.freelancer.avatar}`} alt={project.freelancer.name} className="w-12 h-12 rounded-lg object-cover" />
                   )}
                   <div>
                     <h3 className={`text-xl font-bold ${textPrimary} mb-1`}>{project.title}</h3>
@@ -890,7 +749,7 @@ const ClientDashboard = () => {
               <div className="flex justify-between items-start mb-6">
                 <div className="flex items-center gap-4">
                   {project.freelancer && (
-                    <img src={project.freelancer.avatar} alt={project.freelancer.name} className="w-12 h-12 rounded-lg object-cover" />
+                    <img src= {project.freelancer.avatar} alt={project.freelancer.name} className="w-12 h-12 rounded-lg object-cover" />
                   )}
                   <div>
                     <h3 className={`text-xl font-bold ${textPrimary} mb-1`}>{project.title}</h3>
@@ -1000,7 +859,7 @@ const ClientDashboard = () => {
                 selectedProject.applicants.map((freelancer) => (
                   <div key={freelancer.id} className={`${innerCard} rounded-xl p-6`}>
                     <div className="flex items-start gap-4 mb-4">
-                      <img src={freelancer.avatar} alt={freelancer.name} className="w-16 h-16 rounded-lg object-cover" />
+                      <img src={`https://nextcoder.runasp.net/${freelancer.avatar}`} alt={freelancer.name} className="w-16 h-16 rounded-lg object-cover" />
                       <div className="flex-1">
                         <h4 className={`text-xl font-bold ${textPrimary} mb-1`}>{freelancer.name}</h4>
                         <div className="flex items-center gap-4 text-sm mb-2">
@@ -1026,7 +885,7 @@ const ClientDashboard = () => {
                         <span className={`${textSec} text-sm`}>{t('clientDashboard.proposedBudget')} </span>
                         <span className="text-green-500 font-bold text-lg">${freelancer.proposedBudget}</span>
                       </div>
-                      <button onClick={handleAcceptFreelancer} className="px-6 py-2 bg-teal-500 text-white font-semibold rounded-lg hover:bg-teal-600 transition-colors whitespace-nowrap cursor-pointer">
+                      <button onClick={() => handleAcceptFreelancer(freelancer.id)} className="px-6 py-2 bg-teal-500 text-white font-semibold rounded-lg hover:bg-teal-600 transition-colors whitespace-nowrap cursor-pointer">
                         {t('clientDashboard.acceptProposal')}
                       </button>
                     </div>
