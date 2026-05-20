@@ -144,7 +144,7 @@ const ClientDashboard = () => {
       id: '7',
       title: 'Mobile App UI Design',
       description: 'Need a talented UI designer for a mobile fitness app',
-      budget: 1800,
+      budget: 1800,z
       status: 'open',
       postedDate: '2024-01-12',
       applicants: [
