@@ -2,57 +2,27 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReportModal from '../../../components/feature/ReportModal';
 import { useTheme } from '../../../contexts/ThemeContext';
-import * as clientDashboardService from '../../../services/clientDashboard.service';
-
-interface MilestoneComment {
-  id: string;
-  author: string;
-  authorRole: 'freelancer' | 'client';
-  text: string;
-  date: string;
-}
-
-interface Milestone {
-  id: string;
-  title: string;
-  deliverables: string;
-  amount: number;
-  duration: string;
-  deadline: string;
-  status: 'pending' | 'approved' | 'rejected' | 'submitted' | 'late' | 'finished';
-  submittedDate?: string;
-  approvedDate?: string;
-  finishedDate?: string;
-  rejectionComment?: string;
-  comments: MilestoneComment[];
-}
-
-interface Freelancer {
-  id: string;
-  name: string;
-  avatar: string;
-  rating: number;
-  hourlyRate: number;
-  skills: string[];
-  proposal: string;
-  proposedBudget: number;
-}
-
-interface Project {
-  id: string;
-  title: string;
-  description: string;
-  budget: number;
-  status: 'open' | 'in-progress' | 'completed';
-  postedDate: string;
-  freelancer?: { name: string; avatar: string };
-  applicants: Freelancer[];
-  milestones: Milestone[];
-  totalPaid: number;
-  comments: Array<{ id: string; author: string; text: string; date: string }>;
-  freelancerRating?: number;
-  myRating?: number;
-}
+import {
+  getDashboardSummary,
+  getPostedProjects,
+  getProjectProposals,
+  acceptProposal,
+  deleteProject,
+  getActiveProjects,
+  approveMilestone,
+  requestMilestoneChanges,
+  getCompletedProjects,
+  rateFreelancer,
+  postProjectComment,
+  type DashboardSummary,
+  type PostedProject,
+  type Proposal,
+  type ActiveProject,
+  type ActiveMilestone,
+  type CompletedProject,
+  type Comment,
+  type deliverable,
+} from '../../../services/clientDashboard.service';
 
 const ClientDashboard = () => {
   const { isLightMode } = useTheme();
@@ -78,7 +48,6 @@ const ClientDashboard = () => {
   const milestoneCard = isLightMode
     ? 'bg-white border border-gray-200'
     : 'bg-white/5 border border-white/10';
-  const milestoneInner = isLightMode ? 'bg-gray-50' : 'bg-white/[0.03]';
   const commentCard = isLightMode ? 'bg-gray-50' : 'bg-white/5';
   const statCard = isLightMode
     ? 'bg-white border border-gray-200'
@@ -89,8 +58,25 @@ const ClientDashboard = () => {
   const textLight = isLightMode ? 'text-gray-700' : 'text-white/80';
   const milestoneMiniCard = isLightMode ? 'bg-gray-50 border border-gray-100' : 'bg-white/5';
 
+  // ─── Remote data ───────────────────────────────────────────────────────────
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [postedProjects, setPostedProjects] = useState<PostedProject[]>([]);
+  const [activeProjects, setActiveProjects] = useState<ActiveProject[]>([]);
+  const [completedProjects, setCompletedProjects] = useState<CompletedProject[]>([]);
+  const [proposals, setProposals] = useState<Proposal[]>([]);
+
+  // ─── Loading / error ───────────────────────────────────────────────────────
+  const [loading, setLoading] = useState(true);
+  const [pageError, setPageError] = useState<string | null>(null);
+  const [proposalsLoading, setProposalsLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  // ─── UI state ──────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState('posted');
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [selectedPostedProject, setSelectedPostedProject] = useState<PostedProject | null>(null);
+  const [selectedActiveProject, setSelectedActiveProject] = useState<ActiveProject | null>(null);
+  const [selectedCompletedProject, setSelectedCompletedProject] = useState<CompletedProject | null>(null);
   const [showApplicantsModal, setShowApplicantsModal] = useState(false);
   const [showMilestoneReviewModal, setShowMilestoneReviewModal] = useState(false);
   const [showSubmittedReviewModal, setShowSubmittedReviewModal] = useState(false);
@@ -98,267 +84,246 @@ const ClientDashboard = () => {
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportTarget, setReportTarget] = useState<{ name: string; avatar: string }>({ name: '', avatar: '' });
-  const [reviewingMilestone, setReviewingMilestone] = useState<Milestone | null>(null);
+  const [reviewingMilestone, setReviewingMilestone] = useState<ActiveMilestone | null>(null);
   const [rejectionComment, setRejectionComment] = useState('');
   const [rating, setRating] = useState(0);
   const [ratingComment, setRatingComment] = useState('');
   const [newComment, setNewComment] = useState('');
-  const [milestoneComment, setMilestoneComment] = useState('');
-  const [expandedMilestone, setExpandedMilestone] = useState<string | null>(null);
-  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
-
-  // Data states
-  const [postedProjects, setPostedProjects] = useState<Project[]>([]);
-  const [activeProjects, setActiveProjects] = useState<Project[]>([]);
-  const [completedProjects, setCompletedProjects] = useState<Project[]>([]);
-
-  const loadDashboardData = async () => {
-    try {
-      // Fetch all three project types in parallel
-      const [postedData, activeData, completedData] = await Promise.all([
-        clientDashboardService.getPostedProjects(),
-        clientDashboardService.getActiveProjects(),
-        clientDashboardService.getCompletedProjects(),
-      ]);
-
-      // Transform PostedProject[] to Project[]
-      const transformedPosted: Project[] = await Promise.all(
-        postedData.map(async (p) => {
-          const proposals = await clientDashboardService.getProjectProposals(p.id);
-          return {
-            id: String(p.id),
-            title: p.title,
-            description: '', // Backend doesn't provide description for posted projects
-            budget: p.budget,
-            status: (p.status.toLowerCase() as 'open' | 'in-progress' | 'completed'),
-            postedDate: p.createdAt,
-            applicants: proposals.map((proposal) => ({
-              id: String(proposal.id),
-              name: proposal.freelancerName,
-              avatar: proposal.freelancerImageUrl,
-              rating: 5, // Backend doesn't provide rating for proposals
-              hourlyRate: 0, // Backend doesn't provide hourly rate
-              skills: [], // Backend doesn't provide skills
-              proposal: proposal.coverLetter,
-              proposedBudget: proposal.totalAmount,
-            })),
-            milestones: [],
-            totalPaid: 0,
-            comments: [],
-          };
-        })
-      );
-
-      // Transform ActiveProject[] to Project[]
-      const transformedActive: Project[] = activeData.map((ap) => ({
-        id: String(ap.id),
-        title: ap.title,
-        description: '', // Backend doesn't provide description
-        budget: ap.totalBudget,
-        status: 'in-progress',
-        postedDate: '', // Backend doesn't provide posted date
-        freelancer: ap.freelancerName ? { name: ap.freelancerName, avatar: ap.freelancerImageUrl } : undefined,
-        applicants: [],
-        milestones: ap.milestones.map((m) => ({
-          id: String(m.id),
-          title: m.title,
-          deliverables: m.description,
-          amount: m.amount,
-          duration: '', // Backend doesn't provide duration
-          deadline: '', // Backend doesn't provide deadline
-          status: (m.status.toLowerCase() as any),
-          comments: [],
-        })),
-        totalPaid: ap.totalPaid,
-        comments: [],
-      }));
-
-      // Transform CompletedProject[] to Project[]
-      const transformedCompleted: Project[] = completedData.map((cp) => ({
-        id: String(cp.id),
-        title: cp.title,
-        description: '',
-        budget: cp.totalPaid,
-        status: 'completed',
-        postedDate: cp.completedAt,
-        freelancer: cp.freelancerName ? { name: cp.freelancerName, avatar: cp.freelancerImageUrl } : undefined,
-        applicants: [],
-        milestones: Array(cp.milestonesCompletedCount)
-          .fill(null)
-          .map((_, i) => ({
-            id: String(i),
-            title: `Milestone ${i + 1}`,
-            deliverables: '',
-            amount: 0,
-            duration: '',
-            deadline: '',
-            status: 'finished' as const,
-            comments: [],
-          })),
-        totalPaid: cp.totalPaid,
-        comments: [],
-        freelancerRating: cp.freelancerRatingGivenByClient ?? undefined,
-        myRating: cp.clientRatingFromFreelancer ?? undefined,
-      }));
-
-      setPostedProjects(transformedPosted);
-      setActiveProjects(transformedActive);
-      setCompletedProjects(transformedCompleted);
-    } catch (err) {
-      console.error('Error fetching dashboard data:', err);
-    }
-  };
-
+  const [expandedMilestone, setExpandedMilestone] = useState<number | null>(null);
+  const [projectToDelete, setProjectToDelete] = useState<PostedProject | null>(null);
+  const generalAvatar = "https://readdy.ai/api/search-image?query=professional%20default%20user%20avatar%20icon%20simple%20clean%20minimal%20design%20on%20dark%20background&width=100&height=100&seq=avatar1&orientation=squarish"
+  // ─── Fetch all data on mount ───────────────────────────────────────────────
   useEffect(() => {
-    loadDashboardData();
+    const loadAll = async () => {
+      setLoading(true);
+      setPageError(null);
+      try {
+        const [summaryData, posted, active, completed] = await Promise.all([
+          getDashboardSummary(),
+          getPostedProjects(),
+          getActiveProjects(),
+          getCompletedProjects(),
+        ]);
+        setSummary(summaryData);
+        setPostedProjects(posted);
+        setActiveProjects(active);
+        setCompletedProjects(completed);
+      } catch (e) {
+        setPageError(e instanceof Error ? e.message : 'Failed to load dashboard data');
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadAll();
   }, []);
 
-  const handleAcceptFreelancer = async (proposalId: string) => {
-    if (!selectedProject) return;
-
-    try {
-      await clientDashboardService.acceptProposal(Number(selectedProject.id), Number(proposalId));
-      setShowApplicantsModal(false);
-      setSelectedProject(null);
-      await loadDashboardData();
-    } catch (err) {
-      console.error('Error accepting proposal:', err);
-    }
-  };
-
+  // ─── Stats (driven by API summary) ────────────────────────────────────────
   const stats = {
-    activeProjects: activeProjects.length,
-    totalSpent:
-      activeProjects.reduce((sum, p) => sum + p.totalPaid, 0) +
-      completedProjects.reduce((sum, p) => sum + p.totalPaid, 0),
-    openPositions: postedProjects.filter((p) => p.status === 'open').length,
-    completed: completedProjects.length,
+    activeProjects: summary?.totalActiveProjects ?? 0,
+    totalSpent: summary?.totalMoneySpent ?? 0,
+    openPositions: summary?.totalOpenProjects ?? 0,
+    completed: summary?.totalCompletedProjects ?? 0,
   };
+
+  // ─── Helpers ───────────────────────────────────────────────────────────────
+  const normalizeMilestoneStatus = (status: string) =>
+    status?.toString().trim().replace(/[\s_-]/g, '').toLowerCase();
 
   const getMilestoneStatusConfig = (status: string) => {
+    const key = normalizeMilestoneStatus(status);
     const config: Record<string, { bg: string; text: string; icon: string; label: string }> = {
-      pending: { bg: 'bg-amber-500/15', text: 'text-amber-400', icon: 'ri-time-line', label: t('clientDashboard.pendingApproval') },
-      approved: { bg: 'bg-green-500/15', text: 'text-green-400', icon: 'ri-check-line', label: t('clientDashboard.approved') },
-      rejected: { bg: 'bg-red-500/15', text: 'text-red-400', icon: 'ri-close-circle-line', label: t('clientDashboard.rejected') },
-      submitted: { bg: 'bg-teal-500/15', text: 'text-teal-400', icon: 'ri-upload-2-line', label: t('clientDashboard.submittedStatus') },
-      late: { bg: 'bg-orange-500/15', text: 'text-orange-400', icon: 'ri-alarm-warning-line', label: t('clientDashboard.late') },
-      finished: { bg: 'bg-emerald-500/15', text: 'text-emerald-400', icon: 'ri-checkbox-circle-line', label: t('clientDashboard.finished') },
+      pending:    { bg: 'bg-gray-500/15',  text: 'text-gray-400',  icon: 'ri-alarm-warning-line',   label: t('Pending') },
+      inprogress: { bg: 'bg-orange-500/15',  text: 'text-orange-400',  icon: 'ri-alarm-warning-line',   label: t('In progress') },
+      submitted:  { bg: 'bg-teal-500/15',    text: 'text-teal-400',    icon: 'ri-upload-2-line',        label: t('clientDashboard.submittedStatus') },
+      accepted:   { bg: 'bg-green-500/15',   text: 'text-green-400',   icon: 'ri-check-line',           label: t('Accepted') },
     };
-    return config[status] || { bg: 'bg-gray-500/15', text: 'text-gray-400', icon: 'ri-question-line', label: status };
+    return config[key] || { bg: 'bg-gray-500/15', text: 'text-gray-400', icon: 'ri-question-line', label: status };
   };
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
-      open: 'bg-teal-500/20 text-teal-400',
+      open:          'bg-teal-500/20 text-teal-400',
       'in-progress': 'bg-cyan-500/20 text-cyan-400',
-      completed: 'bg-green-500/20 text-green-400',
+      completed:     'bg-green-500/20 text-green-400',
     };
     return colors[status] || 'bg-gray-500/20 text-gray-400';
   };
 
-  const getMilestoneProgress = (milestones: Milestone[]) => {
-    if (milestones.length === 0) return 0;
-    const finished = milestones.filter(m => m.status === 'finished').length;
-    return Math.round((finished / milestones.length) * 100);
+  // ─── Handlers ──────────────────────────────────────────────────────────────
+
+  /** Open the applicants modal and lazily load proposals for the project. */
+  const handleViewApplicants = async (project: PostedProject) => {
+    setSelectedPostedProject(project);
+    setProposals([]);
+    setShowApplicantsModal(true);
+    setProposalsLoading(true);
+    try {
+      const data = await getProjectProposals(project.id);
+      setProposals(data);
+    } catch {
+      setProposals([]);
+    } finally {
+      setProposalsLoading(false);
+    }
   };
 
-  const handleApproveMilestone = () => {
-    if (!reviewingMilestone || !selectedProject) return;
-    const today = new Date().toISOString().split('T')[0];
-    setActiveProjects(prev =>
-      prev.map(p =>
-        p.id === selectedProject.id
-          ? {
-              ...p,
-              milestones: p.milestones.map(m =>
-                m.id === reviewingMilestone.id
-                  ? { ...m, status: 'approved' as const, approvedDate: today, rejectionComment: undefined }
-                  : m
-              ),
-            }
-          : p
-      )
-    );
-    setShowMilestoneReviewModal(false);
-    setReviewingMilestone(null);
-    setRejectionComment('');
+  /** Accept a freelancer proposal. */
+  const handleAcceptProposal = async (proposalId: number) => {
+    if (!selectedPostedProject) return;
+    setActionLoading(true);
+    try {
+      await acceptProposal(selectedPostedProject.id, proposalId);
+      setShowApplicantsModal(false);
+      // Refresh posted projects so proposal counts/statuses are up to date.
+      const updated = await getPostedProjects();
+      setPostedProjects(updated);
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Failed to accept proposal');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
-  const handleRejectMilestone = () => {
-    if (!rejectionComment.trim() || !reviewingMilestone || !selectedProject) return;
-    const today = new Date().toISOString().split('T')[0];
-    setActiveProjects(prev =>
-      prev.map(p =>
-        p.id === selectedProject.id
-          ? {
-              ...p,
-              milestones: p.milestones.map(m =>
-                m.id === reviewingMilestone.id
-                  ? {
-                      ...m,
-                      status: 'rejected' as const,
-                      rejectionComment,
-                      comments: [...m.comments, { id: `mc-${Date.now()}`, author: 'You', authorRole: 'client' as const, text: rejectionComment, date: today }],
-                    }
-                  : m
-              ),
-            }
-          : p
-      )
-    );
-    setShowMilestoneReviewModal(false);
-    setReviewingMilestone(null);
-    setRejectionComment('');
+  /** Delete (remove) a posted project. */
+  const handleDeleteProject = async () => {
+    if (!projectToDelete) return;
+    setActionLoading(true);
+    try {
+      await deleteProject(projectToDelete.id);
+      setPostedProjects(prev => prev.filter(p => p.id !== projectToDelete.id));
+      setProjectToDelete(null);
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Failed to delete project');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
-  const handleApproveSubmission = () => {
-    if (!reviewingMilestone || !selectedProject) return;
-    setShowSubmittedReviewModal(false);
-    setReviewingMilestone(reviewingMilestone);
-    setSelectedProject(selectedProject);
-    setShowPaymentModal(true);
+  /**
+   * Approve a pending milestone plan (before work starts).
+   * Uses the same /milestones/approve endpoint; optimistically flips status to 'approved'.
+   */
+  const handleApproveMilestone = async () => {
+    if (!reviewingMilestone || !selectedActiveProject) return;
+    setActionLoading(true);
+    try {
+      await approveMilestone(reviewingMilestone.id,rejectionComment);
+      setActiveProjects(prev =>
+        prev.map(p =>
+          p.id === selectedActiveProject.id
+            ? { ...p, milestones: p.milestones.map(m => m.id === reviewingMilestone.id ? { ...m, status: 'Accepted' } : m) }
+            : p
+        )
+      );
+      setShowMilestoneReviewModal(false);
+      setReviewingMilestone(null);
+      setRejectionComment('');
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Failed to approve milestone');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
-  const handleRejectSubmission = () => {
-    if (!rejectionComment.trim() || !reviewingMilestone || !selectedProject) return;
-    const today = new Date().toISOString().split('T')[0];
-    setActiveProjects(prev =>
-      prev.map(p =>
-        p.id === selectedProject.id
-          ? {
-              ...p,
-              milestones: p.milestones.map(m =>
-                m.id === reviewingMilestone.id
-                  ? {
-                      ...m,
-                      status: 'approved' as const,
-                      submittedDate: undefined,
-                      comments: [...m.comments, { id: `mc-${Date.now()}`, author: 'You', authorRole: 'client' as const, text: `Submission rejected: ${rejectionComment}`, date: today }],
-                    }
-                  : m
-              ),
-            }
-          : p
-      )
-    );
-    setShowSubmittedReviewModal(false);
-    setReviewingMilestone(null);
-    setRejectionComment('');
+  /**
+   * Reject a pending milestone plan and store the client's comment.
+   * Calls request-changes; optimistically flips status to 'rejected'.
+   */
+  const handleRejectMilestone = async () => {
+    if (!rejectionComment.trim() || !reviewingMilestone || !selectedActiveProject) return;
+    setActionLoading(true);
+    try {
+      await requestMilestoneChanges(reviewingMilestone.id, rejectionComment);
+      setActiveProjects(prev =>
+        prev.map(p =>
+          p.id === selectedActiveProject.id
+            ? {
+                ...p,
+                milestones: p.milestones.map(m =>
+                  m.id === reviewingMilestone.id
+                    ? { ...m, status: 'Rejected', clientComment: rejectionComment }
+                    : m
+                ),
+              }
+            : p
+        )
+      );
+      setShowMilestoneReviewModal(false);
+      setReviewingMilestone(null);
+      setRejectionComment('');
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Failed to reject milestone');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
+  /**
+   * Approve a submitted deliverable.
+   * Calls /milestones/approve, then advances to the payment confirmation modal.
+   */
+  const handleApproveSubmission = async () => {
+    if (!reviewingMilestone || !selectedActiveProject) return;
+    setActionLoading(true);
+    try {
+      await approveMilestone(reviewingMilestone.id,reviewingMilestone.clientComment ?? '');
+      setShowSubmittedReviewModal(false);
+      setShowPaymentModal(true);
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Failed to approve submission');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  /**
+   * Request changes on a submitted deliverable.
+   * Calls request-changes; optimistically reverts status to 'approved' (back to working).
+   */
+  const handleRejectSubmission = async () => {
+    if (!rejectionComment.trim() || !reviewingMilestone || !selectedActiveProject) return;
+    setActionLoading(true);
+    try {
+      await requestMilestoneChanges(reviewingMilestone.id, rejectionComment);
+      setActiveProjects(prev =>
+        prev.map(p =>
+          p.id === selectedActiveProject.id
+            ? {
+                ...p,
+                milestones: p.milestones.map(m =>
+                  m.id === reviewingMilestone.id
+                    ? { ...m, status: 'Rejected', submissionNote: null }
+                    : m
+                ),
+              }
+            : p
+        )
+      );
+      setShowSubmittedReviewModal(false);
+      setReviewingMilestone(null);
+      setRejectionComment('');
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Failed to request revision');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  /**
+   * Mark a milestone as paid / finished (local optimistic update).
+   * The actual payment was already confirmed server-side in handleApproveSubmission.
+   */
   const handlePayMilestone = () => {
-    if (!reviewingMilestone || !selectedProject) return;
-    const today = new Date().toISOString().split('T')[0];
+    if (!reviewingMilestone || !selectedActiveProject) return;
     setActiveProjects(prev =>
       prev.map(p =>
-        p.id === selectedProject.id
+        p.id === selectedActiveProject.id
           ? {
               ...p,
               totalPaid: p.totalPaid + reviewingMilestone.amount,
+              remainingAmount: p.remainingAmount - reviewingMilestone.amount,
               milestones: p.milestones.map(m =>
-                m.id === reviewingMilestone.id
-                  ? { ...m, status: 'finished' as const, finishedDate: today }
-                  : m
+                m.id === reviewingMilestone.id ? { ...m, status: 'Accepted' } : m
               ),
             }
           : p
@@ -368,49 +333,61 @@ const ClientDashboard = () => {
     setReviewingMilestone(null);
   };
 
-  const handleSubmitRating = () => {
-    if (!selectedProject || rating === 0) return;
-    setCompletedProjects(prev =>
-      prev.map(p =>
-        p.id === selectedProject.id ? { ...p, freelancerRating: rating } : p
-      )
-    );
-    setShowRatingModal(false);
-    setRating(0);
-    setRatingComment('');
+  /**
+   * Rate the freelancer after project completion.
+   * NOTE: rateFreelancer() expects a freelancerId; CompletedProject does not expose one,
+   * so we pass project.id as a surrogate. Update the backend to return freelancerId if needed.
+   */
+  const handleSubmitRating = async () => {
+    if (!selectedCompletedProject || rating === 0) return;
+    setActionLoading(true);
+    try {
+      await rateFreelancer(selectedCompletedProject.id, rating, ratingComment);
+      setCompletedProjects(prev =>
+        prev.map(p =>
+          p.id === selectedCompletedProject.id
+            ? { ...p, freelancerRatingGivenByClient: rating, isRated: true }
+            : p
+        )
+      );
+      setShowRatingModal(false);
+      setRating(0);
+      setRatingComment('');
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Failed to submit rating');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
-  const handleAddComment = (projectId: string) => {
+  /** Post a comment on an active project (optimistic). */
+  const handleAddComment = async (projectId: number) => {
     if (!newComment.trim()) return;
-    const today = new Date().toISOString().split('T')[0];
-    setActiveProjects(prev =>
-      prev.map(p =>
-        p.id === projectId
-          ? { ...p, comments: [...p.comments, { id: `c-${Date.now()}`, author: 'You', text: newComment, date: today }] }
-          : p
-      )
-    );
-    setNewComment('');
-  };
-
-  const handleAddMilestoneComment = (projectId: string, milestoneId: string) => {
-    if (!milestoneComment.trim()) return;
-    const today = new Date().toISOString().split('T')[0];
-    setActiveProjects(prev =>
-      prev.map(p =>
-        p.id === projectId
-          ? {
-              ...p,
-              milestones: p.milestones.map(m =>
-                m.id === milestoneId
-                  ? { ...m, comments: [...m.comments, { id: `mc-${Date.now()}`, author: 'You', authorRole: 'client' as const, text: milestoneComment, date: today }] }
-                  : m
-              ),
-            }
-          : p
-      )
-    );
-    setMilestoneComment('');
+    try {
+      await postProjectComment(projectId, newComment);
+      setActiveProjects(prev =>
+        prev.map(p =>
+          p.id === projectId
+            ? {
+                ...p,
+                comments: [
+                  ...p.comments,
+                  {
+                    id: `c-${Date.now()}`,
+                    content: newComment,
+                    senderName: 'You',
+                    senderImage: '',
+                    createdAt: new Date().toISOString().split('T')[0],
+                  },
+                ],
+              }
+            : p
+        )
+      );
+      setNewComment('');
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Failed to post comment');
+    }
   };
 
   const handleOpenReport = (name: string, avatar: string) => {
@@ -418,20 +395,56 @@ const ClientDashboard = () => {
     setShowReportModal(true);
   };
 
-  const handleRemovePostedProject = (id: string) => {
-    setPostedProjects(prev => prev.filter(p => p.id !== id));
-    setProjectToDelete(null);
-  };
+  // ─── Full-page loading / error states ─────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <div className="text-center">
+          <i className="ri-loader-4-line animate-spin text-4xl text-teal-400 mb-4 block"></i>
+          <p className={textSec}>Loading dashboard…</p>
+        </div>
+      </div>
+    );
+  }
 
+  if (pageError) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <div className="text-center">
+          <i className="ri-error-warning-line text-4xl text-red-400 mb-4 block"></i>
+          <p className="text-red-400 mb-4">{pageError}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-6 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Render ────────────────────────────────────────────────────────────────
   return (
     <>
+      {/* Action error toast */}
+      {actionError && (
+        <div className="fixed top-4 right-4 z-[60] flex items-center gap-3 px-4 py-3 bg-red-500 text-white rounded-lg shadow-xl">
+          <i className="ri-error-warning-line"></i>
+          <span className="text-sm">{actionError}</span>
+          <button onClick={() => setActionError(null)} className="ml-2">
+            <i className="ri-close-line"></i>
+          </button>
+        </div>
+      )}
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         {[
-          { label: t('clientDashboard.activeProjects'), value: stats.activeProjects, sub: t('clientDashboard.inProgress'), icon: 'ri-folder-line', color: 'text-teal-400' },
-          { label: t('clientDashboard.totalSpent'), value: `$${stats.totalSpent}`, sub: t('clientDashboard.allTime'), icon: 'ri-money-dollar-circle-line', color: 'text-orange-400' },
-          { label: t('clientDashboard.openPositions'), value: stats.openPositions, sub: t('clientDashboard.hiring'), icon: 'ri-briefcase-line', color: 'text-teal-400' },
-          { label: t('clientDashboard.completed'), value: stats.completed, sub: t('clientDashboard.projectsDone'), icon: 'ri-checkbox-circle-line', color: 'text-green-400' },
+          { label: t('clientDashboard.activeProjects'),  value: stats.activeProjects,        sub: t('clientDashboard.inProgress'),    icon: 'ri-folder-line',              color: 'text-teal-400' },
+          { label: t('clientDashboard.totalSpent'),       value: `$${stats.totalSpent}`,       sub: t('clientDashboard.allTime'),       icon: 'ri-money-dollar-circle-line', color: 'text-orange-400' },
+          { label: t('clientDashboard.openPositions'),    value: stats.openPositions,          sub: t('clientDashboard.hiring'),        icon: 'ri-briefcase-line',           color: 'text-teal-400' },
+          { label: t('clientDashboard.completed'),        value: stats.completed,              sub: t('clientDashboard.projectsDone'),  icon: 'ri-checkbox-circle-line',     color: 'text-green-400' },
         ].map((s) => (
           <div key={s.label} className={`${statCard} rounded-xl p-6`}>
             <div className="flex items-center justify-between mb-2">
@@ -465,7 +478,7 @@ const ClientDashboard = () => {
         ))}
       </div>
 
-      {/* ── Posted Projects Tab ─────────────────────────────────────────────── */}
+      {/* ── Posted Projects Tab ──────────────────────────────────────────────── */}
       {activeTab === 'posted' && (
         <div className="space-y-4">
           {postedProjects.map((project) => (
@@ -473,7 +486,6 @@ const ClientDashboard = () => {
               <div className="flex justify-between items-start mb-4">
                 <div>
                   <h3 className={`text-xl font-bold ${textPrimary} mb-2`}>{project.title}</h3>
-                  <p className={`${textSec} mb-2`}>{project.description}</p>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <span className={`px-4 py-2 ${getStatusColor(project.status)} font-semibold rounded-lg whitespace-nowrap capitalize`}>
@@ -494,65 +506,76 @@ const ClientDashboard = () => {
                   <p className={`${textPrimary} font-bold text-lg`}>${project.budget}</p>
                 </div>
                 <div>
+                  {/* Service returns createdAt; mapped as posted date */}
                   <span className={`${textSec} text-sm`}>{t('clientDashboard.postedDate')}</span>
-                  <p className={`${textPrimary} font-bold text-lg`}>{project.postedDate}</p>
+                  <p className={`${textPrimary} font-bold text-lg`}>{project.createdAt}</p>
                 </div>
                 <div>
+                  {/* proposalCount replaces applicants array length */}
                   <span className={`${textSec} text-sm`}>{t('clientDashboard.applicants')}</span>
-                  <p className={`${textPrimary} font-bold text-lg`}>{project.applicants.length}</p>
+                  <p className={`${textPrimary} font-bold text-lg`}>{project.proposalCount}</p>
                 </div>
               </div>
               <button
-                onClick={() => { setSelectedProject(project); setShowApplicantsModal(true); }}
+                onClick={() => handleViewApplicants(project)}
                 className="px-6 py-2 bg-teal-500 text-white font-semibold rounded-lg hover:bg-teal-600 transition-colors whitespace-nowrap cursor-pointer"
               >
-                {t('clientDashboard.viewApplicants')} ({project.applicants.length})
+                View Freelancers ({project.proposalCount})
               </button>
             </div>
           ))}
           {postedProjects.length === 0 && (
             <div className={`text-center py-12 border-2 border-dashed ${isLightMode ? 'border-gray-200' : 'border-white/20'} rounded-lg`}>
-              <i className={`ri-folder-open-line text-5xl ${textMuted} mb-4`}></i>
+              <i className={`ri-folder-open-line text-5xl ${textMuted} mb-4 block`}></i>
               <p className={textMuted}>{t('clientDashboard.noPostedProjects')}</p>
             </div>
           )}
         </div>
       )}
 
-      {/* ── Active Projects Tab ─────────────────────────────────────────────── */}
+      {/* ── Active Projects Tab ──────────────────────────────────────────────── */}
       {activeTab === 'active' && (
         <div className="space-y-6">
           {activeProjects.map((project) => (
             <div key={project.id} className={`${card} rounded-xl p-6`}>
               <div className="flex justify-between items-start mb-6">
                 <div className="flex items-center gap-4">
-                  {project.freelancer && (
-                    <img src={`https://nextcoder.runasp.net/${project.freelancer.avatar}`} alt={project.freelancer.name} className="w-12 h-12 rounded-lg object-cover" />
+                  {project.freelancerImageUrl && (
+                    <img
+                      src={`https://nextcoder.runasp.net/${project.freelancerImageUrl}`}
+                      alt={project.freelancerName}
+                      className="w-12 h-12 rounded-lg object-cover"
+                    />
+                  )}
+                  {!project.freelancerImageUrl && (
+                     <img
+                      src={generalAvatar}
+                      alt={project.freelancerName}
+                      className="w-12 h-12 rounded-lg object-cover"
+                    />
                   )}
                   <div>
                     <h3 className={`text-xl font-bold ${textPrimary} mb-1`}>{project.title}</h3>
-                    {project.freelancer && (
-                      <p className={`${textSec} text-sm`}>{t('clientDashboard.freelancer')} {project.freelancer.name}</p>
-                    )}
+                    <p className={`${textSec} text-sm`}>
+                      {t('clientDashboard.freelancer')} {project.freelancerName}
+                    </p>
                   </div>
                 </div>
-                {project.freelancer && (
-                  <button
-                    onClick={() => handleOpenReport(project.freelancer!.name, project.freelancer!.avatar)}
-                    className="px-4 py-2 bg-red-500/10 text-red-400 font-semibold rounded-lg hover:bg-red-500/20 transition-colors whitespace-nowrap cursor-pointer text-sm"
-                  >
-                    <i className="ri-flag-line mr-1"></i>{t('clientDashboard.report')}
-                  </button>
-                )}
+                <button
+                  onClick={() => handleOpenReport(project.freelancerName, project.freelancerImageUrl)}
+                  className="px-4 py-2 bg-red-500/10 text-red-400 font-semibold rounded-lg hover:bg-red-500/20 transition-colors whitespace-nowrap cursor-pointer text-sm"
+                >
+                  <i className="ri-flag-line mr-1"></i>{t('clientDashboard.report')}
+                </button>
               </div>
 
               {/* Budget & Progress */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                 {[
-                  { label: t('clientDashboard.totalBudget'), value: `$${project.budget}`, cls: textPrimary },
-                  { label: t('clientDashboard.totalPaid'), value: `$${project.totalPaid}`, cls: 'text-green-400' },
-                  { label: t('clientDashboard.remaining'), value: `$${project.budget - project.totalPaid}`, cls: 'text-orange-400' },
-                ].map(item => (
+                  { label: t('clientDashboard.totalBudget'), value: `$${project.totalBudget}`,      cls: textPrimary },
+                  { label: t('clientDashboard.totalPaid'),   value: `$${project.totalPaid}`,        cls: 'text-green-400' },
+                  { label: t('clientDashboard.remaining'),   value: `$${project.remainingAmount}`,  cls: 'text-orange-400' },
+                ].map((item) => (
                   <div key={item.label} className={`${milestoneMiniCard} rounded-lg p-4`}>
                     <span className={`${labelSmall} text-sm`}>{item.label}</span>
                     <p className={`${item.cls} font-bold text-xl`}>{item.value}</p>
@@ -560,20 +583,26 @@ const ClientDashboard = () => {
                 ))}
                 <div className={`${milestoneMiniCard} rounded-lg p-4`}>
                   <span className={`${labelSmall} text-sm`}>{t('clientDashboard.progress')}</span>
-                  <p className="text-teal-400 font-bold text-xl">{getMilestoneProgress(project.milestones)}%</p>
+                  <p className="text-teal-400 font-bold text-xl">{project.progressPercent}%</p>
                   <div className={`w-full ${isLightMode ? 'bg-gray-200' : 'bg-white/10'} rounded-full h-1.5 mt-2`}>
-                    <div className="bg-teal-500 h-1.5 rounded-full transition-all" style={{ width: `${getMilestoneProgress(project.milestones)}%` }}></div>
+                    <div
+                      className="bg-teal-500 h-1.5 rounded-full transition-all"
+                      style={{ width: `${project.progressPercent}%` }}
+                    ></div>
                   </div>
                 </div>
               </div>
 
               {/* Status Legend */}
               <div className="flex flex-wrap gap-3 mb-4">
-                {['pending', 'approved', 'rejected', 'submitted', 'late', 'finished'].map(s => {
+                {['accepted', 'submitted', 'pending', 'inprogress'].map((s) => {
                   const cfg = getMilestoneStatusConfig(s);
                   return (
                     <div key={s} className="flex items-center gap-1.5 text-xs">
-                      <span className={`w-2 h-2 rounded-full ${cfg.text}`} style={{ backgroundColor: 'currentColor' }}></span>
+                      <span
+                        className={`w-2 h-2 rounded-full ${cfg.text}`}
+                        style={{ backgroundColor: 'currentColor' }}
+                      ></span>
                       <span className={labelSmall}>{cfg.label}</span>
                     </div>
                   );
@@ -585,6 +614,7 @@ const ClientDashboard = () => {
                 <h4 className={`text-lg font-bold ${textPrimary} mb-4`}>{t('clientDashboard.milestones')}</h4>
                 <div className="space-y-3">
                   {project.milestones.map((milestone) => {
+                    const statusKey = normalizeMilestoneStatus(milestone.status);
                     const cfg = getMilestoneStatusConfig(milestone.status);
                     const isExpanded = expandedMilestone === milestone.id;
                     return (
@@ -604,24 +634,42 @@ const ClientDashboard = () => {
                                   {cfg.label}
                                 </span>
                               </div>
-                              <div className="flex flex-wrap items-center gap-4 text-sm ml-8">
+                              <div className="flex flex-wrap items-center gap-3 text-sm ml-8">
                                 <span className="text-green-500 font-semibold">${milestone.amount}</span>
-                                <span className={labelSmall}><i className="ri-time-line mr-1"></i>{milestone.duration}</span>
-                                <span className={labelSmall}><i className="ri-calendar-line mr-1"></i>{t('clientDashboard.dueDate')} {milestone.deadline}</span>
+                                {milestone.description && (
+                                  <span className={`${textSec} max-w-2xl`}>{milestone.description}</span>
+                                )}
+                                {milestone.deliverables && milestone.deliverables.length > 0 && (
+                                  <span className="px-2 py-1 bg-teal-500/10 text-teal-400 text-xs font-semibold rounded-full">
+                                    {milestone.deliverables.length} {t('clientDashboard.deliverables')}
+                                  </span>
+                                )}
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
-                              {milestone.status === 'pending' && (
+                              {statusKey === 'submitted' && (
                                 <button
-                                  onClick={(e) => { e.stopPropagation(); setReviewingMilestone(milestone); setSelectedProject(project); setShowMilestoneReviewModal(true); }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setReviewingMilestone(milestone);
+                                    setSelectedActiveProject(project);
+                                    setRejectionComment('');
+                                    setShowMilestoneReviewModal(true);
+                                  }}
                                   className="px-3 py-1.5 bg-amber-500/20 text-amber-500 text-xs font-semibold rounded-lg hover:bg-amber-500/30 transition-colors whitespace-nowrap cursor-pointer"
                                 >
                                   <i className="ri-eye-line mr-1"></i>{t('clientDashboard.review')}
                                 </button>
                               )}
-                              {milestone.status === 'submitted' && (
+                              {statusKey === 'accepted' && (
                                 <button
-                                  onClick={(e) => { e.stopPropagation(); setReviewingMilestone(milestone); setSelectedProject(project); setRejectionComment(''); setShowSubmittedReviewModal(true); }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setReviewingMilestone(milestone);
+                                    setSelectedActiveProject(project);
+                                    setRejectionComment('');
+                                    setShowSubmittedReviewModal(true);
+                                  }}
                                   className="px-3 py-1.5 bg-teal-500 text-white text-xs font-semibold rounded-lg hover:bg-teal-600 transition-colors whitespace-nowrap cursor-pointer"
                                 >
                                   <i className="ri-checkbox-circle-line mr-1"></i>{t('clientDashboard.reviewSubmission')}
@@ -634,73 +682,70 @@ const ClientDashboard = () => {
 
                         {isExpanded && (
                           <div className={`border-t ${divider} p-4 space-y-4`}>
+                            {/* description maps to 'deliverables' intent */}
                             <div>
-                              <span className={`${labelSmall} text-xs font-medium uppercase tracking-wider`}>{t('clientDashboard.deliverables')}</span>
-                              <p className={`${textLight} text-sm mt-1`}>{milestone.deliverables}</p>
+                              <span className={`${labelSmall} text-xs font-medium uppercase tracking-wider`}>
+                                {t('clientDashboard.deliverables')}
+                              </span>
+                              <p className={`${textLight} text-sm mt-1`}>{milestone.description}</p>
                             </div>
-                            <div className="flex flex-wrap gap-4 text-xs">
-                              {milestone.submittedDate && <span className={labelSmall}><i className="ri-upload-line mr-1"></i>{t('clientDashboard.submittedDate')} {milestone.submittedDate}</span>}
-                              {milestone.approvedDate && <span className="text-green-500"><i className="ri-check-line mr-1"></i>{t('clientDashboard.approvedDate')} {milestone.approvedDate}</span>}
-                              {milestone.finishedDate && <span className="text-emerald-500"><i className="ri-money-dollar-circle-line mr-1"></i>{t('clientDashboard.paidDate')} {milestone.finishedDate}</span>}
-                            </div>
-                            {milestone.rejectionComment && (
+
+                            {/* submissionNote – freelancer's note when they submitted */}
+                            {milestone.submissionNote && (
+                              <div>
+                                <span className={`${labelSmall} text-xs font-medium uppercase tracking-wider`}>
+                                  {t('clientDashboard.submitted')}
+                                </span>
+                                <p className={`${textLight} text-sm mt-1`}>{milestone.submissionNote}</p>
+                              </div>
+                            )}
+
+                            {/* Deliverable file links */}
+                            {milestone.deliverables && milestone.deliverables.length > 0 && (
+                              <div>
+                                <span className={`${labelSmall} text-xs font-medium uppercase tracking-wider`}>
+                                  Files
+                                </span>
+                                <div className="flex flex-wrap gap-2 mt-1">
+                                  {milestone.deliverables.map((d) => (
+                                    <a
+                                      key={d.id}
+                                      href={`https://nextcoder.runasp.net/${d.fileUrl}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-500/10 text-teal-400 text-xs rounded-lg hover:bg-teal-500/20 transition-colors"
+                                    >
+                                      <i className="ri-attachment-line"></i>
+                                      Attachment
+                                    </a>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Client rejection / change-request comment */}
+                            {milestone.clientComment && (
                               <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
                                 <div className="flex items-center gap-2 mb-1">
                                   <i className="ri-close-circle-line text-red-500 text-sm"></i>
-                                  <span className="text-red-500 text-xs font-semibold">{t('clientDashboard.yourRejection')}</span>
+                                  <span className="text-red-500 text-xs font-semibold">
+                                    {t('clientDashboard.yourRejection')}
+                                  </span>
                                 </div>
-                                <p className="text-red-500/80 text-sm">{milestone.rejectionComment}</p>
+                                <p className="text-red-500/80 text-sm">{milestone.clientComment}</p>
                               </div>
                             )}
+
                             {milestone.status === 'late' && (
                               <div className="p-3 bg-orange-500/10 border border-orange-500/20 rounded-lg">
                                 <div className="flex items-center gap-2">
                                   <i className="ri-alarm-warning-line text-orange-500 text-sm"></i>
-                                  <span className="text-orange-500 text-sm font-medium">{t('clientDashboard.pastDeadline')} ({milestone.deadline})</span>
+                                  <span className="text-orange-500 text-sm font-medium">
+                                    {t('clientDashboard.pastDeadline')}
+                                  </span>
                                 </div>
                               </div>
                             )}
-                            <div>
-                              <span className={`${labelSmall} text-xs font-medium uppercase tracking-wider`}>{t('clientDashboard.discussion')}</span>
-                              {milestone.comments.length > 0 ? (
-                                <div className="space-y-2 mt-2">
-                                  {milestone.comments.map(c => (
-                                    <div key={c.id} className={`flex gap-3 p-2.5 ${milestoneInner} rounded-lg`}>
-                                      <div className={`w-6 h-6 flex items-center justify-center rounded-full flex-shrink-0 ${c.authorRole === 'client' ? 'bg-cyan-500/20' : 'bg-teal-500/20'}`}>
-                                        <i className={`ri-user-line text-xs ${c.authorRole === 'client' ? 'text-cyan-500' : 'text-teal-500'}`}></i>
-                                      </div>
-                                      <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2 mb-0.5">
-                                          <span className={`${textPrimary} text-xs font-semibold`}>{c.author}</span>
-                                          <span className={`${textMuted} text-xs`}>{c.date}</span>
-                                        </div>
-                                        <p className={`${textLight} text-sm`}>{c.text}</p>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : (
-                                <p className={`${textMuted} text-sm mt-2`}>{t('common.noCommentsYet')}</p>
-                              )}
-                              {milestone.status !== 'finished' && (
-                                <div className="flex gap-2 mt-3">
-                                  <input
-                                    type="text"
-                                    value={expandedMilestone === milestone.id ? milestoneComment : ''}
-                                    onChange={(e) => setMilestoneComment(e.target.value)}
-                                    placeholder={t('common.addComment')}
-                                    className={`flex-1 border rounded-lg px-3 py-2 text-sm outline-none ${inputCls}`}
-                                    onClick={(e) => e.stopPropagation()}
-                                  />
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); handleAddMilestoneComment(project.id, milestone.id); }}
-                                    className="px-4 py-2 bg-teal-500 text-white text-sm font-semibold rounded-lg hover:bg-teal-600 transition-colors whitespace-nowrap cursor-pointer"
-                                  >
-                                    {t('common.send')}
-                                  </button>
-                                </div>
-                              )}
-                            </div>
                           </div>
                         )}
                       </div>
@@ -716,10 +761,11 @@ const ClientDashboard = () => {
                   {project.comments.map((comment) => (
                     <div key={comment.id} className={`${commentCard} rounded-lg p-4`}>
                       <div className="flex justify-between items-start mb-2">
-                        <span className={`${textPrimary} font-semibold`}>{comment.author}</span>
-                        <span className={`${textSec} text-sm`}>{comment.date}</span>
+                        {/* Service uses senderName / senderImage / content / createdAt */}
+                        <span className={`${textPrimary} font-semibold`}>{comment.senderName}</span>
+                        <span className={`${textSec} text-sm`}>{comment.createdAt}</span>
                       </div>
-                      <p className={textLight}>{comment.text}</p>
+                      <p className={textLight}>{comment.content}</p>
                     </div>
                   ))}
                 </div>
@@ -728,10 +774,14 @@ const ClientDashboard = () => {
                     type="text"
                     value={newComment}
                     onChange={(e) => setNewComment(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddComment(project.id)}
                     placeholder={t('common.addComment')}
                     className={`flex-1 border rounded-lg px-4 py-3 text-sm outline-none ${inputCls}`}
                   />
-                  <button onClick={() => handleAddComment(project.id)} className="px-6 py-3 bg-teal-500 text-white font-semibold rounded-lg hover:bg-teal-600 transition-colors whitespace-nowrap cursor-pointer">
+                  <button
+                    onClick={() => handleAddComment(project.id)}
+                    className="px-6 py-3 bg-teal-500 text-white font-semibold rounded-lg hover:bg-teal-600 transition-colors whitespace-nowrap cursor-pointer"
+                  >
                     {t('common.send')}
                   </button>
                 </div>
@@ -741,32 +791,41 @@ const ClientDashboard = () => {
         </div>
       )}
 
-      {/* ── Completed Projects Tab ──────────────────────────────────────────── */}
+      {/* ── Completed Projects Tab ───────────────────────────────────────────── */}
       {activeTab === 'completed' && (
         <div className="space-y-6">
           {completedProjects.map((project) => (
             <div key={project.id} className={`${card} rounded-xl p-6`}>
               <div className="flex justify-between items-start mb-6">
                 <div className="flex items-center gap-4">
-                  {project.freelancer && (
-                    <img src= {project.freelancer.avatar} alt={project.freelancer.name} className="w-12 h-12 rounded-lg object-cover" />
+                  {project.freelancerImageUrl && (
+                    <img
+                      src={`https://nextcoder.runasp.net/${project.freelancerImageUrl}`}
+                      alt={project.freelancerName}
+                      className="w-12 h-12 rounded-lg object-cover"
+                    />
+                  )}
+                  {!project.freelancerImageUrl && (
+                     <img
+                      src={generalAvatar}
+                      alt={project.freelancerName}
+                      className="w-12 h-12 rounded-lg object-cover"
+                    />
                   )}
                   <div>
                     <h3 className={`text-xl font-bold ${textPrimary} mb-1`}>{project.title}</h3>
-                    {project.freelancer && (
-                      <p className={`${textSec} text-sm`}>{t('clientDashboard.freelancer')} {project.freelancer.name}</p>
-                    )}
+                    <p className={`${textSec} text-sm`}>
+                      {t('clientDashboard.freelancer')} {project.freelancerName}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  {project.freelancer && (
-                    <button
-                      onClick={() => handleOpenReport(project.freelancer!.name, project.freelancer!.avatar)}
-                      className="px-4 py-2 bg-red-500/10 text-red-400 font-semibold rounded-lg hover:bg-red-500/20 transition-colors whitespace-nowrap cursor-pointer text-sm"
-                    >
-                      <i className="ri-flag-line mr-1"></i>{t('clientDashboard.report')}
-                    </button>
-                  )}
+                  <button
+                    onClick={() => handleOpenReport(project.freelancerName, project.freelancerImageUrl)}
+                    className="px-4 py-2 bg-red-500/10 text-red-400 font-semibold rounded-lg hover:bg-red-500/20 transition-colors whitespace-nowrap cursor-pointer text-sm"
+                  >
+                    <i className="ri-flag-line mr-1"></i>{t('clientDashboard.report')}
+                  </button>
                   <span className="px-4 py-2 bg-green-500/20 text-green-500 font-semibold rounded-lg whitespace-nowrap">
                     {t('clientDashboard.completedLabel')}
                   </span>
@@ -779,8 +838,9 @@ const ClientDashboard = () => {
                   <p className="text-green-500 font-bold text-xl">${project.totalPaid}</p>
                 </div>
                 <div className={`${milestoneMiniCard} rounded-lg p-4`}>
+                  {/* milestonesCompletedCount replaces milestones array length */}
                   <span className={`${textSec} text-sm`}>{t('clientDashboard.milestonesCompleted')}</span>
-                  <p className={`${textPrimary} font-bold text-xl`}>{project.milestones.length}</p>
+                  <p className={`${textPrimary} font-bold text-xl`}>{project.milestonesCompletedCount}</p>
                 </div>
               </div>
 
@@ -788,15 +848,21 @@ const ClientDashboard = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                 <div className={`${milestoneMiniCard} rounded-lg p-4`}>
                   <span className={`${textSec} text-sm mb-2 block`}>{t('clientDashboard.myRatingForFreelancer')}</span>
-                  {project.freelancerRating ? (
+                  {/* isRated / freelancerRatingGivenByClient from service */}
+                  {project.isRated && project.freelancerRatingGivenByClient != null ? (
                     <div className="flex items-center gap-2">
                       {[...Array(5)].map((_, i) => (
-                        <i key={i} className={`ri-star-fill text-xl ${i < project.freelancerRating! ? 'text-yellow-400' : isLightMode ? 'text-gray-200' : 'text-white/20'}`}></i>
+                        <i
+                          key={i}
+                          className={`ri-star-fill text-xl ${
+                            i < project.freelancerRatingGivenByClient! ? 'text-yellow-400' : isLightMode ? 'text-gray-200' : 'text-white/20'
+                          }`}
+                        ></i>
                       ))}
                     </div>
                   ) : (
                     <button
-                      onClick={() => { setSelectedProject(project); setShowRatingModal(true); }}
+                      onClick={() => { setSelectedCompletedProject(project); setShowRatingModal(true); }}
                       className="px-4 py-2 bg-teal-500 text-white font-semibold rounded-lg hover:bg-teal-600 transition-colors whitespace-nowrap cursor-pointer"
                     >
                       {t('clientDashboard.rateFreelancer')}
@@ -805,10 +871,16 @@ const ClientDashboard = () => {
                 </div>
                 <div className={`${milestoneMiniCard} rounded-lg p-4`}>
                   <span className={`${textSec} text-sm mb-2 block`}>{t('clientDashboard.ratingFromFreelancer')}</span>
-                  {project.myRating ? (
+                  {/* clientRatingFromFreelancer from service */}
+                  {project.clientRatingFromFreelancer != null ? (
                     <div className="flex items-center gap-2">
                       {[...Array(5)].map((_, i) => (
-                        <i key={i} className={`ri-star-fill text-xl ${i < project.myRating! ? 'text-yellow-400' : isLightMode ? 'text-gray-200' : 'text-white/20'}`}></i>
+                        <i
+                          key={i}
+                          className={`ri-star-fill text-xl ${
+                            i < project.clientRatingFromFreelancer! ? 'text-yellow-400' : isLightMode ? 'text-gray-200' : 'text-white/20'
+                          }`}
+                        ></i>
                       ))}
                     </div>
                   ) : (
@@ -816,23 +888,6 @@ const ClientDashboard = () => {
                   )}
                 </div>
               </div>
-
-              {project.comments.length > 0 && (
-                <div>
-                  <h4 className={`text-lg font-bold ${textPrimary} mb-3`}>{t('clientDashboard.projectComments')}</h4>
-                  <div className="space-y-3">
-                    {project.comments.map((comment) => (
-                      <div key={comment.id} className={`${commentCard} rounded-lg p-4`}>
-                        <div className="flex justify-between items-start mb-2">
-                          <span className={`${textPrimary} font-semibold`}>{comment.author}</span>
-                          <span className={`${textSec} text-sm`}>{comment.date}</span>
-                        </div>
-                        <p className={textLight}>{comment.text}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           ))}
         </div>
@@ -840,101 +895,219 @@ const ClientDashboard = () => {
 
       {/* ══════════════════ MODALS ══════════════════ */}
 
-      {/* Applicants Modal */}
-      {showApplicantsModal && selectedProject && (
+      {/* Applicants / Proposals Modal */}
+      {showApplicantsModal && selectedPostedProject && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowApplicantsModal(false)}></div>
           <div className={`relative ${modalBg} rounded-2xl p-8 w-full max-w-4xl max-h-[90vh] overflow-y-auto`}>
-            <button onClick={() => setShowApplicantsModal(false)} className={`absolute top-4 right-4 w-8 h-8 flex items-center justify-center ${closeBtn} cursor-pointer`}>
+            <button
+              onClick={() => setShowApplicantsModal(false)}
+              className={`absolute top-4 right-4 w-8 h-8 flex items-center justify-center ${closeBtn} cursor-pointer`}
+            >
               <i className="ri-close-line text-xl"></i>
             </button>
-            <h3 className={`text-2xl font-bold ${textPrimary} mb-6`}>{t('clientDashboard.applicantsFor')} {selectedProject.title}</h3>
-            <div className="space-y-4">
-              {selectedProject.applicants.length === 0 ? (
-                <div className="text-center py-12">
-                  <i className={`ri-user-search-line text-5xl ${textMuted} mb-4`}></i>
-                  <p className={textSec}>{t('clientDashboard.noApplicants')}</p>
-                </div>
-              ) : (
-                selectedProject.applicants.map((freelancer) => (
-                  <div key={freelancer.id} className={`${innerCard} rounded-xl p-6`}>
+            <h3 className={`text-2xl font-bold ${textPrimary} mb-6`}>
+              Freelancers for {selectedPostedProject.title}
+            </h3>
+
+            {proposalsLoading ? (
+              <div className="flex items-center justify-center py-16">
+                <i className="ri-loader-4-line animate-spin text-3xl text-teal-400"></i>
+              </div>
+            ) : proposals.length === 0 ? (
+              <div className="text-center py-12">
+                <i className={`ri-user-search-line text-5xl ${textMuted} mb-4 block`}></i>
+                <p className={textSec}>{t('clientDashboard.noApplicants')}</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {proposals.map((proposal) => (
+                  <div key={proposal.id} className={`${innerCard} rounded-xl p-6`}>
                     <div className="flex items-start gap-4 mb-4">
-                      <img src={`https://nextcoder.runasp.net/${freelancer.avatar}`} alt={freelancer.name} className="w-16 h-16 rounded-lg object-cover" />
+                      {proposal.freelancerImageUrl ? (
+                        <img
+                          src={`https://nextcoder.runasp.net/${proposal.freelancerImageUrl}`}
+                          alt={proposal.freelancerName}
+                          className="w-16 h-16 rounded-lg object-cover"
+                        />
+                      ) : (
+                        <img
+                          src={generalAvatar}
+                          alt={proposal.freelancerName}
+                          className="w-16 h-16 rounded-lg object-cover"
+                        />
+                      )}
                       <div className="flex-1">
-                        <h4 className={`text-xl font-bold ${textPrimary} mb-1`}>{freelancer.name}</h4>
+                        <h4 className={`text-xl font-bold ${textPrimary} mb-1`}>{proposal.freelancerName}</h4>
                         <div className="flex items-center gap-4 text-sm mb-2">
-                          <div className="flex items-center gap-1">
-                            <i className="ri-star-fill text-yellow-400"></i>
-                            <span className={textPrimary}>{freelancer.rating}</span>
-                          </div>
-                          <span className={textSec}>${freelancer.hourlyRate}/hr</span>
+                          <span className={`${textSec} capitalize`}>{proposal.status}</span>
+                          <span className={textSec}>{proposal.createdAt}</span>
                         </div>
-                        <div className="flex flex-wrap gap-2">
-                          {freelancer.skills.map((skill) => (
-                            <span key={skill} className="px-2 py-1 bg-teal-500/20 text-teal-500 text-xs rounded">{skill}</span>
+                      </div>
+                    </div>
+
+                    {/* Cover letter */}
+                    <div className="mb-4">
+                      <h5 className={`${textPrimary} font-semibold mb-2`}>{t('clientDashboard.proposal')}</h5>
+                      <p className={`${textLight} text-sm`}>{proposal.coverLetter}</p>
+                    </div>
+
+                    {/* Milestones summary */}
+                    {proposal.milestones.length > 0 && (
+                      <div className="mb-4">
+                        <h5 className={`${textPrimary} font-semibold mb-2 text-sm`}>Milestones</h5>
+                        <div className="space-y-2">
+                          {proposal.milestones.map((m) => (
+                            <div key={m.id} className={`flex justify-between items-center px-3 py-2 rounded-lg ${isLightMode ? 'bg-gray-100' : 'bg-white/5'}`}>
+                              <span className={`${textLight} text-sm`}>{m.title}</span>
+                              <span className="text-green-500 text-sm font-semibold">${m.amount}</span>
+                            </div>
                           ))}
                         </div>
                       </div>
-                    </div>
-                    <div className="mb-4">
-                      <h5 className={`${textPrimary} font-semibold mb-2`}>{t('clientDashboard.proposal')}</h5>
-                      <p className={`${textLight} text-sm`}>{freelancer.proposal}</p>
-                    </div>
+                    )}
+
                     <div className="flex justify-between items-center">
                       <div>
                         <span className={`${textSec} text-sm`}>{t('clientDashboard.proposedBudget')} </span>
-                        <span className="text-green-500 font-bold text-lg">${freelancer.proposedBudget}</span>
+                        <span className="text-green-500 font-bold text-lg">${proposal.totalAmount}</span>
                       </div>
-                      <button onClick={() => handleAcceptFreelancer(freelancer.id)} className="px-6 py-2 bg-teal-500 text-white font-semibold rounded-lg hover:bg-teal-600 transition-colors whitespace-nowrap cursor-pointer">
-                        {t('clientDashboard.acceptProposal')}
+                      <button
+                        onClick={() => handleAcceptProposal(proposal.id)}
+                        className="px-6 py-2 bg-teal-500 text-white font-semibold rounded-lg hover:bg-teal-600 transition-colors whitespace-nowrap cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {actionLoading ? <i className="ri-loader-4-line animate-spin"></i> : t('clientDashboard.acceptProposal')}
                       </button>
                     </div>
                   </div>
-                ))
-              )}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {/* Milestone Review Modal (pending) */}
-      {showMilestoneReviewModal && reviewingMilestone && selectedProject && (
+      {/* Milestone Review Modal (pending plan) */}
+      {showMilestoneReviewModal && reviewingMilestone && selectedActiveProject && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowMilestoneReviewModal(false)}></div>
+
           <div className={`relative ${modalBg} rounded-2xl p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto`}>
-            <button onClick={() => setShowMilestoneReviewModal(false)} className={`absolute top-4 right-4 w-8 h-8 flex items-center justify-center ${closeBtn} cursor-pointer`}>
+            <button
+              onClick={() => setShowMilestoneReviewModal(false)}
+              className={`absolute top-4 right-4 w-8 h-8 flex items-center justify-center ${closeBtn} cursor-pointer`}
+            >
               <i className="ri-close-line text-xl"></i>
             </button>
-            <h3 className={`text-2xl font-bold ${textPrimary} mb-2`}>{t('clientDashboard.reviewMilestoneTitle')}</h3>
-            <p className={`${textSec} text-sm mb-6`}>{t('clientDashboard.reviewMilestoneSubtitle')}</p>
+
+            <h3 className={`text-2xl font-bold ${textPrimary} mb-2`}>
+              {t('clientDashboard.reviewMilestoneTitle')}
+            </h3>
+
+            <p className={`${textSec} text-sm mb-6`}>
+              {t('clientDashboard.reviewMilestoneSubtitle')}
+            </p>
+
             <div className={`${innerCard} rounded-xl p-5 mb-6 space-y-4`}>
+
               <div>
-                <span className={`${labelSmall} text-xs font-medium uppercase tracking-wider`}>{t('clientDashboard.milestone')}</span>
-                <p className={`${textPrimary} font-semibold mt-1`}>{reviewingMilestone.title}</p>
+                <span className={`${labelSmall} text-xs font-medium uppercase tracking-wider`}>
+                  {t('clientDashboard.milestone')}
+                </span>
+
+                <p className={`${textPrimary} font-semibold mt-1`}>
+                  {reviewingMilestone.title}
+                </p>
               </div>
+
+              {/* Expected Deliverables Files */}
+              {reviewingMilestone.deliverables && reviewingMilestone.deliverables.length > 0 && (
+                <div>
+                  <span className={`${labelSmall} text-xs font-medium uppercase tracking-wider`}>
+                    {t('clientDashboard.expectedDeliverables')}
+                  </span>
+
+                  <div className="space-y-2 mt-2">
+                    {reviewingMilestone.deliverables.map((file) => {
+                      const fileName = 'https://nextcoder.runasp.net/' + file.fileUrl
+                      const uploadedDate = file.uploadedAt
+                        ? new Date(file.uploadedAt).toLocaleDateString()
+                        : null;
+                      return (
+                        <div
+                          key={file.id}
+                          className="flex items-center justify-between px-3 py-2 bg-blue-500/10 rounded-lg"
+                        >
+                          <span className="flex items-center gap-2 min-w-0">
+                            <i className="ri-file-line text-blue-400 flex-shrink-0"></i>
+                            <span className="min-w-0">
+                              <span className={`${textLight} text-xs block truncate max-w-[200px]`}>
+                                Attachment
+                              </span>
+                              {uploadedDate && (
+                                <span className={`${textSec} text-xs`}>{uploadedDate}</span>
+                              )}
+                            </span>
+                          </span>
+
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <a
+                              href={fileName}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-3 py-1 bg-blue-500/20 text-blue-400 rounded-md text-xs hover:bg-blue-500/30 transition-colors"
+                            >
+                              View
+                            </a>
+
+                            <a
+                              href={fileName}
+                              download={fileName}
+                              className="px-3 py-1 bg-white/10 text-white rounded-md text-xs hover:bg-white/20 transition-colors"
+                            >
+                              Download
+                            </a>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Freelancer Note */}
+              {reviewingMilestone.submissionNote && (
+                <div>
+                  <span className={`${labelSmall} text-xs font-medium uppercase tracking-wider`}>
+                    Freelancer Note
+                  </span>
+
+                  <p className={`${textLight} text-sm mt-1`}>
+                    {reviewingMilestone.submissionNote}
+                  </p>
+                </div>
+              )}
+
               <div>
-                <span className={`${labelSmall} text-xs font-medium uppercase tracking-wider`}>{t('clientDashboard.deliverables')}</span>
-                <p className={`${textLight} text-sm mt-1`}>{reviewingMilestone.deliverables}</p>
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <span className={`${labelSmall} text-xs font-medium uppercase tracking-wider`}>{t('clientDashboard.amount')}</span>
-                  <p className="text-green-500 font-bold text-lg mt-1">${reviewingMilestone.amount}</p>
-                </div>
-                <div>
-                  <span className={`${labelSmall} text-xs font-medium uppercase tracking-wider`}>{t('freelancerDashboard.duration')}</span>
-                  <p className={`${textPrimary} font-semibold mt-1`}>{reviewingMilestone.duration}</p>
-                </div>
-                <div>
-                  <span className={`${labelSmall} text-xs font-medium uppercase tracking-wider`}>{t('freelancerDashboard.deadline')}</span>
-                  <p className={`${textPrimary} font-semibold mt-1`}>{reviewingMilestone.deadline}</p>
-                </div>
+                <span className={`${labelSmall} text-xs font-medium uppercase tracking-wider`}>
+                  {t('clientDashboard.amount')}
+                </span>
+
+                <p className="text-green-500 font-bold text-lg mt-1">
+                  ${reviewingMilestone.amount}
+                </p>
               </div>
             </div>
+
             <div className="mb-6">
               <label className={`block ${textPrimary} font-medium mb-2`}>
-                {t('clientDashboard.rejectionComment')} <span className={`${textSec} text-sm`}>{t('clientDashboard.rejectionCommentRequired')}</span>
+                {t('clientDashboard.rejectionComment')}
+
+                <span className={`${textSec} text-sm ml-1`}>
+                  {t('clientDashboard.rejectionCommentRequired')}
+                </span>
               </label>
+
               <textarea
                 value={rejectionComment}
                 onChange={(e) => setRejectionComment(e.target.value.slice(0, 500))}
@@ -942,18 +1115,33 @@ const ClientDashboard = () => {
                 placeholder={t('clientDashboard.rejectionPlaceholder')}
                 className={`w-full border rounded-lg px-4 py-3 text-sm outline-none resize-none ${inputCls}`}
               ></textarea>
-              <p className={`${textMuted} text-xs mt-1 text-right`}>{rejectionComment.length}/500</p>
+
+              <p className={`${textMuted} text-xs mt-1 text-right`}>
+                {rejectionComment.length}/500
+              </p>
             </div>
+
             <div className="flex gap-3">
               <button
                 onClick={handleRejectMilestone}
-                disabled={!rejectionComment.trim()}
+                disabled={!rejectionComment.trim() || actionLoading}
                 className="flex-1 px-5 py-3 bg-red-500 text-white font-semibold rounded-lg hover:bg-red-600 transition-colors whitespace-nowrap cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <i className="ri-close-circle-line mr-2"></i>{t('clientDashboard.reject')}
+                {actionLoading
+                  ? <i className="ri-loader-4-line animate-spin"></i>
+                  : <><i className="ri-close-circle-line mr-2"></i>{t('clientDashboard.reject')}</>
+                }
               </button>
-              <button onClick={handleApproveMilestone} className="flex-1 px-5 py-3 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 transition-colors whitespace-nowrap cursor-pointer">
-                <i className="ri-check-line mr-2"></i>{t('clientDashboard.approve')}
+
+              <button
+                onClick={handleApproveMilestone}
+                disabled={actionLoading || reviewingMilestone.status !== 'Submitted'}
+                className="flex-1 px-5 py-3 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 transition-colors whitespace-nowrap cursor-pointer disabled:opacity-50"
+              >
+                {actionLoading
+                  ? <i className="ri-loader-4-line animate-spin"></i>
+                  : <><i className="ri-check-line mr-2"></i>{t('clientDashboard.approve')}</>
+                }
               </button>
             </div>
           </div>
@@ -961,57 +1149,133 @@ const ClientDashboard = () => {
       )}
 
       {/* Submitted Deliverables Review Modal */}
-      {showSubmittedReviewModal && reviewingMilestone && selectedProject && (
+      {showSubmittedReviewModal && reviewingMilestone && selectedActiveProject && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowSubmittedReviewModal(false)}></div>
+
           <div className={`relative ${modalBg} rounded-2xl p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto`}>
-            <button onClick={() => setShowSubmittedReviewModal(false)} className={`absolute top-4 right-4 w-8 h-8 flex items-center justify-center ${closeBtn} cursor-pointer`}>
+            <button
+              onClick={() => setShowSubmittedReviewModal(false)}
+              className={`absolute top-4 right-4 w-8 h-8 flex items-center justify-center ${closeBtn} cursor-pointer`}
+            >
               <i className="ri-close-line text-xl"></i>
             </button>
+
             <div className="text-center mb-6">
               <div className="w-16 h-16 flex items-center justify-center rounded-full bg-teal-500/20 mx-auto mb-4">
                 <i className="ri-upload-2-line text-3xl text-teal-500"></i>
               </div>
-              <h3 className={`text-2xl font-bold ${textPrimary} mb-2`}>{t('clientDashboard.reviewSubmittedTitle')}</h3>
-              <p className={`${textSec} text-sm`}>{t('clientDashboard.reviewSubmittedSubtitle')}</p>
+
+              <h3 className={`text-2xl font-bold ${textPrimary} mb-2`}>
+                {t('clientDashboard.reviewSubmittedTitle')}
+              </h3>
+
+              <p className={`${textSec} text-sm`}>
+                {t('clientDashboard.reviewSubmittedSubtitle')}
+              </p>
             </div>
+
             <div className={`${innerCard} rounded-xl p-5 mb-6 space-y-4`}>
+
               <div>
-                <span className={`${labelSmall} text-xs font-medium uppercase tracking-wider`}>{t('clientDashboard.milestone')}</span>
-                <p className={`${textPrimary} font-semibold mt-1`}>{reviewingMilestone.title}</p>
+                <span className={`${labelSmall} text-xs font-medium uppercase tracking-wider`}>
+                  {t('clientDashboard.milestone')}
+                </span>
+
+                <p className={`${textPrimary} font-semibold mt-1`}>
+                  {reviewingMilestone.title}
+                </p>
               </div>
+
+              {/* Freelancer Note */}
+              {reviewingMilestone.submissionNote && (
+                <div>
+                  <span className={`${labelSmall} text-xs font-medium uppercase tracking-wider`}>
+                    Freelancer Note
+                  </span>
+
+                  <p className={`${textLight} text-sm mt-1`}>
+                    {reviewingMilestone.submissionNote}
+                  </p>
+                </div>
+              )}
+
+              {/* Submitted Deliverables */}
+              {reviewingMilestone.deliverables &&
+                reviewingMilestone.deliverables.length > 0 && (
+                  <div>
+                    <span className={`${labelSmall} text-xs font-medium uppercase tracking-wider`}>
+                      Submitted Files
+                    </span>
+
+                    <div className="space-y-2 mt-2">
+                      {reviewingMilestone.deliverables.map((d) => {
+                        const fileName = 'https://nextcoder.runasp.net/' + d.fileUrl;
+                        const uploadedDate = d.uploadedAt
+                          ? new Date(d.uploadedAt).toLocaleDateString()
+                          : null;
+                        return (
+                          <div
+                            key={d.id}
+                            className="flex items-center justify-between px-3 py-2 bg-teal-500/10 rounded-lg"
+                          >
+                            <span className="flex items-center gap-2 min-w-0">
+                              <i className="ri-attachment-line text-teal-400 flex-shrink-0"></i>
+                              <span className="min-w-0">
+                                <span className={`${textLight} text-xs block truncate max-w-[200px]`}>
+                                  Attachment
+                                </span>
+                                {uploadedDate && (
+                                  <span className={`${textSec} text-xs`}>{uploadedDate}</span>
+                                )}
+                              </span>
+                            </span>
+
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <a
+                                href={fileName}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="px-3 py-1 bg-teal-500/20 text-teal-400 rounded-md text-xs hover:bg-teal-500/30 transition-colors"
+                              >
+                                View
+                              </a>
+
+                              <a
+                                href={fileName}
+                                download={fileName}
+                                className="px-3 py-1 bg-white/10 text-white rounded-md text-xs hover:bg-white/20 transition-colors"
+                              >
+                                Download
+                              </a>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
               <div>
-                <span className={`${labelSmall} text-xs font-medium uppercase tracking-wider`}>{t('clientDashboard.expectedDeliverables')}</span>
-                <p className={`${textLight} text-sm mt-1`}>{reviewingMilestone.deliverables}</p>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <span className={`${labelSmall} text-xs font-medium uppercase tracking-wider`}>{t('clientDashboard.amount')}</span>
-                  <p className="text-green-500 font-bold text-lg mt-1">${reviewingMilestone.amount}</p>
-                </div>
-                <div>
-                  <span className={`${labelSmall} text-xs font-medium uppercase tracking-wider`}>{t('clientDashboard.submitted')}</span>
-                  <p className={`${textPrimary} font-semibold mt-1`}>{reviewingMilestone.submittedDate}</p>
-                </div>
+                <span className={`${labelSmall} text-xs font-medium uppercase tracking-wider`}>
+                  {t('clientDashboard.amount')}
+                </span>
+
+                <p className="text-green-500 font-bold text-lg mt-1">
+                  ${reviewingMilestone.amount}
+                </p>
               </div>
             </div>
-            {reviewingMilestone.comments.length > 0 && (
-              <div className="mb-6">
-                <span className={`${labelSmall} text-xs font-medium uppercase tracking-wider`}>{t('clientDashboard.freelancerNotes')}</span>
-                <div className="space-y-2 mt-2">
-                  {reviewingMilestone.comments.filter(c => c.authorRole === 'freelancer').slice(-2).map(c => (
-                    <div key={c.id} className="p-3 bg-teal-500/10 border border-teal-500/20 rounded-lg">
-                      <p className={`${textLight} text-sm`}>{c.text}</p>
-                      <span className={`${textMuted} text-xs mt-1 block`}>{c.date}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+
             <div className="mb-6">
               <label className={`block ${textPrimary} font-medium mb-2`}>
-                {t('clientDashboard.feedback')} <span className={`${textSec} text-sm`}>{t('clientDashboard.feedbackRequired')}</span>
+                {t('clientDashboard.feedback')}
+
+                <span className={`${textSec} text-sm ml-1`}>
+                  {t('clientDashboard.feedbackRequired')}
+                </span>
               </label>
+
               <textarea
                 value={rejectionComment}
                 onChange={(e) => setRejectionComment(e.target.value.slice(0, 500))}
@@ -1019,50 +1283,33 @@ const ClientDashboard = () => {
                 placeholder={t('clientDashboard.feedbackPlaceholder')}
                 className={`w-full border rounded-lg px-4 py-3 text-sm outline-none resize-none ${inputCls}`}
               ></textarea>
-              <p className={`${textMuted} text-xs mt-1 text-right`}>{rejectionComment.length}/500</p>
+
+              <p className={`${textMuted} text-xs mt-1 text-right`}>
+                {rejectionComment.length}/500
+              </p>
             </div>
+
             <div className="flex gap-3">
               <button
                 onClick={handleRejectSubmission}
-                disabled={!rejectionComment.trim()}
+                disabled={actionLoading || reviewingMilestone.status !== 'Submitted'}
                 className="flex-1 px-5 py-3 bg-orange-500 text-white font-semibold rounded-lg hover:bg-orange-600 transition-colors whitespace-nowrap cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <i className="ri-arrow-go-back-line mr-2"></i>{t('clientDashboard.requestRevision')}
+                {actionLoading
+                  ? <i className="ri-loader-4-line animate-spin"></i>
+                  : <><i className="ri-arrow-go-back-line mr-2"></i>{t('clientDashboard.requestRevision')}</>
+                }
               </button>
-              <button onClick={handleApproveSubmission} className="flex-1 px-5 py-3 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 transition-colors whitespace-nowrap cursor-pointer">
-                <i className="ri-check-double-line mr-2"></i>{t('clientDashboard.approveAndPay')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
-      {/* Payment Modal */}
-      {showPaymentModal && reviewingMilestone && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowPaymentModal(false)}></div>
-          <div className={`relative ${modalBg} rounded-2xl p-8 w-full max-w-md`}>
-            <button onClick={() => setShowPaymentModal(false)} className={`absolute top-4 right-4 w-8 h-8 flex items-center justify-center ${closeBtn} cursor-pointer`}>
-              <i className="ri-close-line text-xl"></i>
-            </button>
-            <div className="text-center mb-6">
-              <div className="w-16 h-16 flex items-center justify-center rounded-full bg-green-500/20 mx-auto mb-4">
-                <i className="ri-money-dollar-circle-line text-3xl text-green-500"></i>
-              </div>
-              <h3 className={`text-2xl font-bold ${textPrimary} mb-2`}>{t('clientDashboard.payMilestoneTitle')}</h3>
-              <p className={textSec}>{t('clientDashboard.payMilestoneSubtitle')}</p>
-            </div>
-            <div className={`${innerCard} rounded-lg p-4 mb-6`}>
-              <h4 className={`${textPrimary} font-semibold mb-2`}>{reviewingMilestone.title}</h4>
-              <div className="text-3xl font-bold text-green-500 text-center my-4">${reviewingMilestone.amount}</div>
-              <p className={`${textSec} text-sm text-center`}>{t('clientDashboard.payMarkFinished')}</p>
-            </div>
-            <div className="flex gap-3">
-              <button onClick={() => setShowPaymentModal(false)} className={`flex-1 px-5 py-3 ${cancelBtn} font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer`}>
-                {t('clientDashboard.cancel')}
-              </button>
-              <button onClick={handlePayMilestone} className="flex-1 px-5 py-3 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 transition-colors whitespace-nowrap cursor-pointer">
-                {t('clientDashboard.confirmPayment')}
+              <button
+                onClick={handleApproveSubmission}
+                disabled={actionLoading || reviewingMilestone.status !== 'Submitted'}
+                className="flex-1 px-5 py-3 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 transition-colors whitespace-nowrap cursor-pointer disabled:opacity-50"
+              >
+                {actionLoading
+                  ? <i className="ri-loader-4-line animate-spin"></i>
+                  : <><i className="ri-check-double-line mr-2"></i>{t('clientDashboard.approveAndPay')}</>
+                }
               </button>
             </div>
           </div>
@@ -1070,16 +1317,21 @@ const ClientDashboard = () => {
       )}
 
       {/* Rating Modal */}
-      {showRatingModal && selectedProject && (
+      {showRatingModal && selectedCompletedProject && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowRatingModal(false)}></div>
           <div className={`relative ${modalBg} rounded-2xl p-8 w-full max-w-md`}>
-            <button onClick={() => setShowRatingModal(false)} className={`absolute top-4 right-4 w-8 h-8 flex items-center justify-center ${closeBtn} cursor-pointer`}>
+            <button
+              onClick={() => setShowRatingModal(false)}
+              className={`absolute top-4 right-4 w-8 h-8 flex items-center justify-center ${closeBtn} cursor-pointer`}
+            >
               <i className="ri-close-line text-xl"></i>
             </button>
             <h3 className={`text-2xl font-bold ${textPrimary} mb-6 text-center`}>{t('clientDashboard.rateFreelancerTitle')}</h3>
             <div className="text-center mb-6">
-              <p className={`${textSec} mb-4`}>{t('clientDashboard.rateFreelancerQuestion')} {selectedProject.freelancer?.name}?</p>
+              <p className={`${textSec} mb-4`}>
+                {t('clientDashboard.rateFreelancerQuestion')} {selectedCompletedProject.freelancerName}?
+              </p>
               <div className="flex justify-center gap-2 mb-6">
                 {[1, 2, 3, 4, 5].map((star) => (
                   <button key={star} onClick={() => setRating(star)} className="cursor-pointer">
@@ -1100,21 +1352,28 @@ const ClientDashboard = () => {
               ></textarea>
             </div>
             <div className="flex gap-3">
-              <button onClick={() => setShowRatingModal(false)} className={`flex-1 px-5 py-3 ${cancelBtn} font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer`}>
+              <button
+                onClick={() => setShowRatingModal(false)}
+                className={`flex-1 px-5 py-3 ${cancelBtn} font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer`}
+              >
                 {t('clientDashboard.cancel')}
               </button>
               <button
                 onClick={handleSubmitRating}
-                disabled={rating === 0}
+                disabled={rating === 0 || actionLoading}
                 className="flex-1 px-5 py-3 bg-teal-500 text-white font-semibold rounded-lg hover:bg-teal-600 transition-colors whitespace-nowrap cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {t('clientDashboard.submitRating')}
+                {actionLoading
+                  ? <i className="ri-loader-4-line animate-spin"></i>
+                  : t('clientDashboard.submitRating')
+                }
               </button>
             </div>
           </div>
         </div>
       )}
 
+      {/* Report Modal */}
       <ReportModal
         isOpen={showReportModal}
         onClose={() => setShowReportModal(false)}
@@ -1123,12 +1382,15 @@ const ClientDashboard = () => {
         reporterRole="client"
       />
 
-      {/* Remove Project Confirmation Modal */}
+      {/* Delete Project Confirmation Modal */}
       {projectToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setProjectToDelete(null)}></div>
           <div className={`relative ${modalBg} rounded-2xl p-6 w-full max-w-md`}>
-            <button onClick={() => setProjectToDelete(null)} className={`absolute top-4 right-4 w-8 h-8 flex items-center justify-center ${closeBtn} cursor-pointer`}>
+            <button
+              onClick={() => setProjectToDelete(null)}
+              className={`absolute top-4 right-4 w-8 h-8 flex items-center justify-center ${closeBtn} cursor-pointer`}
+            >
               <i className="ri-close-line text-xl"></i>
             </button>
             <div className="text-center mb-6">
@@ -1137,15 +1399,27 @@ const ClientDashboard = () => {
               </div>
               <h3 className={`text-xl font-bold ${textPrimary} mb-2`}>{t('clientDashboard.removeProject')}</h3>
               <p className={`${textSec} text-sm`}>
-                {t('clientDashboard.removeConfirmText')} <span className={`${textPrimary} font-semibold`}>&quot;{projectToDelete.title}&quot;</span>? {t('clientDashboard.removeConfirmEnd')}
+                {t('clientDashboard.removeConfirmText')}{' '}
+                <span className={`${textPrimary} font-semibold`}>&quot;{projectToDelete.title}&quot;</span>?{' '}
+                {t('clientDashboard.removeConfirmEnd')}
               </p>
             </div>
             <div className="flex gap-3">
-              <button onClick={() => setProjectToDelete(null)} className={`flex-1 px-5 py-3 ${cancelBtn} font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap`}>
+              <button
+                onClick={() => setProjectToDelete(null)}
+                className={`flex-1 px-5 py-3 ${cancelBtn} font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap`}
+              >
                 {t('clientDashboard.cancel')}
               </button>
-              <button onClick={() => handleRemovePostedProject(projectToDelete.id)} className="flex-1 px-5 py-3 bg-red-500 text-white font-semibold rounded-lg hover:bg-red-600 transition-colors cursor-pointer whitespace-nowrap">
-                <i className="ri-delete-bin-line mr-2"></i>{t('clientDashboard.remove')}
+              <button
+                onClick={handleDeleteProject}
+                disabled={actionLoading}
+                className="flex-1 px-5 py-3 bg-red-500 text-white font-semibold rounded-lg hover:bg-red-600 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50"
+              >
+                {actionLoading
+                  ? <i className="ri-loader-4-line animate-spin"></i>
+                  : <><i className="ri-delete-bin-line mr-2"></i>{t('clientDashboard.remove')}</>
+                }
               </button>
             </div>
           </div>

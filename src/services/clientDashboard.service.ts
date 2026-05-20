@@ -28,6 +28,20 @@ export interface PostedProject {
   createdAt: string;
 }
 
+export interface Comment {
+  id: string;
+  content: string;
+  senderName: string;
+  senderImage: string;
+  createdAt: string;
+}
+
+export interface deliverable {
+  id: string;
+  fileUrl: string;
+  uploadedAt: string;
+}
+
 export interface ProposalMilestone {
   id: number;
   title: string;
@@ -35,6 +49,7 @@ export interface ProposalMilestone {
   amount: number;
   duration: number;
   durationType: string;
+  deliverables: deliverable[];
 }
 
 export interface Proposal {
@@ -56,6 +71,7 @@ export interface ActiveMilestone {
   status: string;
   clientComment: string | null;
   submissionNote: string | null;
+  deliverables: deliverable[];
 }
 
 export interface ActiveProject {
@@ -68,6 +84,7 @@ export interface ActiveProject {
   freelancerName: string;
   freelancerImageUrl: string;
   milestones: ActiveMilestone[];
+  comments: Comment[];
 }
 
 export interface CompletedProject {
@@ -105,6 +122,17 @@ async function handleResponse<T>(res: Response): Promise<ApiResponse<T>> {
 }
 
 // ─── Service ─────────────────────────────────────────────────────────────────
+
+export async function postProjectComment(projectId: number, content: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/ClientDashboard/projects/comments`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({projectId, content}),
+  });
+  if (!res.ok) {
+    throw new Error(await parseApiError(res));
+  }
+}
 
 /**
  * GET /api/ClientDashboard/summary
@@ -196,13 +224,16 @@ export async function getActiveProjects(): Promise<ActiveProject[]> {
  * POST /api/ClientDashboard/milestones/approve
  * Approves a submitted milestone.
  */
-export async function approveMilestone(milestoneId: number): Promise<void> {
+export async function approveMilestone(milestoneId: number,clientComment: string): Promise<void> {
   const res = await fetch(`${API_BASE}/ClientDashboard/milestones/approve`, {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify({ milestoneId }),
+    body: JSON.stringify({ milestoneId, clientComment }),
   });
   await handleResponse<unknown>(res);
+  if (!res.ok) {
+    throw new Error(await parseApiError(res));
+  }
 }
 
 /**
