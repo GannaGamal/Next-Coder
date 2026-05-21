@@ -1,0 +1,129 @@
+import { API_BASE } from './api.config';
+import { parseApiError } from './api.utils';
+
+// ─── Response wrapper ────────────────────────────────────────────────────────
+
+export interface ApiResponse<T> {
+  success: boolean;
+  message: string;
+  data: T;
+  errors: string[] | null;
+}
+
+// ─── Domain types ────────────────────────────────────────────────────────────
+
+
+export interface CreateProjectRequest {
+  title: string;
+  description: string;
+  category: string;
+  budget: number;
+  duration: number;
+  experienceLevel: string;
+  durationType: string;
+  skills: string[];
+  requirements: string[];
+  deliverables: string[];
+}
+
+export interface CreatedProject {
+  id: number;
+  title: string;
+  description: string;
+  categoryId: number;
+  categoryName: string;
+  experienceLevelId: number;
+  experienceLevelName: string;
+  budget: number;
+  duration: number;
+  durationTypeId: number;
+  durationTypeName: string;
+  status: string;
+  clientId: number;
+  createdAt: string;
+  skills: string[];
+  requirements: string[];
+  deliverables: string[];
+  proposalCount: number;
+}
+
+// ─── Lookup types ────────────────────────────────────────────────────────────
+
+export interface LookupItem {
+  id: number;
+  name: string;
+  value: string;
+}
+
+// ─── Helper ──────────────────────────────────────────────────────────────────
+
+const authHeaders = (): HeadersInit => ({
+  'Content-Type': 'application/json',
+  Authorization: `Bearer ${localStorage.getItem('authToken') ?? ''}`,
+});
+
+async function handleResponse<T>(res: Response): Promise<ApiResponse<T>> {
+  if (!res.ok) {
+    throw new Error(await parseApiError(res));
+  }
+  return res.json() as Promise<ApiResponse<T>>;
+}
+
+// ─── Service ─────────────────────────────────────────────────────────────────
+
+/**
+ * POST /api/FreelanceProject/Project
+ * Creates a new freelance project.
+ */
+export async function createFreelanceProject(
+  payload: CreateProjectRequest
+): Promise<CreatedProject> {
+  const res = await fetch(`${API_BASE}/FreelanceProject/Project`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(payload),
+  });
+  const body = await handleResponse<CreatedProject>(res);
+  return body.data;
+}
+
+// ─── Lookup endpoints ────────────────────────────────────────────────────────
+
+/**
+ * GET /api/FreelanceProject/Project-categories
+ * Returns allowed project categories from the API.
+ */
+export async function getProjectCategories(): Promise<LookupItem[]> {
+  const res = await fetch(`${API_BASE}/FreelanceProject/Project-categories`, {
+    method: 'GET',
+    headers: authHeaders(),
+  });
+  const data: LookupItem[] = await res.json();
+  return data;
+}
+
+/**
+ * GET /api/FreelanceProject/Project-DurationType
+ * Returns allowed duration types (Days / Weeks / Months ...).
+ */
+export async function getDurationTypes(): Promise<LookupItem[]> {
+  const res = await fetch(`${API_BASE}/FreelanceProject/Project-DurationType`, {
+    method: 'GET',
+    headers: authHeaders(),
+  });
+  const data: LookupItem[] = await res.json();
+  return data;
+}
+
+/**
+ * GET /api/FreelanceProject/Project-ExperienceLevel
+ * Returns allowed experience levels.
+ */
+export async function getExperienceLevels(): Promise<LookupItem[]> {
+  const res = await fetch(`${API_BASE}/FreelanceProject/Project-ExperienceLevel`, {
+    method: 'GET',
+    headers: authHeaders(),
+  });
+  const data: LookupItem[] = await res.json();
+  return data;
+}

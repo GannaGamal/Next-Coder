@@ -1,10 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Navbar from '../../components/feature/Navbar';
 import Footer from '../../components/feature/Footer';
 import ComplaintModal from '../../components/feature/ComplaintModal';
 import RoleGateModal from '../../components/feature/RoleGateModal';
 import CustomSelect from '../../components/base/CustomSelect';
+import {
+  createFreelanceProject,
+  getProjectCategories,
+  getDurationTypes,
+  getExperienceLevels,
+  type LookupItem,
+} from '../../services/freelance-project.service';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useTranslation } from 'react-i18next';
@@ -56,6 +63,42 @@ const FreelanceMarketplace = () => {
   const [showComplaintModal, setShowComplaintModal] = useState(false);
   const [selectedClient, setSelectedClient] = useState<{ name: string; avatar: string } | null>(null);
 
+  // Form states for posting project
+  const [projectTitle, setProjectTitle] = useState('');
+  const [projectDescription, setProjectDescription] = useState('');
+  const [projectCategory, setProjectCategory] = useState<string>('WebDevelopment');
+  const [projectExperience, setProjectExperience] = useState<string>('Entry');
+  const [projectBudget, setProjectBudget] = useState('');
+  const [projectDuration, setProjectDuration] = useState('');
+  const [projectDurationType, setProjectDurationType] = useState<string>('Days');
+  const [projectSkills, setProjectSkills] = useState<string[]>([]);
+  const [isSubmittingProject, setIsSubmittingProject] = useState(false);
+  const [projectError, setProjectError] = useState<string | null>(null);
+  const [projectSuccess, setProjectSuccess] = useState(false);
+
+  // API-driven lookup data
+  const [apiCategories, setApiCategories] = useState<LookupItem[]>([]);
+  const [apiDurationTypes, setApiDurationTypes] = useState<LookupItem[]>([]);
+  const [apiExperienceLevels, setApiExperienceLevels] = useState<LookupItem[]>([]);
+
+  // Manual skill input
+  const [skillInput, setSkillInput] = useState('');
+
+  useEffect(() => {
+    getProjectCategories().then(data => {
+      setApiCategories(data);
+      if (data.length > 0) setProjectCategory(data[0].name as string);
+    }).catch(() => {});
+    getDurationTypes().then(data => {
+      setApiDurationTypes(data);
+      if (data.length > 0) setProjectDurationType(data[0].name as string);
+    }).catch(() => {});
+    getExperienceLevels().then(data => {
+      setApiExperienceLevels(data);
+      if (data.length > 0) setProjectExperience(data[0].name as string);
+    }).catch(() => {});
+  }, []);
+
   const handlePostProject = () => {
     if (!isAuthenticated || !user?.roles.includes('client')) {
       setShowRoleGateModal(true);
@@ -64,37 +107,127 @@ const FreelanceMarketplace = () => {
     setShowPostModal(true);
   };
 
+  const handleSubmitProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setProjectError(null);
+    // Include any typed-but-not-added manual skill with selected skills
+    const finalSkills = [...projectSkills];
+    const pendingSkill = skillInput.trim();
+    if (pendingSkill && !finalSkills.includes(pendingSkill)) {
+      finalSkills.push(pendingSkill);
+    }
+
+    // Validate required fields
+    if (!projectTitle.trim()) {
+      setProjectError('Project title is required');
+      return;
+    }
+    if (!projectDescription.trim()) {
+      setProjectError('Project description is required');
+      return;
+    }
+    if (!projectBudget || Number(projectBudget) <= 0) {
+      setProjectError('Valid budget is required');
+      return;
+    }
+    if (!projectDuration || Number(projectDuration) <= 0) {
+      setProjectError('Valid duration is required');
+      return;
+    }
+    if (finalSkills.length === 0) {
+      setProjectError('Select at least one skill');
+      return;
+    }
+    if (requirements.filter(r => r.trim()).length === 0) {
+      setProjectError('Add at least one requirement');
+      return;
+    }
+    if (deliverables.filter(d => d.trim()).length === 0) {
+      setProjectError('Add at least one deliverable');
+      return;
+    }
+
+    setIsSubmittingProject(true);
+    try {
+      const payload = {
+        title: projectTitle.trim(),
+        description: projectDescription.trim(),
+        category: projectCategory,
+        budget: Number(projectBudget),
+        duration: Number(projectDuration),
+        experienceLevel: projectExperience,
+        durationType: projectDurationType,
+        skills: finalSkills,
+        requirements: requirements.filter(r => r.trim()),
+        deliverables: deliverables.filter(d => d.trim()),
+      };
+
+      await createFreelanceProject(payload);
+      
+      // Reset form
+      setProjectTitle('');
+      setProjectDescription('');
+      setProjectCategory('WebDevelopment');
+      setProjectExperience('Entry');
+      setProjectBudget('');
+      setProjectDuration('');
+      setProjectDurationType('Days');
+      setProjectSkills([]);
+      setSkillInput('');
+      setRequirements(['']);
+      setDeliverables(['']);
+      
+      setProjectSuccess(true);
+      setTimeout(() => {
+        setShowPostModal(false);
+        setProjectSuccess(false);
+      }, 2000);
+    } catch (error) {
+      setProjectError(error instanceof Error ? error.message : 'Failed to post project');
+    } finally {
+      setIsSubmittingProject(false);
+    }
+  };
+
+  const toggleProjectSkill = (skill: string) => {
+    setProjectSkills(prev =>
+      prev.includes(skill) ? prev.filter(s => s !== skill) : [...prev, skill]
+    );
+  };
+
+  const addManualSkill = () => {
+    const trimmed = skillInput.trim();
+    if (trimmed && !projectSkills.includes(trimmed)) {
+      setProjectSkills(prev => [...prev, trimmed]);
+    }
+    setSkillInput('');
+  };
+
+  const handleSkillInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addManualSkill();
+    }
+  };
+
+  // Derived from API
   const allSkills = [
-    'JavaScript',
-    'React',
-    'Python',
-    'Java',
-    'Node.js',
-    'TypeScript',
-    'UI/UX Design',
-    'Graphic Design',
-    'Content Writing',
-    'SEO',
-    'Mobile Development',
-    'WordPress',
-    'Shopify',
-    'Video Editing',
-    'Social Media',
-    'Data Analysis',
-    'Machine Learning',
-    'AWS',
+    'JavaScript', 'React', 'Python', 'Java', 'Node.js', 'TypeScript',
+    'UI/UX Design', 'Graphic Design', 'Content Writing', 'SEO',
+    'Mobile Development', 'WordPress', 'Shopify', 'Video Editing',
+    'Social Media', 'Data Analysis', 'Machine Learning', 'AWS',
   ];
 
-  const categories = [
-    'Web Development',
-    'Mobile Development',
-    'Design',
-    'Writing',
-    'Marketing',
-    'Data Science',
-    'DevOps',
-    'Video & Animation',
-  ];
+  const categories = apiCategories.length > 0
+    ? apiCategories.map(c => c.name)
+    : ['Web Development', 'Mobile Development', 'Design', 'Writing', 'Marketing', 'Data Science', 'Other'];
+
+  // Build select options from API lookups
+  const categoryOptions = apiCategories.map(c => ({ value: c.value, label: c.name }))
+
+  const durationTypeOptions = apiDurationTypes.map(d => ({ value: d.value, label: d.name }))
+    
+  const experienceLevelOptions = apiExperienceLevels.map(e => ({ value: e.value, label: e.name }))
 
   const projects: Project[] = [
     {
@@ -502,14 +635,26 @@ const FreelanceMarketplace = () => {
                   <h3 className={`text-2xl font-bold mb-2 ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{t('marketplace.postNewProject')}</h3>
                   <p className={`text-sm ${isLightMode ? 'text-gray-500' : 'text-gray-400'}`}>{t('marketplace.fillDetails')}</p>
                 </div>
-                <form className="space-y-5">
+                <form onSubmit={handleSubmitProject} className="space-y-5">
+                  {projectSuccess && (
+                    <div className="flex items-center gap-3 p-4 bg-green-500/10 border border-green-500/30 rounded-lg">
+                      <i className="ri-check-circle-line text-green-400 text-xl flex-shrink-0"></i>
+                      <p className="text-green-600 dark:text-green-400 text-sm">Project posted successfully!</p>
+                    </div>
+                  )}
+                  {projectError && (
+                    <div className="flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
+                      <i className="ri-alert-line text-red-400 text-xl flex-shrink-0"></i>
+                      <p className="text-red-600 dark:text-red-400 text-sm">{projectError}</p>
+                    </div>
+                  )}
                   <div>
                     <label className={`block font-medium mb-2 ${isLightMode ? 'text-gray-700' : 'text-white'}`}>{t('marketplace.projectTitle')}</label>
-                    <input type="text" placeholder={t('marketplace.projectTitlePlaceholder')} className={`w-full border rounded-lg px-4 py-3 focus:outline-none focus:border-purple-500 ${isLightMode ? 'bg-gray-100 border-gray-200 text-gray-900 placeholder-gray-400' : 'bg-white/5 border-white/10 text-white placeholder-gray-500'}`} />
+                    <input type="text" value={projectTitle} onChange={(e) => setProjectTitle(e.target.value)} placeholder={t('marketplace.projectTitlePlaceholder')} className={`w-full border rounded-lg px-4 py-3 focus:outline-none focus:border-purple-500 ${isLightMode ? 'bg-gray-100 border-gray-200 text-gray-900 placeholder-gray-400' : 'bg-white/5 border-white/10 text-white placeholder-gray-500'}`} />
                   </div>
                   <div>
                     <label className={`block font-medium mb-2 ${isLightMode ? 'text-gray-700' : 'text-white'}`}>{t('marketplace.description')}</label>
-                    <textarea rows={4} placeholder={t('marketplace.descriptionPlaceholder')} className={`w-full border rounded-lg px-4 py-3 focus:outline-none focus:border-purple-500 resize-none ${isLightMode ? 'bg-gray-100 border-gray-200 text-gray-900 placeholder-gray-400' : 'bg-white/5 border-white/10 text-white placeholder-gray-500'}`}></textarea>
+                    <textarea rows={4} value={projectDescription} onChange={(e) => setProjectDescription(e.target.value)} placeholder={t('marketplace.descriptionPlaceholder')} className={`w-full border rounded-lg px-4 py-3 focus:outline-none focus:border-purple-500 resize-none ${isLightMode ? 'bg-gray-100 border-gray-200 text-gray-900 placeholder-gray-400' : 'bg-white/5 border-white/10 text-white placeholder-gray-500'}`}></textarea>
                   </div>
                   <div>
                     <div className="flex items-center justify-between mb-2">
@@ -542,44 +687,70 @@ const FreelanceMarketplace = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className={`block font-medium mb-2 ${isLightMode ? 'text-gray-700' : 'text-white'}`}>{t('marketplace.category')}</label>
-                      <CustomSelect value={categoryFilter} onChange={setCategoryFilter} options={[{ value: 'all', label: t('marketplace.allCategories') }, ...categories.map(cat => ({ value: cat, label: cat }))]} placeholder={t('marketplace.allCategories')} />
+                      <CustomSelect value={projectCategory} onChange={(val) => setProjectCategory(val as string)} options={categoryOptions} placeholder={t('marketplace.allCategories')} />
                     </div>
                     <div>
                       <label className={`block font-medium mb-2 ${isLightMode ? 'text-gray-700' : 'text-white'}`}>{t('marketplace.experienceLevel')}</label>
-                      <CustomSelect value={experienceFilter} onChange={setExperienceFilter} options={[{ value: 'all', label: 'Select level' }, { value: 'Entry', label: t('marketplace.entry') }, { value: 'Intermediate', label: t('marketplace.intermediate') }, { value: 'Expert', label: t('marketplace.expert') }]} placeholder="Select level" />
+                      <CustomSelect value={projectExperience} onChange={(val) => setProjectExperience(val as string)} options={experienceLevelOptions} placeholder="Select level" />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className={`block font-medium mb-2 ${isLightMode ? 'text-gray-700' : 'text-white'}`}>{t('marketplace.budget')}</label>
-                      <CustomSelect value={budgetFilter} onChange={setBudgetFilter} options={[{ value: 'fixed', label: t('marketplace.fixedPrice') }, { value: 'hourly', label: t('marketplace.hourlyRate') }]} placeholder="Budget type" />
+                      <input type="number" value={projectBudget} onChange={(e) => setProjectBudget(e.target.value)} placeholder="1000" min="0" className={`w-full border rounded-lg px-4 py-3 focus:outline-none focus:border-purple-500 ${isLightMode ? 'bg-gray-100 border-gray-200 text-gray-900 placeholder-gray-400' : 'bg-white/5 border-white/10 text-white placeholder-gray-500'}`} />
                     </div>
                     <div>
                       <label className={`block font-medium mb-2 ${isLightMode ? 'text-gray-700' : 'text-white'}`}>{t('marketplace.duration')}</label>
-                      <input type="text" placeholder={t('marketplace.durationPlaceholder')} className={`w-full border rounded-lg px-4 py-3 focus:outline-none focus:border-purple-500 ${isLightMode ? 'bg-gray-100 border-gray-200 text-gray-900 placeholder-gray-400' : 'bg-white/5 border-white/10 text-white placeholder-gray-500'}`} />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className={`block font-medium mb-2 ${isLightMode ? 'text-gray-700' : 'text-white'}`}>{t('marketplace.minBudget')}</label>
-                      <input type="number" placeholder="1000" className={`w-full border rounded-lg px-4 py-3 focus:outline-none focus:border-purple-500 ${isLightMode ? 'bg-gray-100 border-gray-200 text-gray-900 placeholder-gray-400' : 'bg-white/5 border-white/10 text-white placeholder-gray-500'}`} />
-                    </div>
-                    <div>
-                      <label className={`block font-medium mb-2 ${isLightMode ? 'text-gray-700' : 'text-white'}`}>{t('marketplace.maxBudget')}</label>
-                      <input type="number" placeholder="5000" className={`w-full border rounded-lg px-4 py-3 focus:outline-none focus:border-purple-500 ${isLightMode ? 'bg-gray-100 border-gray-200 text-gray-900 placeholder-gray-400' : 'bg-white/5 border-white/10 text-white placeholder-gray-500'}`} />
+                      <div className="flex gap-2">
+                        <input type="number" value={projectDuration} onChange={(e) => setProjectDuration(e.target.value)} placeholder="2" min="0" className={`flex-1 border rounded-lg px-4 py-3 focus:outline-none focus:border-purple-500 ${isLightMode ? 'bg-gray-100 border-gray-200 text-gray-900 placeholder-gray-400' : 'bg-white/5 border-white/10 text-white placeholder-gray-500'}`} />
+                        <CustomSelect value={projectDurationType} onChange={(val) => setProjectDurationType(val as string)} options={durationTypeOptions} placeholder="Type" />
+                      </div>
                     </div>
                   </div>
                   <div>
                     <label className={`block font-medium mb-2 ${isLightMode ? 'text-gray-700' : 'text-white'}`}>{t('marketplace.requiredSkills')}</label>
-                    <div className="flex flex-wrap gap-2 mb-2">
-                      {allSkills.slice(0, 10).map((skill) => (
-                        <button key={skill} type="button" className={`px-3 py-1.5 text-sm rounded-lg hover:bg-purple-500 hover:text-white transition-colors cursor-pointer whitespace-nowrap ${isLightMode ? 'bg-gray-100 text-gray-600 border border-gray-200' : 'bg-white/5 text-gray-400'}`}>{skill}</button>
+                    {/* Manual skill input */}
+                    <div className="flex gap-2 mb-3">
+                      <input
+                        type="text"
+                        value={skillInput}
+                        onChange={(e) => setSkillInput(e.target.value)}
+                        onKeyDown={handleSkillInputKeyDown}
+                        placeholder="Type a skill and press Enter or Add"
+                        className={`flex-1 border rounded-lg px-4 py-2.5 focus:outline-none focus:border-purple-500 text-sm ${isLightMode ? 'bg-gray-100 border-gray-200 text-gray-900 placeholder-gray-400' : 'bg-white/5 border-white/10 text-white placeholder-gray-500'}`}
+                      />
+                      <button
+                        type="button"
+                        onClick={addManualSkill}
+                        disabled={!skillInput.trim()}
+                        className="px-4 py-2.5 bg-purple-500 text-white text-sm font-semibold rounded-lg hover:bg-purple-600 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap flex items-center gap-1"
+                      >
+                        <i className="ri-add-line"></i>Add
+                      </button>
+                    </div>
+                    {/* Suggestion chips */}
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {allSkills.filter(s => !projectSkills.includes(s)).map((skill) => (
+                        <button key={skill} type="button" onClick={() => toggleProjectSkill(skill)} className={`px-3 py-1.5 text-sm rounded-lg transition-colors cursor-pointer whitespace-nowrap ${isLightMode ? 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-purple-500 hover:text-white hover:border-purple-500' : 'bg-white/5 text-gray-400 hover:bg-purple-500 hover:text-white'}`}>{skill}</button>
                       ))}
                     </div>
+                    {/* Selected skills */}
+                    {projectSkills.length > 0 && (
+                      <div className={`flex flex-wrap gap-2 p-3 rounded-lg border ${isLightMode ? 'bg-purple-50 border-purple-200' : 'bg-purple-500/10 border-purple-500/30'}`}>
+                        {projectSkills.map((skill) => (
+                          <span key={skill} className="flex items-center gap-1.5 px-3 py-1 bg-purple-500 text-white text-sm rounded-lg">
+                            {skill}
+                            <button type="button" onClick={() => toggleProjectSkill(skill)} className="hover:text-purple-200 transition-colors cursor-pointer">
+                              <i className="ri-close-line text-xs"></i>
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <div className="flex gap-3 pt-4">
                     <button type="button" onClick={() => setShowPostModal(false)} className={`flex-1 px-5 py-3 font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${isLightMode ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' : 'bg-white/5 text-white hover:bg-white/10'}`}>{t('common.cancel')}</button>
-                    <button type="submit" className="flex-1 px-5 py-3 bg-purple-500 text-white font-semibold rounded-lg hover:bg-purple-600 transition-colors whitespace-nowrap cursor-pointer">{t('marketplace.postProject')}</button>
+                    <button type="submit" disabled={isSubmittingProject} className="flex-1 px-5 py-3 bg-purple-500 text-white font-semibold rounded-lg hover:bg-purple-600 transition-colors whitespace-nowrap cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">{isSubmittingProject ? <><i className="ri-loader-4-line animate-spin"></i>Posting...</> : t('marketplace.postProject')}</button>
                   </div>
                 </form>
               </div>
