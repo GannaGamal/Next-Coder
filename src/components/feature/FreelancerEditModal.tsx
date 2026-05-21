@@ -210,7 +210,7 @@ const FreelancerEditModal = ({ isOpen, onClose, data, onSave, accentColor = 'pur
                   {field.label}
                 </label>
                 <input
-                  type={field.type || 'text'}
+                  type={field.label || 'text'}
                   value={form[field.key] as string}
                   onChange={e => set(field.key, e.target.value)}
                   placeholder={field.placeholder}
