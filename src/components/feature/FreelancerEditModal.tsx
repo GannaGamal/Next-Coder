@@ -99,9 +99,6 @@ const FreelancerEditModal = ({ isOpen, onClose, data, onSave, accentColor = 'pur
   if (!isOpen) return null;
 
   const validateForm = () => {
-    if (!form.title.trim()) return 'Title is required.';
-    if (!form.country.trim()) return 'Country is required.';
-    if (!form.phoneNumber.trim()) return 'Phone number is required.';
     if (form.yearsOfExperience < 0) return 'Years of experience must be 0 or more.';
     if (form.hourlyRate < 0) return 'Hourly rate must be 0 or more.';
     return '';

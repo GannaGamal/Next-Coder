@@ -26,6 +26,12 @@ import {
   type PortfolioCategoryOption,
   type FreelancerPortfolioDto,
 } from '../../services/freelancer-portfolio.service';
+import {
+  deleteFreelancerDocument,
+  getFreelancerDocuments,
+  uploadFreelancerDocument,
+  type FreelancerDocumentDto,
+} from '../../services/freelancer-documents.service';
 
 interface PortfolioItem {
   id: string;
@@ -88,6 +94,21 @@ const formatPortfolioDate = (value: string): string => {
   return `${date} at ${time}`;
 };
 
+const formatDocumentDate = (value: string): string => {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  const date = parsed.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+  const time = parsed.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+  return `${date}, ${time}`;
+};
+
 const toPortfolioItem = (item: FreelancerPortfolioDto): PortfolioItem => ({
   id: String(item.id),
   title: item.title,
@@ -96,6 +117,13 @@ const toPortfolioItem = (item: FreelancerPortfolioDto): PortfolioItem => ({
   pdfUrl: item.portfolioUrl,
   category: item.categoryName ? formatPortfolioCategoryLabel(item.categoryName) : 'Uncategorized',
   completedDate: formatPortfolioDate(item.uploadedAt),
+});
+
+const toDocumentItem = (item: FreelancerDocumentDto): Document => ({
+  id: String(item.id),
+  name: item.documentName,
+  url: item.documentUrl,
+  uploadedAt: formatDocumentDate(item.uploadedAt),
 });
 
 const FreelancerProfile = () => {
@@ -192,11 +220,14 @@ const FreelancerProfile = () => {
     }
   ]);
 
-  const [documents, setDocuments] = useState<Document[]>([
-    { id: '1', name: 'Professional Certificate.pdf', url: '#', uploadedAt: '2024-01-10' },
-    { id: '2', name: 'Work Samples.zip', url: '#', uploadedAt: '2024-01-05' },
-    { id: '3', name: 'References.pdf', url: '#', uploadedAt: '2023-12-20' }
-  ]);
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [documentsLoading, setDocumentsLoading] = useState(true);
+  const [documentsError, setDocumentsError] = useState('');
+  const [documentStatus, setDocumentStatus] = useState<null | { type: 'success' | 'error'; message: string }>(
+    null
+  );
+  const [isDocumentUploading, setIsDocumentUploading] = useState(false);
+  const [deletingDocumentId, setDeletingDocumentId] = useState<string | null>(null);
 
   const [newSkill, setNewSkill] = useState('');
   const [showPortfolioForm, setShowPortfolioForm] = useState(false);
@@ -316,21 +347,78 @@ const FreelancerProfile = () => {
     }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const newDoc: Document = {
-        id: Date.now().toString(),
-        name: file.name,
-        url: URL.createObjectURL(file),
-        uploadedAt: new Date().toISOString().split('T')[0]
-      };
-      setDocuments([...documents, newDoc]);
+  const refreshDocuments = async (options?: { silent?: boolean }) => {
+    if (!options?.silent) {
+      setDocumentsLoading(true);
+    }
+    setDocumentsError('');
+
+    try {
+      const data = await getFreelancerDocuments();
+      setDocuments(data.map(toDocumentItem));
+    } catch (error) {
+      setDocumentsError(
+        error instanceof Error
+          ? error.message
+          : 'We could not load your documents right now. Please try again.'
+      );
+    } finally {
+      if (!options?.silent) {
+        setDocumentsLoading(false);
+      }
     }
   };
 
-  const handleDeleteDocument = (id: string) => {
-    setDocuments(documents.filter(doc => doc.id !== id));
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    if (!file) {
+      setDocumentStatus({ type: 'error', message: 'Please select a file to upload.' });
+      return;
+    }
+
+    setDocumentStatus(null);
+    setIsDocumentUploading(true);
+
+    try {
+      const result = await uploadFreelancerDocument({
+        documentName: file.name,
+        file,
+      });
+      await refreshDocuments({ silent: true });
+      setDocumentStatus({ type: 'success', message: result.message });
+    } catch (error) {
+      setDocumentStatus({
+        type: 'error',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'We could not upload your document right now. Please try again.',
+      });
+    } finally {
+      setIsDocumentUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleDeleteDocument = async (id: string) => {
+    setDocumentStatus(null);
+    setDeletingDocumentId(id);
+
+    try {
+      await deleteFreelancerDocument(id);
+      await refreshDocuments({ silent: true });
+      setDocumentStatus({ type: 'success', message: 'Document deleted successfully.' });
+    } catch (error) {
+      setDocumentStatus({
+        type: 'error',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'We could not delete this document right now. Please try again.',
+      });
+    } finally {
+      setDeletingDocumentId(null);
+    }
   };
 
   const { handlePhotoUpload, handlePhotoRemove } = useProfilePhoto();
@@ -371,6 +459,35 @@ const FreelancerProfile = () => {
     };
 
     loadProfile();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadDocuments = async () => {
+      setDocumentsLoading(true);
+      setDocumentsError('');
+
+      try {
+        const data = await getFreelancerDocuments();
+        if (!isMounted) return;
+        setDocuments(data.map(toDocumentItem));
+      } catch (error) {
+        if (!isMounted) return;
+        setDocumentsError(
+          error instanceof Error
+            ? error.message
+            : 'We could not load your documents right now. Please try again.'
+        );
+      } finally {
+        if (isMounted) setDocumentsLoading(false);
+      }
+    };
+
+    loadDocuments();
     return () => {
       isMounted = false;
     };
@@ -497,12 +614,7 @@ const FreelancerProfile = () => {
       .replace(/^www\./i, '')
       .replace(/\/$/, '');
 
-  const prettyEmailText = (value: string) => {
-    const trimmed = value.trim();
-    if (!trimmed.includes('@')) return trimmed;
-    const [local] = trimmed.split('@');
-    return `${local}@...`;
-  };
+  const prettyEmailText = (value: string) => value.trim();
 
   return (
     <div className="min-h-screen bg-navy-900">
@@ -550,7 +662,20 @@ const FreelancerProfile = () => {
               </div>
               <div className="flex-1 w-full">
                 <div className="flex items-start justify-between gap-3 mb-1">
-                  <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white">{user?.name || 'Profile'}</h1>
+                  <div className="flex flex-col gap-2">
+                    <div className="flex flex-wrap items-center gap-3 ">
+                      <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white">{user?.name || 'Profile'}</h1>
+                      <div className="flex items-center gap-2 mt-2">
+                        <i className="ri-award-fill text-yellow-400 text-lg sm:text-xl"></i>
+                        <span className="text-sm sm:text-base text-white font-semibold">{profileMeta.rating}</span>
+                        <span className="text-xs sm:text-sm text-gray-400">({profileMeta.completedProjects} projects)</span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-2">
+                        <i className="ri-money-dollar-circle-line text-green-400 text-lg sm:text-xl"></i>
+                        <span className="text-sm sm:text-base text-white font-semibold">${freelancerProfile.hourlyRate}/hr</span>
+                      </div>
+                    </div>
+                  </div>
                   <button
                     onClick={() => setShowContactModal(true)}
                     disabled={profileLoading || Boolean(profileError)}
@@ -560,46 +685,79 @@ const FreelancerProfile = () => {
                     Edit Contact
                   </button>
                 </div>
-                {freelancerProfile.title && (
-                  <p className="text-sm sm:text-base text-gray-300 mb-1">{freelancerProfile.title}</p>
-                )}
-                {/* {user?.email && (
-                  <p className="text-sm sm:text-base text-gray-400 mb-2 break-all">{user.email}</p>
-                )} */}
-                <div className="flex flex-wrap items-center gap-3 mb-3">
+                <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-6">
+                  {freelancerProfile.title && (
+                    <div className="flex items-start gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                      <i className="ri-briefcase-4-line text-purple-400 mt-0.5"></i>
+                      <div className="min-w-0">
+                        <p className="text-[11px] uppercase tracking-wide text-gray-400 font-bold">Title</p>
+                        <p className="text-xs sm:text-sm text-gray-200 truncate">{freelancerProfile.title}</p>
+                      </div>
+                    </div>
+                  )}
                   {freelancerProfile.phoneNumber && (
                     <a
                       href={`tel:${freelancerProfile.phoneNumber}`}
-                      className="flex items-center gap-1.5 text-xs text-gray-300 hover:text-white transition-colors"
+                      className="flex items-start gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 hover:border-purple-500/40 transition-colors"
                     >
-                      <i className="ri-phone-line text-purple-400"></i>
-                      {freelancerProfile.phoneNumber}
+                      <i className="ri-phone-line text-purple-400 mt-0.5"></i>
+                      <div className="min-w-0">
+                        <p className="text-[11px] uppercase tracking-wide text-gray-400 font-bold">Phone</p>
+                        <p className="text-xs sm:text-sm text-gray-200 truncate">{freelancerProfile.phoneNumber}</p>
+                      </div>
                     </a>
                   )}
                   {user?.email && (
                     <a
                       href={`mailto:${user.email}`}
-                      className="flex items-center gap-1.5 text-xs text-gray-300 hover:text-white transition-colors"
+                      className="flex items-start gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 hover:border-purple-500/40 transition-colors"
                     >
-                      <i className="ri-mail-line text-purple-400"></i>
-                      {prettyEmailText(user.email)}
+                      <i className="ri-mail-line text-purple-400 mt-0.5"></i>
+                      <div className="min-w-0">
+                        <p className="text-[11px] uppercase tracking-wide text-gray-400 font-bold">Email</p>
+                        <p className="text-xs sm:text-sm text-gray-200 truncate">{prettyEmailText(user.email)}</p>
+                      </div>
                     </a>
                   )}
                   {freelancerProfile.country && (
-                    <span className="flex items-center gap-1.5 text-xs text-gray-300">
-                      <i className="ri-map-pin-line text-purple-400"></i>
-                      {freelancerProfile.country}
-                    </span>
+                    <div className="flex items-start gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                      <i className="ri-map-pin-line text-purple-400 mt-0.5"></i>
+                      <div className="min-w-0">
+                        <p className="text-[11px] uppercase tracking-wide text-gray-400 font-bold">Country</p>
+                        <p className="text-xs sm:text-sm text-gray-200 truncate">{freelancerProfile.country}</p>
+                      </div>
+                    </div>
                   )}
+                  {freelancerProfile.yearsOfExperience > 0 && (
+                    <div className="flex items-start gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                      <i className="ri-time-line text-purple-400 mt-0.5"></i>
+                      <div className="min-w-0">
+                        <p className="text-[11px] uppercase tracking-wide text-gray-400 font-bold">Experience</p>
+                        <p className="text-xs sm:text-sm text-gray-200 truncate">{freelancerProfile.yearsOfExperience} years</p>
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex items-start gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                    <i className="ri-verified-badge-line text-purple-400 mt-0.5"></i>
+                    <div className="min-w-0">
+                      <p className="text-[11px] uppercase tracking-wide text-gray-400 font-bold">Availability</p>
+                      <p className="text-xs sm:text-sm text-gray-200 truncate">
+                        {freelancerProfile.isAvailable ? 'Available' : 'Not available'}
+                      </p>
+                    </div>
+                  </div>
                   {freelancerProfile.websiteUrl && (
                     <a
                       href={normalizeUrl(freelancerProfile.websiteUrl)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 text-xs text-gray-300 hover:text-white transition-colors"
+                      className="flex items-start gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 hover:border-purple-500/40 transition-colors"
                     >
-                      <i className="ri-global-line text-purple-400"></i>
-                      {prettyUrlText(freelancerProfile.websiteUrl)}
+                      <i className="ri-global-line text-purple-400 mt-0.5"></i>
+                      <div className="min-w-0">
+                        <p className="text-[11px] uppercase tracking-wide text-gray-400 font-bold">Website</p>
+                        <p className="text-xs sm:text-sm text-gray-200 truncate">{prettyUrlText(freelancerProfile.websiteUrl)}</p>
+                      </div>
                     </a>
                   )}
                   {freelancerProfile.linkedInUrl && (
@@ -607,10 +765,13 @@ const FreelancerProfile = () => {
                       href={normalizeUrl(freelancerProfile.linkedInUrl)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 text-xs text-gray-300 hover:text-white transition-colors"
+                      className="flex items-start gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 hover:border-purple-500/40 transition-colors"
                     >
-                      <i className="ri-linkedin-box-line text-purple-400"></i>
-                      {prettyUrlText(freelancerProfile.linkedInUrl)}
+                      <i className="ri-linkedin-box-line text-purple-400 mt-0.5"></i>
+                      <div className="min-w-0">
+                        <p className="text-[11px] uppercase tracking-wide text-gray-400 font-bold">LinkedIn</p>
+                        <p className="text-xs sm:text-sm text-gray-200 truncate">{prettyUrlText(freelancerProfile.linkedInUrl)}</p>
+                      </div>
                     </a>
                   )}
                   {freelancerProfile.gitHubUrl && (
@@ -618,24 +779,17 @@ const FreelancerProfile = () => {
                       href={normalizeUrl(freelancerProfile.gitHubUrl)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 text-xs text-gray-300 hover:text-white transition-colors"
+                      className="flex items-start gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 hover:border-purple-500/40 transition-colors"
                     >
-                      <i className="ri-github-fill text-purple-400"></i>
-                      {prettyUrlText(freelancerProfile.gitHubUrl)}
+                      <i className="ri-github-fill text-purple-400 mt-0.5"></i>
+                      <div className="min-w-0">
+                        <p className="text-[11px] uppercase tracking-wide text-gray-400 font-bold">GitHub</p>
+                        <p className="text-xs sm:text-sm text-gray-200 truncate">{prettyUrlText(freelancerProfile.gitHubUrl)}</p>
+                      </div>
                     </a>
                   )}
                 </div>
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-6">
-                  <div className="flex items-center gap-2">
-                    <i className="ri-star-fill text-yellow-400 text-lg sm:text-xl"></i>
-                    <span className="text-sm sm:text-base text-white font-semibold">{profileMeta.rating}</span>
-                    <span className="text-xs sm:text-sm text-gray-400">({profileMeta.completedProjects} projects)</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <i className="ri-money-dollar-circle-line text-green-400 text-lg sm:text-xl"></i>
-                    <span className="text-sm sm:text-base text-white font-semibold">${freelancerProfile.hourlyRate}/hr</span>
-                  </div>
-                </div>
+                
               </div>
             </div>
           </div>
@@ -945,15 +1099,14 @@ const FreelancerProfile = () => {
                           <p className="text-gray-500 text-xs mt-0.5">{item.pdfSize} MB</p>
                         )}
                       </div>
-                      <a
-                        href={item.pdfUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <button
+                        type="button"
+                        onClick={() => item.pdfUrl && window.open(item.pdfUrl, '_blank', 'noopener,noreferrer')}
                         className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 hover:bg-purple-500/30 border border-white/10 hover:border-purple-500/40 text-gray-300 hover:text-purple-300 transition-all cursor-pointer"
                         title="Download PDF"
                       >
                         <i className="ri-download-line text-sm"></i>
-                      </a>
+                      </button>
                       <button
                         type="button"
                         onClick={() => handleDeletePortfolio(item.id)}
@@ -1087,15 +1240,39 @@ const FreelancerProfile = () => {
                 <h2 className="text-xl sm:text-2xl font-bold text-white">My Documents</h2>
                 <label className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 bg-purple-500 text-white text-sm sm:text-base font-semibold rounded-lg hover:bg-purple-600 transition-colors whitespace-nowrap cursor-pointer text-center">
                   <i className="ri-upload-line mr-2"></i>
-                  Upload Document
+                  {isDocumentUploading ? 'Uploading...' : 'Upload Document'}
                   <input 
                     type="file" 
                     onChange={handleFileUpload} 
                     className="hidden" 
                     accept=".pdf,.doc,.docx,.txt,.zip"
+                    disabled={isDocumentUploading}
                   />
                 </label>
               </div>
+
+              {documentsLoading && (
+                <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-400 flex items-center gap-2">
+                  <i className="ri-loader-4-line animate-spin text-purple-300"></i>
+                  Loading documents...
+                </div>
+              )}
+              {documentsError && (
+                <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+                  {documentsError}
+                </div>
+              )}
+              {documentStatus && (
+                <div
+                  className={`rounded-lg border px-3 py-2 text-xs ${
+                    documentStatus.type === 'success'
+                      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
+                      : 'border-red-500/30 bg-red-500/10 text-red-200'
+                  }`}
+                >
+                  {documentStatus.message}
+                </div>
+              )}
 
               {documents.length > 0 ? (
                 <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 overflow-hidden">
@@ -1118,27 +1295,32 @@ const FreelancerProfile = () => {
                       <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
                         <button 
                           className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
-                          onClick={() => window.open(doc.url, '_blank')}
+                          onClick={() => doc.url && window.open(doc.url, '_blank', 'noopener,noreferrer')}
                         >
                           <i className="ri-download-line text-lg sm:text-xl text-white"></i>
                         </button>
                         <button 
                           className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg bg-white/5 hover:bg-red-500/20 transition-colors cursor-pointer"
                           onClick={() => handleDeleteDocument(doc.id)}
+                          disabled={deletingDocumentId === doc.id}
                         >
-                          <i className="ri-delete-bin-line text-lg sm:text-xl text-white hover:text-red-400"></i>
+                          {deletingDocumentId === doc.id ? (
+                            <i className="ri-loader-4-line animate-spin text-lg sm:text-xl text-white"></i>
+                          ) : (
+                            <i className="ri-delete-bin-line text-lg sm:text-xl text-white hover:text-red-400"></i>
+                          )}
                         </button>
                       </div>
                     </div>
                   ))}
                 </div>
-              ) : (
+              ) : !documentsLoading ? (
                 <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-8 sm:p-12 border border-white/10 text-center">
                   <i className="ri-folder-open-line text-5xl sm:text-6xl text-gray-500 mb-4"></i>
                   <p className="text-base sm:text-lg text-gray-400">No documents uploaded yet</p>
                   <p className="text-xs sm:text-sm text-gray-500 mt-2">Click the upload button to add your first document</p>
                 </div>
-              )}
+              ) : null}
             </div>
           )}
 
