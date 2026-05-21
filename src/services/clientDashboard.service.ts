@@ -93,10 +93,13 @@ export interface CompletedProject {
   milestonesCompletedCount: number;
   totalPaid: number;
   freelancerName: string;
+  freelancerId: number;
   freelancerImageUrl: string;
-  freelancerRatingGivenByClient: number | null;
-  isRated: boolean;
+  freelancerRatingFromClient: number | null;
+  freelancerRatingCommentFromClient: string | null;
   clientRatingFromFreelancer: number | null;
+  clientRatingCommentFromFreelancer: string | null;
+  isRated: boolean;
   completedAt: string;
 }
 
@@ -272,14 +275,14 @@ export async function getCompletedProjects(): Promise<CompletedProject[]> {
  * Rates a freelancer after project completion (1–5).
  */
 export async function rateFreelancer(
-  freelancerId: number,
+  projectId: number,
   rating: number,
   comment: string
 ): Promise<void> {
   const res = await fetch(`${API_BASE}/ClientDashboard/rate-freelancer`, {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify({ freelancerId, rating, comment }),
+    body: JSON.stringify({ projectId, rating, comment }),
   });
   await handleResponse<unknown>(res);
 }

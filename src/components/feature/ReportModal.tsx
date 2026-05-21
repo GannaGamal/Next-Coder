@@ -1,36 +1,48 @@
 import { useState } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useTranslation } from 'react-i18next';
+import { createReport, type ReportType } from '../../services/clientDashboard.service';
 
 interface ReportModalProps {
   isOpen: boolean;
   onClose: () => void;
   targetName: string;
   targetAvatar: string;
+  projectId: number;
   reporterRole: 'freelancer' | 'client';
 }
 
-const ReportModal = ({ isOpen, onClose, targetName, targetAvatar, reporterRole }: ReportModalProps) => {
+const ReportModal = ({ isOpen, onClose, targetName, targetAvatar, projectId, reporterRole }: ReportModalProps) => {
   const { isLightMode } = useTheme();
   const { t } = useTranslation();
   const [reportType, setReportType] = useState('');
   const [description, setDescription] = useState('');
-  const [evidence, setEvidence] = useState<string[]>([]);
+  const [evidenceFiles, setEvidenceFiles] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const freelancerReportTypes = [
-    { value: 'harassment', label: t('report.harassment') },
-    { value: 'misuse', label: t('report.misuse') },
-    { value: 'payment-issue', label: t('report.paymentIssue') },
-    { value: 'other', label: t('report.other') },
-  ];
+  // Mapping from UI report types to API ReportType
+  const reportTypeMapping: { [key: string]: ReportType } = {
+    'missed-deadline': 'MissedDeadline',
+    'poor-quality': 'PoorQuality',
+    'unprofessional': 'UnprofessionalBehavior',
+    'fraud': 'Fraud',
+    'other': 'Other',
+  };
 
   const clientReportTypes = [
-    { value: 'harassment', label: t('report.harassment') },
-    { value: 'misuse', label: t('report.misuse') },
-    { value: 'deadline-missed', label: t('report.deadlineMissed') },
-    { value: 'other', label: t('report.other') },
+    { value: 'missed-deadline', label: 'Deadline Missed' },
+    { value: 'poor-quality', label: 'Poor Quality' },
+    { value: 'unprofessional', label: 'Unprofessional Behavior' },
+    { value: 'fraud', label: 'Fraud' },
+    { value: 'other', label: 'Other' },
+  ];
+
+  const freelancerReportTypes = [
+    { value: 'unprofessional', label: 'Unprofessional Behavior' },
+    { value: 'fraud', label: 'Fraud' },
+    { value: 'other', label: 'Other' },
   ];
 
   const reportTypes = reporterRole === 'freelancer' ? freelancerReportTypes : clientReportTypes;
@@ -38,30 +50,45 @@ const ReportModal = ({ isOpen, onClose, targetName, targetAvatar, reporterRole }
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files) {
-      const newEvidence = Array.from(files).map(file => file.name);
-      setEvidence(prev => [...prev, ...newEvidence]);
+      const newFiles = Array.from(files);
+      setEvidenceFiles(prev => [...prev, ...newFiles]);
     }
   };
 
   const removeEvidence = (index: number) => {
-    setEvidence(prev => prev.filter((_, i) => i !== index));
+    setEvidenceFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!reportType || !description.trim()) return;
+
     setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
+    setSubmitError(null);
+
+    try {
+      const apiReportType = reportTypeMapping[reportType] as ReportType;
+      
+      await createReport({
+        projectId,
+        reportType: apiReportType,
+        description: description.trim(),
+        evidence: evidenceFiles.length > 0 ? evidenceFiles[0] : undefined,
+      });
+
       setIsSubmitted(true);
-    }, 1500);
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Failed to submit report');
+      setIsSubmitting(false);
+    }
   };
 
   const handleClose = () => {
     setReportType('');
     setDescription('');
-    setEvidence([]);
+    setEvidenceFiles([]);
     setIsSubmitted(false);
+    setSubmitError(null);
     onClose();
   };
 
@@ -120,7 +147,12 @@ const ReportModal = ({ isOpen, onClose, targetName, targetAvatar, reporterRole }
 
             <div className={`flex items-center gap-4 p-4 ${infoCard} rounded-xl border mb-6`}>
               <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0">
-                <img src={targetAvatar} alt={targetName} className="w-full h-full object-cover" />
+                {targetAvatar && (
+                  <img src={`https://nextcoder.runasp.net/${targetAvatar}`} alt={targetName} className="w-full h-full object-cover" />
+                )}
+                {!targetAvatar && (
+                  <img src="https://readdy.ai/api/search-image?query=professional%20default%20user%20avatar%20icon%20simple%20clean%20minimal%20design%20on%20dark%20background&width=100&height=100&seq=avatar1&orientation=squarish" alt={targetName} className="w-full h-full object-cover" />
+                )}
               </div>
               <div className="flex-1 min-w-0">
                 <p className={`${titleText} font-semibold truncate`}>{targetName}</p>
@@ -149,10 +181,10 @@ const ReportModal = ({ isOpen, onClose, targetName, targetAvatar, reporterRole }
                             : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10 hover:text-white'
                       }`}
                     >
-                      {type.value === 'harassment' && <i className="ri-shield-user-line mr-2"></i>}
-                      {type.value === 'misuse' && <i className="ri-spam-line mr-2"></i>}
-                      {type.value === 'payment-issue' && <i className="ri-money-dollar-circle-line mr-2"></i>}
-                      {type.value === 'deadline-missed' && <i className="ri-time-line mr-2"></i>}
+                      {type.value === 'missed-deadline' && <i className="ri-time-line mr-2"></i>}
+                      {type.value === 'poor-quality' && <i className="ri-spam-line mr-2"></i>}
+                      {type.value === 'unprofessional' && <i className="ri-shield-user-line mr-2"></i>}
+                      {type.value === 'fraud' && <i className="ri-alert-line mr-2"></i>}
                       {type.value === 'other' && <i className="ri-more-line mr-2"></i>}
                       {type.label}
                     </button>
@@ -197,13 +229,13 @@ const ReportModal = ({ isOpen, onClose, targetName, targetAvatar, reporterRole }
                   </label>
                 </div>
 
-                {evidence.length > 0 && (
+                {evidenceFiles.length > 0 && (
                   <div className="mt-3 space-y-2">
-                    {evidence.map((file, index) => (
+                    {evidenceFiles.map((file, index) => (
                       <div key={index} className={`flex items-center justify-between p-2 ${fileItem} rounded-lg`}>
                         <div className="flex items-center gap-2 min-w-0">
                           <i className="ri-file-line text-teal-400"></i>
-                          <span className={`${titleText} text-sm truncate`}>{file}</span>
+                          <span className={`${titleText} text-sm truncate`}>{file.name}</span>
                         </div>
                         <button
                           type="button"
@@ -217,6 +249,13 @@ const ReportModal = ({ isOpen, onClose, targetName, targetAvatar, reporterRole }
                   </div>
                 )}
               </div>
+
+              {submitError && (
+                <div className="flex items-start gap-3 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                  <i className="ri-alert-line text-red-400 text-lg flex-shrink-0 mt-0.5"></i>
+                  <p className="text-red-600 dark:text-red-500 text-xs">{submitError}</p>
+                </div>
+              )}
 
               <div className="flex items-start gap-3 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
                 <i className="ri-information-line text-amber-400 text-lg flex-shrink-0 mt-0.5"></i>

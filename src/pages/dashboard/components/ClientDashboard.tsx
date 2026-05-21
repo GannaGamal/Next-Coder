@@ -20,8 +20,6 @@ import {
   type ActiveProject,
   type ActiveMilestone,
   type CompletedProject,
-  type Comment,
-  type deliverable,
 } from '../../../services/clientDashboard.service';
 
 const ClientDashboard = () => {
@@ -83,7 +81,7 @@ const ClientDashboard = () => {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
-  const [reportTarget, setReportTarget] = useState<{ name: string; avatar: string }>({ name: '', avatar: '' });
+  const [reportTarget, setReportTarget] = useState<{ name: string; avatar: string; projectId: number }>({ name: '', avatar: '', projectId: 0 });
   const [reviewingMilestone, setReviewingMilestone] = useState<ActiveMilestone | null>(null);
   const [rejectionComment, setRejectionComment] = useState('');
   const [rating, setRating] = useState(0);
@@ -200,14 +198,15 @@ const ClientDashboard = () => {
   };
 
   /**
-   * Approve a pending milestone plan (before work starts).
-   * Uses the same /milestones/approve endpoint; optimistically flips status to 'approved'.
+   * Approve a pending milestone plan.
+   * Called from the Payment Confirmation modal (after user reviews and confirms payment).
+   * Calls /milestones/approve, then optimistically flips status to 'Accepted'.
    */
   const handleApproveMilestone = async () => {
     if (!reviewingMilestone || !selectedActiveProject) return;
     setActionLoading(true);
     try {
-      await approveMilestone(reviewingMilestone.id,rejectionComment);
+      await approveMilestone(reviewingMilestone.id, rejectionComment);
       setActiveProjects(prev =>
         prev.map(p =>
           p.id === selectedActiveProject.id
@@ -215,7 +214,7 @@ const ClientDashboard = () => {
             : p
         )
       );
-      setShowMilestoneReviewModal(false);
+      setShowPaymentModal(false);
       setReviewingMilestone(null);
       setRejectionComment('');
     } catch (e) {
@@ -266,7 +265,7 @@ const ClientDashboard = () => {
     if (!reviewingMilestone || !selectedActiveProject) return;
     setActionLoading(true);
     try {
-      await approveMilestone(reviewingMilestone.id,reviewingMilestone.clientComment ?? '');
+      await approveMilestone(reviewingMilestone.id, reviewingMilestone.clientComment ?? '');
       setShowSubmittedReviewModal(false);
       setShowPaymentModal(true);
     } catch (e) {
@@ -390,8 +389,8 @@ const ClientDashboard = () => {
     }
   };
 
-  const handleOpenReport = (name: string, avatar: string) => {
-    setReportTarget({ name, avatar });
+  const handleOpenReport = (name: string, avatar: string, projectId: number) => {
+    setReportTarget({ name, avatar, projectId });
     setShowReportModal(true);
   };
 
@@ -562,7 +561,7 @@ const ClientDashboard = () => {
                   </div>
                 </div>
                 <button
-                  onClick={() => handleOpenReport(project.freelancerName, project.freelancerImageUrl)}
+                  onClick={() => handleOpenReport(project.freelancerName, project.freelancerImageUrl, project.id)}
                   className="px-4 py-2 bg-red-500/10 text-red-400 font-semibold rounded-lg hover:bg-red-500/20 transition-colors whitespace-nowrap cursor-pointer text-sm"
                 >
                   <i className="ri-flag-line mr-1"></i>{t('clientDashboard.report')}
@@ -724,15 +723,27 @@ const ClientDashboard = () => {
                             )}
 
                             {/* Client rejection / change-request comment */}
-                            {milestone.clientComment && (
+                            {milestone.clientComment && milestone.status === 'InProgress' && (
                               <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
                                 <div className="flex items-center gap-2 mb-1">
                                   <i className="ri-close-circle-line text-red-500 text-sm"></i>
                                   <span className="text-red-500 text-xs font-semibold">
-                                    {t('clientDashboard.yourRejection')}
+                                    Your Feedback
                                   </span>
                                 </div>
                                 <p className="text-red-500/80 text-sm">{milestone.clientComment}</p>
+                              </div>
+                            )}
+                            
+                            {milestone.clientComment && milestone.status === 'Accepted' && (
+                              <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <i className="ri-checkbox-circle-line text-green-500 text-sm"></i>
+                                  <span className="text-green-500 text-xs font-semibold">
+                                    Your Feedback
+                                  </span>
+                                </div>
+                                <p className="text-green-500/80 text-sm">{milestone.clientComment}</p>
                               </div>
                             )}
 
@@ -821,7 +832,7 @@ const ClientDashboard = () => {
                 </div>
                 <div className="flex items-center gap-3">
                   <button
-                    onClick={() => handleOpenReport(project.freelancerName, project.freelancerImageUrl)}
+                    onClick={() => handleOpenReport(project.freelancerName, project.freelancerImageUrl, project.id)}
                     className="px-4 py-2 bg-red-500/10 text-red-400 font-semibold rounded-lg hover:bg-red-500/20 transition-colors whitespace-nowrap cursor-pointer text-sm"
                   >
                     <i className="ri-flag-line mr-1"></i>{t('clientDashboard.report')}
@@ -848,17 +859,22 @@ const ClientDashboard = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                 <div className={`${milestoneMiniCard} rounded-lg p-4`}>
                   <span className={`${textSec} text-sm mb-2 block`}>{t('clientDashboard.myRatingForFreelancer')}</span>
-                  {/* isRated / freelancerRatingGivenByClient from service */}
-                  {project.isRated && project.freelancerRatingGivenByClient != null ? (
-                    <div className="flex items-center gap-2">
-                      {[...Array(5)].map((_, i) => (
-                        <i
-                          key={i}
-                          className={`ri-star-fill text-xl ${
-                            i < project.freelancerRatingGivenByClient! ? 'text-yellow-400' : isLightMode ? 'text-gray-200' : 'text-white/20'
-                          }`}
-                        ></i>
-                      ))}
+                  {/* isRated / freelancerRatingFromClient from service */}
+                  {project.isRated && project.freelancerRatingFromClient != null ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        {[...Array(5)].map((_, i) => (
+                          <i
+                            key={i}
+                            className={`ri-star-fill text-xl ${
+                              i < project.freelancerRatingFromClient! ? 'text-yellow-400' : isLightMode ? 'text-gray-200' : 'text-white/20'
+                            }`}
+                          ></i>
+                        ))}
+                      </div>
+                      {project.freelancerRatingCommentFromClient && (
+                        <p className={`${textSec} text-sm italic`}>"{project.freelancerRatingCommentFromClient}"</p>
+                      )}
                     </div>
                   ) : (
                     <button
@@ -869,19 +885,25 @@ const ClientDashboard = () => {
                     </button>
                   )}
                 </div>
+                
                 <div className={`${milestoneMiniCard} rounded-lg p-4`}>
                   <span className={`${textSec} text-sm mb-2 block`}>{t('clientDashboard.ratingFromFreelancer')}</span>
                   {/* clientRatingFromFreelancer from service */}
                   {project.clientRatingFromFreelancer != null ? (
-                    <div className="flex items-center gap-2">
-                      {[...Array(5)].map((_, i) => (
-                        <i
-                          key={i}
-                          className={`ri-star-fill text-xl ${
-                            i < project.clientRatingFromFreelancer! ? 'text-yellow-400' : isLightMode ? 'text-gray-200' : 'text-white/20'
-                          }`}
-                        ></i>
-                      ))}
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        {[...Array(5)].map((_, i) => (
+                          <i
+                            key={i}
+                            className={`ri-star-fill text-xl ${
+                              i < project.clientRatingFromFreelancer! ? 'text-yellow-400' : isLightMode ? 'text-gray-200' : 'text-white/20'
+                            }`}
+                          ></i>
+                        ))}
+                      </div>
+                      {project.clientRatingCommentFromFreelancer && (
+                        <p className={`${textSec} text-sm italic`}>"{project.clientRatingCommentFromFreelancer}"</p>
+                      )}
                     </div>
                   ) : (
                     <span className={`${textMuted} text-sm`}>{t('common.awaitingRating')}</span>
@@ -987,7 +1009,7 @@ const ClientDashboard = () => {
         </div>
       )}
 
-      {/* Milestone Review Modal (pending plan) */}
+      {/* Milestone Review Modal (submitted plan — reject or proceed to payment) */}
       {showMilestoneReviewModal && reviewingMilestone && selectedActiveProject && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowMilestoneReviewModal(false)}></div>
@@ -1133,14 +1155,102 @@ const ClientDashboard = () => {
                 }
               </button>
 
+              {/* ── Approve: open payment confirmation first ── */}
               <button
-                onClick={handleApproveMilestone}
+                onClick={() => {
+                  setShowMilestoneReviewModal(false);
+                  setShowPaymentModal(true);
+                }}
                 disabled={actionLoading || reviewingMilestone.status !== 'Submitted'}
                 className="flex-1 px-5 py-3 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 transition-colors whitespace-nowrap cursor-pointer disabled:opacity-50"
               >
+                <i className="ri-check-line mr-2"></i>{t('clientDashboard.approveAndPay')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Payment Confirmation Modal ─────────────────────────────────────── */}
+      {showPaymentModal && reviewingMilestone && selectedActiveProject && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => {
+              setShowPaymentModal(false);
+              setShowMilestoneReviewModal(true); // go back if dismissed
+            }}
+          ></div>
+
+          <div className={`relative ${modalBg} rounded-2xl p-8 w-full max-w-md`}>
+            <button
+              onClick={() => {
+                setShowPaymentModal(false);
+                setShowMilestoneReviewModal(true); // go back
+              }}
+              className={`absolute top-4 right-4 w-8 h-8 flex items-center justify-center ${closeBtn} cursor-pointer`}
+            >
+              <i className="ri-close-line text-xl"></i>
+            </button>
+
+            {/* Icon */}
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 flex items-center justify-center rounded-full bg-green-500/20 mx-auto mb-4">
+                <i className="ri-secure-payment-line text-3xl text-green-400"></i>
+              </div>
+              <h3 className={`text-2xl font-bold ${textPrimary} mb-1`}>
+                Confirm Payment
+              </h3>
+              <p className={`${textSec} text-sm`}>
+                Review the details below before releasing payment for this milestone.
+              </p>
+            </div>
+
+            {/* Summary card */}
+            <div className={`${innerCard} rounded-xl p-5 mb-6 space-y-3`}>
+              <div className="flex justify-between items-center">
+                <span className={`${textSec} text-sm`}>Milestone</span>
+                <span className={`${textPrimary} font-semibold text-sm`}>{reviewingMilestone.title}</span>
+              </div>
+              <div className={`border-t ${divider}`}></div>
+              <div className="flex justify-between items-center">
+                <span className={`${textSec} text-sm`}>Freelancer</span>
+                <span className={`${textPrimary} font-semibold text-sm`}>{selectedActiveProject.freelancerName}</span>
+              </div>
+              <div className={`border-t ${divider}`}></div>
+              <div className="flex justify-between items-center">
+                <span className={`${textSec} text-sm`}>Amount to Release</span>
+                <span className="text-green-400 font-bold text-xl">${reviewingMilestone.amount}</span>
+              </div>
+            </div>
+
+            {/* Info note */}
+            <div className="flex items-start gap-3 p-3 bg-teal-500/10 border border-teal-500/20 rounded-lg mb-6">
+              <i className="ri-information-line text-teal-400 text-base mt-0.5 flex-shrink-0"></i>
+              <p className="text-teal-400 text-xs leading-relaxed">
+                By confirming, you approve this milestone and authorise the release of the payment to the freelancer. This action cannot be undone.
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowPaymentModal(false);
+                  setShowMilestoneReviewModal(true); // go back to review
+                }}
+                className={`flex-1 px-5 py-3 ${cancelBtn} font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer`}
+              >
+                <i className="ri-arrow-left-line mr-2"></i>Back
+              </button>
+
+              <button
+                onClick={handleApproveMilestone}
+                disabled={actionLoading}
+                className="flex-1 px-5 py-3 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 transition-colors whitespace-nowrap cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 {actionLoading
                   ? <i className="ri-loader-4-line animate-spin"></i>
-                  : <><i className="ri-check-line mr-2"></i>{t('clientDashboard.approve')}</>
+                  : <><i className="ri-check-double-line mr-2"></i>Confirm & Pay</>
                 }
               </button>
             </div>
@@ -1308,7 +1418,7 @@ const ClientDashboard = () => {
               >
                 {actionLoading
                   ? <i className="ri-loader-4-line animate-spin"></i>
-                  : <><i className="ri-check-double-line mr-2"></i>{t('clientDashboard.approveAndPay')}</>
+                  : <><i className="ri-check-double-line mr-2"></i>{t('clientDashboard.approve')}</>
                 }
               </button>
             </div>
@@ -1379,6 +1489,7 @@ const ClientDashboard = () => {
         onClose={() => setShowReportModal(false)}
         targetName={reportTarget.name}
         targetAvatar={reportTarget.avatar}
+        projectId={reportTarget.projectId}
         reporterRole="client"
       />
 

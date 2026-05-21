@@ -182,7 +182,7 @@ const ClientProfile = () => {
                 <div className="flex flex-wrap items-center gap-3 mb-3">
                   {contactInfo.phoneNumber && <span className="flex items-center gap-1.5 text-xs text-gray-300"><i className="ri-phone-line text-orange-400"></i>{contactInfo.phoneNumber}</span>}
                   {contactInfo.country && <span className="flex items-center gap-1.5 text-xs text-gray-300"><i className="ri-map-pin-line text-orange-400"></i>{contactInfo.country}</span>}
-                  {contactInfo.websiteUrl && <span className="flex items-center gap-1.5 text-xs text-gray-300"><i className="ri-global-line text-orange-400"></i>{contactInfo.websiteUrl}</span>}
+                  {contactInfo.websiteUrl && <a href={contactInfo.websiteUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-gray-300"><i className="ri-global-line text-orange-400"></i>{contactInfo.websiteUrl}</a>}
                 </div>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-6">
                   <div className="flex items-center gap-2">
