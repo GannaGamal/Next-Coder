@@ -196,7 +196,7 @@ const FreelancerEditModal = ({ isOpen, onClose, data, onSave, accentColor = 'pur
                 htmlFor="freelancer-availability"
                 className={`text-sm ${isLightMode ? 'text-gray-700' : 'text-gray-300'}`}
               >
-                Available for new work
+                Available
               </label>
             </div>
           </div>
@@ -210,7 +210,7 @@ const FreelancerEditModal = ({ isOpen, onClose, data, onSave, accentColor = 'pur
                   {field.label}
                 </label>
                 <input
-                  type={field.icon || 'text'}
+                  type={field.type || 'text'}
                   value={form[field.key] as string}
                   onChange={e => set(field.key, e.target.value)}
                   placeholder={field.placeholder}
