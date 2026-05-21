@@ -55,6 +55,16 @@ export interface LookupItem {
   value: string;
 }
 
+export interface PaginatedResult<T> {
+  items: T[];
+  totalCount: number;
+  pageNumber: number;
+  totalPages: number;
+  pageSize: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+}
+
 // ─── Helper ──────────────────────────────────────────────────────────────────
 
 const authHeaders = (): HeadersInit => ({
@@ -126,4 +136,67 @@ export async function getExperienceLevels(): Promise<LookupItem[]> {
   });
   const data: LookupItem[] = await res.json();
   return data;
+}
+
+/**
+ * GET /api/FreelanceProject/Project
+ * Fetch paginated projects with optional filters.
+ */
+export async function getProjects(params?: {
+  Search?: string;
+  Category?: string;
+  ExperienceLevel?: string;
+  Skill?: string;
+  SortBy?: string;
+  PageNumber?: number;
+  PageSize?: number;
+  Budget?: string;
+  ProjectType?: string;
+}): Promise<PaginatedResult<CreatedProject>> {
+
+  let qs = new URLSearchParams();
+
+  if (params) {
+    if (params.Search?.trim())
+      qs.append('Search', params.Search);
+
+    if (params.Category?.trim())
+      qs.append('Category', params.Category);
+
+    if (params.ExperienceLevel?.trim())
+      qs.append('ExperienceLevel', params.ExperienceLevel);
+
+    if (params.Skill?.trim())
+      qs.append('Skill', params.Skill);
+
+    if (params.SortBy?.trim())
+      qs.append('SortBy', params.SortBy);
+
+    if (params.PageNumber)
+      qs.append('PageNumber', String(params.PageNumber));
+
+    if (params.PageSize)
+      qs.append('PageSize', String(params.PageSize));
+
+    if (params.Budget?.trim())
+      qs.append('Budget', params.Budget);
+
+    if (params.ProjectType?.trim())
+      qs.append('ProjectType', params.ProjectType);
+  }
+
+  let url = `${API_BASE}/FreelanceProject/Project`
+  if (qs.toString()) {
+  url += `?${qs.toString()}`;
+  }
+  console.log('Fetching projects with URL:', url);
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: authHeaders(),
+  });
+
+  const body =
+    await handleResponse<PaginatedResult<CreatedProject>>(res);
+
+  return body.data;
 }

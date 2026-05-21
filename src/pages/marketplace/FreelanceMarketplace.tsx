@@ -7,6 +7,7 @@ import RoleGateModal from '../../components/feature/RoleGateModal';
 import CustomSelect from '../../components/base/CustomSelect';
 import {
   createFreelanceProject,
+  getProjects,
   getProjectCategories,
   getDurationTypes,
   getExperienceLevels,
@@ -47,15 +48,13 @@ const FreelanceMarketplace = () => {
   const { user, isAuthenticated } = useAuth();
   const { isLightMode } = useTheme();
   const { t } = useTranslation();
-  const navigate = useNavigate();
+  useNavigate();
   const [showRoleGateModal, setShowRoleGateModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
-  const [budgetFilter, setBudgetFilter] = useState('all');
   const [experienceFilter, setExperienceFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
-  const [projectTypeFilter, setProjectTypeFilter] = useState('all');
-  const [sortBy, setSortBy] = useState('newest');
+  const [sortBy, setSortBy] = useState('HighestBudget');
   const [showFilters, setShowFilters] = useState(true);
   const [showPostModal, setShowPostModal] = useState(false);
   const [requirements, setRequirements] = useState<string[]>(['']);
@@ -229,327 +228,114 @@ const FreelanceMarketplace = () => {
     
   const experienceLevelOptions = apiExperienceLevels.map(e => ({ value: e.value, label: e.name }))
 
-  const projects: Project[] = [
-    {
-      id: '1',
-      title: 'E-commerce Website Development with React',
-      description:
-        'Looking for an experienced React developer to build a modern e-commerce platform with payment integration, product management, and user authentication. The project requires clean code, responsive design, and integration with Stripe for payments.',
-      client: {
-        name: 'TechStart Inc.',
-        avatar:
-          'https://readdy.ai/api/search-image?query=modern%20tech%20startup%20company%20logo%20minimalist%20design%20clean%20professional%20blue%20gradient%20simple%20white%20background&width=200&height=200&seq=client1&orientation=squarish',
-        rating: 4.9,
-        reviewCount: 47,
-        verified: true,
-        clientId: '3',
-      },
-      budget: { min: 3000, max: 5000, type: 'fixed' },
-      duration: '2-3 months',
-      skills: ['React', 'Node.js', 'TypeScript', 'MongoDB', 'Stripe'],
-      proposals: 12,
-      postedDate: '2 days ago',
-      category: 'Web Development',
-      experienceLevel: 'Expert',
-      projectType: 'Fixed Price',
-      featured: true,
-    },
-    {
-      id: '2',
-      title: 'Mobile App UI/UX Design for Fitness Platform',
-      description:
-        'Need a talented UI/UX designer to create modern, intuitive designs for our fitness tracking mobile app. Must include user flows, wireframes, and high-fidelity mockups for iOS and Android.',
-      client: {
-        name: 'FitLife Studios',
-        avatar:
-          'https://readdy.ai/api/search-image?query=fitness%20wellness%20company%20logo%20energetic%20design%20vibrant%20colors%20modern%20athletic%20simple%20white%20background&width=200&height=200&seq=client2&orientation=squarish',
-        rating: 4.7,
-        reviewCount: 32,
-        verified: true,
-        clientId: '8',
-      },
-      budget: { min: 2000, max: 3500, type: 'fixed' },
-      duration: '1-2 months',
-      skills: ['UI/UX Design', 'Figma', 'Mobile Design', 'Prototyping'],
-      proposals: 18,
-      postedDate: '1 day ago',
-      category: 'Design',
-      experienceLevel: 'Intermediate',
-      projectType: 'Fixed Price',
-      featured: true,
-    },
-    {
-      id: '3',
-      title: 'Python Data Analysis and Visualization',
-      description:
-        'Seeking a data analyst to process and visualize large datasets. Create interactive dashboards and generate insights from sales data. Experience with Pandas, NumPy, and visualization libraries required.',
-      client: {
-        name: 'DataViz Corp',
-        avatar:
-          'https://readdy.ai/api/search-image?query=data%20analytics%20company%20logo%20abstract%20geometric%20design%20professional%20blue%20purple%20gradient%20simple%20white%20background&width=200&height=200&seq=client3&orientation=squarish',
-        rating: 4.8,
-        reviewCount: 28,
-        verified: false,
-        clientId: '3',
-      },
-      budget: { min: 50, max: 80, type: 'hourly' },
-      duration: '1 month',
-      skills: ['Python', 'Data Analysis', 'Pandas', 'Matplotlib', 'SQL'],
-      proposals: 9,
-      postedDate: '3 days ago',
-      category: 'Data Science',
-      experienceLevel: 'Intermediate',
-      projectType: 'Hourly',
-    },
-    {
-      id: '4',
-      title: 'Content Writing for Tech Blog - 20 Articles',
-      description:
-        'Looking for an experienced tech writer to create 20 SEO-optimized articles about software development, AI, and cloud computing. Each article should be 1500-2000 words with proper research and citations.',
-      client: {
-        name: 'Tech Insights Media',
-        avatar:
-          'https://readdy.ai/api/search-image?query=media%20publishing%20company%20logo%20modern%20typography%20design%20professional%20elegant%20simple%20white%20background&width=200&height=200&seq=client4&orientation=squarish',
-        rating: 4.6,
-        reviewCount: 54,
-        verified: true,
-        clientId: '5',
-      },
-      budget: { min: 1500, max: 2500, type: 'fixed' },
-      duration: '1 month',
-      skills: ['Content Writing', 'SEO', 'Technical Writing', 'Research'],
-      proposals: 24,
-      postedDate: '5 days ago',
-      category: 'Writing',
-      experienceLevel: 'Intermediate',
-      projectType: 'Fixed Price',
-    },
-    {
-      id: '5',
-      title: 'WordPress Website Customization and Plugin Development',
-      description:
-        'Need a WordPress expert to customize an existing theme and develop custom plugins for enhanced functionality. Must have experience with PHP, WordPress hooks, and custom post types.',
-      client: {
-        name: 'Digital Solutions LLC',
-        avatar:
-          'https://readdy.ai/api/search-image?query=digital%20agency%20company%20logo%20creative%20design%20colorful%20modern%20professional%20simple%20white%20background&width=200&height=200&seq=client5&orientation=squarish',
-        rating: 4.5,
-        reviewCount: 19,
-        verified: false,
-        clientId: '8',
-      },
-      budget: { min: 40, max: 65, type: 'hourly' },
-      duration: '2-3 weeks',
-      skills: ['WordPress', 'PHP', 'JavaScript', 'CSS', 'MySQL'],
-      proposals: 15,
-      postedDate: '1 week ago',
-      category: 'Web Development',
-      experienceLevel: 'Intermediate',
-      projectType: 'Hourly',
-    },
-    {
-      id: '6',
-      title: 'Social Media Marketing Campaign for Product Launch',
-      description:
-        'Seeking a social media expert to plan and execute a comprehensive marketing campaign across Instagram, Facebook, and LinkedIn for our new product launch. Includes content creation and ad management.',
-      client: {
-        name: 'BrandBoost Marketing',
-        avatar:
-          'https://readdy.ai/api/search-image?query=marketing%20agency%20company%20logo%20dynamic%20design%20vibrant%20colors%20creative%20professional%20simple%20white%20background&width=200&height=200&seq=client6&orientation=squarish',
-        rating: 4.9,
-        reviewCount: 63,
-        verified: true,
-        clientId: '3',
-      },
-      budget: { min: 2500, max: 4000, type: 'fixed' },
-      duration: '2 months',
-      skills: ['Social Media', 'Marketing', 'Content Creation', 'Facebook Ads'],
-      proposals: 21,
-      postedDate: '4 days ago',
-      category: 'Marketing',
-      experienceLevel: 'Expert',
-      projectType: 'Fixed Price',
-    },
-    {
-      id: '7',
-      title: 'iOS and Android Mobile App Development',
-      description:
-        'Build a cross-platform mobile app for restaurant ordering and delivery. Features include menu browsing, cart management, payment processing, and real-time order tracking. React Native preferred.',
-      client: {
-        name: 'FoodHub Technologies',
-        avatar:
-          'https://readdy.ai/api/search-image?query=food%20delivery%20tech%20company%20logo%20modern%20minimalist%20design%20orange%20red%20colors%20simple%20white%20background&width=200&height=200&seq=client7&orientation=squarish',
-        rating: 4.7,
-        reviewCount: 41,
-        verified: true,
-        clientId: '5',
-      },
-      budget: { min: 8000, max: 12000, type: 'fixed' },
-      duration: '3-4 months',
-      skills: ['React Native', 'Mobile Development', 'Firebase', 'Payment Integration'],
-      proposals: 8,
-      postedDate: '2 days ago',
-      category: 'Mobile Development',
-      experienceLevel: 'Expert',
-      projectType: 'Fixed Price',
-      featured: true,
-    },
-    {
-      id: '8',
-      title: 'Video Editing for YouTube Channel - 10 Videos',
-      description:
-        'Looking for a skilled video editor to edit 10 educational YouTube videos. Includes cutting, color grading, adding graphics, transitions, and background music. Each video is 10-15 minutes long.',
-      client: {
-        name: 'EduTube Creators',
-        avatar:
-          'https://readdy.ai/api/search-image?query=education%20content%20creator%20logo%20playful%20design%20colorful%20modern%20friendly%20simple%20white%20background&width=200&height=200&seq=client8&orientation=squarish',
-        rating: 4.8,
-        reviewCount: 36,
-        verified: false,
-        clientId: '3',
-      },
-      budget: { min: 800, max: 1200, type: 'fixed' },
-      duration: '3 weeks',
-      skills: ['Video Editing', 'Adobe Premiere', 'After Effects', 'Color Grading'],
-      proposals: 19,
-      postedDate: '6 days ago',
-      category: 'Video & Animation',
-      experienceLevel: 'Intermediate',
-      projectType: 'Fixed Price',
-    },
-    {
-      id: '9',
-      title: 'DevOps Engineer for AWS Infrastructure Setup',
-      description:
-        'Need an experienced DevOps engineer to set up and configure AWS infrastructure including EC2, RDS, S3, CloudFront, and CI/CD pipelines. Must have Terraform and Docker experience.',
-      client: {
-        name: 'CloudScale Systems',
-        avatar:
-          'https://readdy.ai/api/search-image?query=cloud%20computing%20company%20logo%20abstract%20tech%20design%20blue%20gradient%20modern%20professional%20simple%20white%20background&width=200&height=200&seq=client9&orientation=squarish',
-        rating: 4.9,
-        reviewCount: 52,
-        verified: true,
-        clientId: '8',
-      },
-      budget: { min: 80, max: 120, type: 'hourly' },
-      duration: '1-2 months',
-      skills: ['AWS', 'DevOps', 'Docker', 'Terraform', 'CI/CD'],
-      proposals: 7,
-      postedDate: '1 day ago',
-      category: 'DevOps',
-      experienceLevel: 'Expert',
-      projectType: 'Hourly',
-      featured: true,
-    },
-    {
-      id: '10',
-      title: 'Shopify Store Setup and Customization',
-      description:
-        'Set up a complete Shopify store for fashion brand including theme customization, product uploads, payment gateway integration, and SEO optimization. Experience with Liquid templating required.',
-      client: {
-        name: 'Fashion Forward Co.',
-        avatar:
-          'https://readdy.ai/api/search-image?query=fashion%20brand%20company%20logo%20elegant%20design%20minimalist%20chic%20black%20white%20simple%20white%20background&width=200&height=200&seq=client10&orientation=squarish',
-        rating: 4.6,
-        reviewCount: 25,
-        verified: false,
-        clientId: '5',
-      },
-      budget: { min: 1500, max: 2500, type: 'fixed' },
-      duration: '3-4 weeks',
-      skills: ['Shopify', 'E-commerce', 'Liquid', 'CSS', 'SEO'],
-      proposals: 16,
-      postedDate: '1 week ago',
-      category: 'Web Development',
-      experienceLevel: 'Intermediate',
-      projectType: 'Fixed Price',
-    },
-  ];
+  // Projects loaded from API
+
+  // Projects loaded from API
+  const [projectsData, setProjectsData] = useState<Project[]>([]);
+  const [, setLoadingProjects] = useState(false);
+  const [pageNumber] = useState(1);
+  const [pageSize] = useState(12);
+  const projects = projectsData;
 
   const toggleSkill = (skill: string) => {
     setSelectedSkills((prev) =>
-      prev.includes(skill) ? prev.filter((s) => s !== skill) : [...prev, skill]
+      prev.includes(skill) ? [] : [skill]
     );
   };
 
   const clearAllFilters = () => {
     setSearchQuery('');
     setSelectedSkills([]);
-    setBudgetFilter('all');
     setExperienceFilter('all');
     setCategoryFilter('all');
-    setProjectTypeFilter('all');
   };
 
   const filteredProjects = projects.filter((project) => {
-    const lowerSearch = searchQuery.toLowerCase();
+    const lowerSearch = searchQuery.toLowerCase().trim();
     const matchesSearch =
+      !lowerSearch ||
       project.title.toLowerCase().includes(lowerSearch) ||
       project.description.toLowerCase().includes(lowerSearch) ||
       project.skills.some((skill) => skill.toLowerCase().includes(lowerSearch));
 
-    const matchesSkills =
+    const matchesSkill =
       selectedSkills.length === 0 ||
-      selectedSkills.some((skill) => project.skills.includes(skill));
+      project.skills.includes(selectedSkills[0]);
 
-    const matchesBudget =
-      budgetFilter === 'all' ||
-      (budgetFilter === 'under1000' && project.budget.type === 'fixed' && project.budget.max < 1000) ||
-      (budgetFilter === '1000-5000' &&
-        project.budget.type === 'fixed' &&
-        project.budget.min >= 1000 &&
-        project.budget.max <= 5000) ||
-      (budgetFilter === 'over5000' && project.budget.type === 'fixed' && project.budget.min > 5000) ||
-      (budgetFilter === 'hourly' && project.budget.type === 'hourly');
+    const matchesCategory =
+      categoryFilter === 'all' || project.category === categoryFilter;
 
-    const matchesExperience = experienceFilter === 'all' || project.experienceLevel === experienceFilter;
-    const matchesCategory = categoryFilter === 'all' || project.category === categoryFilter;
-    const matchesProjectType = projectTypeFilter === 'all' || project.projectType === projectTypeFilter;
+    const matchesExperience =
+      experienceFilter === 'all' || project.experienceLevel === experienceFilter;
 
-    return (
-      matchesSearch &&
-      matchesSkills &&
-      matchesBudget &&
-      matchesExperience &&
-      matchesCategory &&
-      matchesProjectType
-    );
+    return matchesSearch && matchesSkill && matchesCategory && matchesExperience;
   });
 
-  const sortedProjects = [...filteredProjects].sort((a, b) => {
-    if (sortBy === 'newest') {
-      // postedDate is a human readable string; fallback to index order if parsing fails
-      const dateA = new Date(a.postedDate).getTime() || 0;
-      const dateB = new Date(b.postedDate).getTime() || 0;
-      return dateB - dateA;
-    }
-    if (sortBy === 'budget') {
-      const aMax = a.budget.type === 'fixed' ? a.budget.max : a.budget.max * 160; // approximate monthly hrs
-      const bMax = b.budget.type === 'fixed' ? b.budget.max : b.budget.max * 160;
-      return bMax - aMax;
-    }
-    if (sortBy === 'proposals') {
-      return a.proposals - b.proposals; // fewest first
-    }
-    return 0;
-  });
+  // Fetch projects from API when filters/sort/search/page change
+  useEffect(() => {
+    let mounted = true;
+    const fetchProjects = async () => {
+      setLoadingProjects(true);
+      try {
+        const params: any = {
+          Search: searchQuery || undefined,
+          Category: categoryFilter !== 'all' ? categoryFilter : undefined,
+          ExperienceLevel: experienceFilter !== 'all' ? experienceFilter : undefined,
+          Skill: selectedSkills.length > 0 ? selectedSkills[0] : undefined,
+          SortBy: sortBy || undefined,
+          PageNumber: pageNumber,
+          PageSize: pageSize,
+        };
+        const res = await getProjects(params);
+        if (!mounted) return;
+        // Map API items to Project shape used in the component
+        const mapped = res.items.map((it) => ({
+          id: String(it.id),
+          title: it.title,
+          description: it.description,
+          client: {
+            name: `Client ${it.clientId}`,
+            avatar: 'https://via.placeholder.com/200',
+            rating: 0,
+            reviewCount: 0,
+            verified: false,
+            clientId: String(it.clientId),
+          },
+          budget: { min: it.budget, max: it.budget, type: 'fixed' as const },
+          duration: `${it.duration} ${it.durationTypeName}`,
+          skills: it.skills || [],
+          proposals: it.proposalCount ?? 0,
+          postedDate: new Date(it.createdAt).toLocaleDateString(),
+          category: it.categoryName,
+          experienceLevel: (it.experienceLevelName as Project['experienceLevel']) || 'Intermediate',
+          projectType: it.budget ? 'Fixed Price' as const : 'Fixed Price' as const,
+        }));
 
-  const featuredProjects = sortedProjects.filter((p) => p.featured);
-  const regularProjects = sortedProjects.filter((p) => !p.featured);
+        setProjectsData(mapped);
+      } catch (err) {
+        // leave sample data as fallback
+        console.error('Failed to load projects', err);
+      } finally {
+        if (mounted) setLoadingProjects(false);
+      }
+    };
+
+    fetchProjects();
+    return () => { mounted = false; };
+  }, [searchQuery, categoryFilter, experienceFilter, selectedSkills, sortBy, pageNumber, pageSize]);
+
+  // Server returns projects already filtered/sorted. Use them directly.
+  const featuredProjects = filteredProjects.filter((p) => p.featured);
+  const regularProjects = filteredProjects.filter((p) => !p.featured);
 
   const activeFiltersCount = [
     selectedSkills.length > 0,
-    budgetFilter !== 'all',
     experienceFilter !== 'all',
     categoryFilter !== 'all',
-    projectTypeFilter !== 'all',
   ].filter(Boolean).length;
 
   const formatBudget = (budget: Project['budget']) => {
-    if (budget.type === 'hourly') {
-      return `$${budget.min}-${budget.max}/hr`;
-    }
-    return `$${budget.min.toLocaleString()}-${budget.max.toLocaleString()}`;
+    return `$${budget.min.toLocaleString()}`;
   };
 
   const addRequirement = () => {
@@ -759,7 +545,7 @@ const FreelanceMarketplace = () => {
 
           <div className="flex flex-col lg:flex-row gap-6">
             {/* Sidebar Filters */}
-            <div className={`${showFilters ? 'block' : 'hidden'} lg:block lg:w-72 flex-shrink-0`}>
+            <div className={`${showFilters ? 'block' : 'hidden'} lg:w-72 flex-shrink-0`}>
               <div className={`backdrop-blur-sm rounded-xl border p-4 sm:p-5 lg:sticky lg:top-28 overflow-y-auto max-h-[calc(100vh-8rem)] thin-scrollbar ${isLightMode ? 'bg-white border-gray-200' : 'bg-white/5 border-white/10'}`}>
                 <div className="flex items-center justify-between mb-5">
                   <h2 className={`font-semibold flex items-center gap-2 ${isLightMode ? 'text-gray-900' : 'text-white'}`}>
@@ -772,14 +558,6 @@ const FreelanceMarketplace = () => {
                 <div className="mb-5">
                   <label className={`block text-sm font-medium mb-2 ${isLightMode ? 'text-gray-700' : 'text-white'}`}>{t('marketplace.category')}</label>
                   <CustomSelect value={categoryFilter} onChange={setCategoryFilter} options={[{ value: 'all', label: t('marketplace.allCategories') }, ...categories.map(cat => ({ value: cat, label: cat }))]} placeholder={t('marketplace.allCategories')} />
-                </div>
-                <div className="mb-5">
-                  <label className={`block text-sm font-medium mb-2 ${isLightMode ? 'text-gray-700' : 'text-white'}`}>{t('marketplace.projectType')}</label>
-                  <CustomSelect value={projectTypeFilter} onChange={setProjectTypeFilter} options={[{ value: 'all', label: t('marketplace.allTypes') }, { value: 'Fixed Price', label: t('marketplace.fixedPrice') }, { value: 'Hourly', label: t('marketplace.hourlyRate') }, { value: 'Contract', label: t('marketplace.contract') }]} placeholder={t('marketplace.allTypes')} />
-                </div>
-                <div className="mb-5">
-                  <label className={`block text-sm font-medium mb-2 ${isLightMode ? 'text-gray-700' : 'text-white'}`}>{t('marketplace.budget')}</label>
-                  <CustomSelect value={budgetFilter} onChange={setBudgetFilter} options={[{ value: 'all', label: t('marketplace.anyBudget') }, { value: 'under1000', label: t('marketplace.under1000') }, { value: '1000-5000', label: t('marketplace.range1000to5000') }, { value: 'over5000', label: t('marketplace.over5000') }, { value: 'hourly', label: t('marketplace.hourlyProjects') }]} placeholder={t('marketplace.anyBudget')} />
                 </div>
                 <div className="mb-5">
                   <label className={`block text-sm font-medium mb-2 ${isLightMode ? 'text-gray-700' : 'text-white'}`}>{t('marketplace.experienceLevel')}</label>
@@ -814,7 +592,7 @@ const FreelanceMarketplace = () => {
                   <div className="flex items-center gap-2 sm:gap-3">
                     <span className={`text-xs sm:text-sm whitespace-nowrap ${isLightMode ? 'text-gray-500' : 'text-gray-400'}`}>{t('marketplace.sortBy')}</span>
                     <div className="relative flex-1 sm:flex-initial sm:min-w-[160px]">
-                      <CustomSelect value={sortBy} onChange={setSortBy} options={[{ value: 'newest', label: t('marketplace.newest') }, { value: 'budget', label: t('marketplace.highestBudget') }, { value: 'proposals', label: t('marketplace.fewestProposals') }]} placeholder="Sort by" />
+                      <CustomSelect value={sortBy} onChange={setSortBy} options={[{ value: 'HighestBudget', label: t('marketplace.highestBudget') }, { value: 'FewerProposals', label: t('marketplace.fewestProposals') }]} placeholder="Sort by" />
                     </div>
                   </div>
                 </div>
@@ -822,7 +600,7 @@ const FreelanceMarketplace = () => {
 
               <div className="flex items-center justify-between mb-4">
                 <p className={`text-xs sm:text-sm ${isLightMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                  {t('marketplace.showing')} <span className={`font-semibold ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{sortedProjects.length}</span> {t('marketplace.projectsCount')}
+                  {t('marketplace.showing')} <span className={`font-semibold ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{filteredProjects.length}</span> {t('marketplace.projectsCount')}
                 </p>
                 <button onClick={() => setShowFilters(!showFilters)} className={`hidden lg:flex items-center gap-2 text-sm cursor-pointer whitespace-nowrap ${isLightMode ? 'text-gray-400 hover:text-gray-700' : 'text-gray-400 hover:text-white'}`}>
                   <i className={`ri-layout-${showFilters ? 'right' : 'left'}-2-line`}></i>
@@ -855,7 +633,7 @@ const FreelanceMarketplace = () => {
                 </div>
               )}
 
-              {sortedProjects.length === 0 && (
+              {filteredProjects.length === 0 && (
                 <div className={`text-center py-12 sm:py-16 rounded-xl border ${isLightMode ? 'bg-white border-gray-200' : 'bg-white/5 border-white/10'}`}>
                   <div className={`w-12 h-12 sm:w-16 sm:h-16 flex items-center justify-center rounded-full mx-auto mb-4 ${isLightMode ? 'bg-gray-100' : 'bg-white/5'}`}>
                     <i className={`ri-search-line text-2xl sm:text-3xl ${isLightMode ? 'text-gray-400' : 'text-gray-400'}`}></i>
