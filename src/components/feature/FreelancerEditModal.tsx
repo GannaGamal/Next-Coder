@@ -210,7 +210,7 @@ const FreelancerEditModal = ({ isOpen, onClose, data, onSave, accentColor = 'pur
                   {field.label}
                 </label>
                 <input
-                  type={field.type || 'text'}
+                  type={field.icon || 'text'}
                   value={form[field.key] as string}
                   onChange={e => set(field.key, e.target.value)}
                   placeholder={field.placeholder}
@@ -238,6 +238,7 @@ const FreelancerEditModal = ({ isOpen, onClose, data, onSave, accentColor = 'pur
                 className={`w-full border rounded-lg px-4 py-3 text-sm focus:outline-none resize-none ${cfg.border} transition-colors ${isLightMode ? 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400' : 'bg-white/5 border-white/10 text-white placeholder-gray-500'}`}
               />
             </div>
+            
 
             <div>
               <label className={`flex items-center gap-2 text-sm mb-1.5 ${isLightMode ? 'text-gray-600' : 'text-gray-400'}`}>
