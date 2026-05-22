@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReportModal from '../../../components/feature/ReportModal';
 import { useTheme } from '../../../contexts/ThemeContext';
+import { getFreelancerDashboardSummary } from '../../../services/freelancerDashboard.service';
 
 interface MilestoneComment {
   id: string;
@@ -46,6 +47,13 @@ interface Project {
   clientEmail?: string;
 }
 
+interface DashboardStats {
+  activeProjects: number;
+  totalEarnings: number;
+  pendingApplications: number;
+  completed: number;
+}
+
 const FreelancerDashboard = () => {
   const { isLightMode } = useTheme();
   const { t } = useTranslation();
@@ -69,6 +77,13 @@ const FreelancerDashboard = () => {
   const [newComment, setNewComment] = useState('');
   const [milestoneComment, setMilestoneComment] = useState('');
   const [expandedMilestone, setExpandedMilestone] = useState<string | null>(null);
+  const [isLoadingSummary, setIsLoadingSummary] = useState(true);
+  const [stats, setStats] = useState<DashboardStats>({
+    activeProjects: 0,
+    totalEarnings: 0,
+    pendingApplications: 0,
+    completed: 0,
+  });
 
   const [appliedProjects, setAppliedProjects] = useState<Project[]>([
     {
@@ -291,14 +306,48 @@ const FreelancerDashboard = () => {
     },
   ]);
 
-  const stats = {
-    activeProjects: activeProjects.length,
-    totalEarnings:
-      activeProjects.reduce((sum, p) => sum + p.totalPaid, 0) +
-      completedProjects.reduce((sum, p) => sum + p.totalPaid, 0),
-    pendingApplications: appliedProjects.filter((p) => p.status === 'applied').length,
-    completed: completedProjects.length,
-  };
+  useEffect(() => {
+    let isMounted = true;
+
+    const toSafeNumber = (value: number | null | undefined): number =>
+      typeof value === 'number' && Number.isFinite(value) ? value : 0;
+
+    const loadSummary = async () => {
+      setIsLoadingSummary(true);
+
+      try {
+        const summary = await getFreelancerDashboardSummary();
+        if (!isMounted) return;
+
+        setStats({
+          activeProjects: toSafeNumber(summary?.activeProjectsCount),
+          totalEarnings: toSafeNumber(summary?.totalEarnings),
+          pendingApplications: toSafeNumber(summary?.pendingApplicationsCount),
+          completed: toSafeNumber(summary?.completedProjectsCount),
+        });
+      } catch (error) {
+        console.error('Failed to load freelancer dashboard summary:', error);
+        if (!isMounted) return;
+
+        setStats({
+          activeProjects: 0,
+          totalEarnings: 0,
+          pendingApplications: 0,
+          completed: 0,
+        });
+      } finally {
+        if (isMounted) {
+          setIsLoadingSummary(false);
+        }
+      }
+    };
+
+    void loadSummary();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const getMilestoneStatusConfig = (status: string) => {
     const config: Record<string, { bg: string; text: string; icon: string; label: string }> = {
@@ -492,7 +541,7 @@ const FreelancerDashboard = () => {
   return (
     <>
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8" aria-busy={isLoadingSummary}>
         <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
           <div className="flex items-center justify-between mb-2">
             <span className="text-white/60 text-sm">{t('freelancerDashboard.activeProjects')}</span>
