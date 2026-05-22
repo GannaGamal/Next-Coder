@@ -10,6 +10,7 @@ import CustomSelect from '../../components/base/CustomSelect';
 import {
   getFreelancerProfile,
   updateFreelancerProfile,
+  getFreelancerCompletedProjects,
   type FreelancerProfileDto,
 } from '../../services/freelancer-profile.service';
 import {
@@ -53,15 +54,17 @@ interface Document {
 
 interface CompletedProject {
   id: string;
-  title: string;
-  client: string;
-  clientAvatar: string;
-  description: string;
-  budget: number;
-  completedDate: string;
-  rating: number;
-  review: string;
-  category: string;
+  title: string | null;
+  client: string | null;
+  clientAvatar: string | null;
+  description: string | null;
+  budget: number | null;
+  totalPaid: number | null;
+  completedDate: string | null;
+  rating: number | null;
+  review: string | null;
+  category: string | null;
+  status: string | null;
 }
 
 const formatPortfolioCategoryLabel = (value: string): string =>
@@ -143,7 +146,7 @@ const FreelancerProfile = () => {
     linkedInUrl: '',
     gitHubUrl: '',
   });
-  const [profileMeta] = useState({
+  const [profileMeta, setProfileMeta] = useState({
     rating: 0,
     completedProjects: 0,
   });
@@ -169,56 +172,15 @@ const FreelancerProfile = () => {
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [categoriesError, setCategoriesError] = useState('');
 
-  const [completedProjects] = useState<CompletedProject[]>([
-    {
-      id: '1',
-      title: 'E-commerce Website Redesign',
-      client: 'TechStart Inc.',
-      clientAvatar: 'https://readdy.ai/api/search-image?query=professional%20business%20person%20portrait%20corporate%20headshot%20clean%20white%20background%20friendly%20smile&width=100&height=100&seq=client1&orientation=squarish',
-      description: 'Complete redesign and development of an e-commerce platform with modern UI/UX, payment integration, and inventory management system.',
-      budget: 4500,
-      completedDate: '2024-01-10',
-      rating: 5,
-      review: 'Excellent work! Delivered on time with exceptional quality. Highly recommended for any web development project.',
-      category: 'Web Development'
-    },
-    {
-      id: '2',
-      title: 'Mobile App Development',
-      client: 'HealthPlus Co.',
-      clientAvatar: 'https://readdy.ai/api/search-image?query=professional%20woman%20business%20portrait%20corporate%20headshot%20clean%20white%20background%20confident%20smile&width=100&height=100&seq=client2&orientation=squarish',
-      description: 'Developed a cross-platform mobile application for health tracking with real-time sync and push notifications.',
-      budget: 8000,
-      completedDate: '2023-12-15',
-      rating: 5,
-      review: 'Outstanding developer! Great communication throughout the project and delivered exactly what we needed.',
-      category: 'Mobile Development'
-    },
-    {
-      id: '3',
-      title: 'API Integration Project',
-      client: 'DataFlow Systems',
-      clientAvatar: 'https://readdy.ai/api/search-image?query=professional%20man%20business%20portrait%20corporate%20headshot%20clean%20white%20background%20friendly%20expression&width=100&height=100&seq=client3&orientation=squarish',
-      description: 'Integrated multiple third-party APIs including payment gateways, shipping providers, and CRM systems.',
-      budget: 3200,
-      completedDate: '2023-11-20',
-      rating: 4,
-      review: 'Good work overall. Met all requirements and was responsive to feedback.',
-      category: 'Backend Development'
-    },
-    {
-      id: '4',
-      title: 'Dashboard Analytics Tool',
-      client: 'MarketPro Agency',
-      clientAvatar: 'https://readdy.ai/api/search-image?query=professional%20marketing%20executive%20portrait%20corporate%20headshot%20clean%20white%20background%20warm%20smile&width=100&height=100&seq=client4&orientation=squarish',
-      description: 'Built a comprehensive analytics dashboard with real-time data visualization, custom reports, and export functionality.',
-      budget: 5500,
-      completedDate: '2023-10-05',
-      rating: 5,
-      review: 'Fantastic experience! The dashboard exceeded our expectations. Will definitely work together again.',
-      category: 'Data Visualization'
-    }
-  ]);
+  const [completedProjects, setCompletedProjects] = useState<{
+    projects: CompletedProject[];
+    totalCompletedProjects: number;
+  }>({
+    projects: [],
+    totalCompletedProjects: 0,
+  });
+  const [completedProjectsLoading, setCompletedProjectsLoading] = useState(true);
+  const [completedProjectsError, setCompletedProjectsError] = useState('');
 
   const [documents, setDocuments] = useState<Document[]>([]);
   const [documentsLoading, setDocumentsLoading] = useState(true);
@@ -572,6 +534,46 @@ const FreelancerProfile = () => {
     };
   }, []);
 
+  useEffect(() => {
+    let isMounted = true;
+    const loadCompletedProjects = async () => {
+      setCompletedProjectsLoading(true);
+      setCompletedProjectsError('');
+
+      try {
+        const data = await getFreelancerCompletedProjects();
+        if (!isMounted) return;
+        setCompletedProjects(data);
+
+        // Compute average rating from projects that have reviews/ratings
+        const projectsArray = data?.projects || [];
+        const ratedProjects = projectsArray.filter(p => p.rating !== null && p.rating !== undefined && p.rating > 0);
+        const avgRating = ratedProjects.length > 0
+          ? Number((ratedProjects.reduce((acc, p) => acc + (p.rating || 0), 0) / ratedProjects.length).toFixed(1))
+          : 0;
+
+        setProfileMeta({
+          rating: avgRating || 0,
+          completedProjects: data?.totalCompletedProjects || 0
+        });
+      } catch (error) {
+        if (!isMounted) return;
+        setCompletedProjectsError(
+          error instanceof Error
+            ? error.message
+            : 'We could not load your completed projects right now. Please try again.'
+        );
+      } finally {
+        if (isMounted) setCompletedProjectsLoading(false);
+      }
+    };
+
+    loadCompletedProjects();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const handleSaveEdit = async (data: FreelancerEditData) => {
     setSaveStatus(null);
 
@@ -591,11 +593,12 @@ const FreelancerProfile = () => {
 
   const editData: FreelancerEditData = freelancerProfile;
 
-  const renderStars = (rating: number) => {
+  const renderStars = (rating: number | null) => {
+    const val = rating ?? 0;
     return Array.from({ length: 5 }, (_, i) => (
       <i
         key={i}
-        className={`${i < rating ? 'ri-star-fill text-yellow-400' : 'ri-star-line text-gray-500'} text-sm`}
+        className={`${i < val ? 'ri-star-fill text-yellow-400' : 'ri-star-line text-gray-500'} text-sm`}
       ></i>
     ));
   };
@@ -619,7 +622,7 @@ const FreelancerProfile = () => {
   return (
     <div className="min-h-screen bg-navy-900">
       <Navbar />
-      
+
       <div className="pt-24 sm:pt-32 pb-12 sm:pb-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           {profileLoading && (
@@ -635,11 +638,10 @@ const FreelancerProfile = () => {
           )}
           {saveStatus && (
             <div
-              className={`mb-6 rounded-2xl border px-4 py-3 text-sm ${
-                saveStatus.type === 'success'
+              className={`mb-6 rounded-2xl border px-4 py-3 text-sm ${saveStatus.type === 'success'
                   ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
                   : 'border-red-500/30 bg-red-500/10 text-red-200'
-              }`}
+                }`}
             >
               {saveStatus.message}
             </div>
@@ -647,7 +649,7 @@ const FreelancerProfile = () => {
           {/* Profile Header */}
           <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 sm:p-6 lg:p-8 mb-6 sm:mb-8 border border-white/10">
             <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-6">
-              <div 
+              <div
                 onClick={() => setShowPhotoModal(true)}
                 className="w-20 h-20 sm:w-24 sm:h-24 lg:w-32 lg:h-32 flex items-center justify-center rounded-2xl bg-gradient-to-br from-purple-500 to-pink-500 flex-shrink-0 cursor-pointer relative group"
               >
@@ -789,7 +791,7 @@ const FreelancerProfile = () => {
                     </a>
                   )}
                 </div>
-                
+
               </div>
             </div>
           </div>
@@ -798,41 +800,37 @@ const FreelancerProfile = () => {
           <div className="flex gap-2 mb-6 sm:mb-8 overflow-x-auto">
             <button
               onClick={() => setActiveTab('profile')}
-              className={`px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold transition-all whitespace-nowrap cursor-pointer ${
-                activeTab === 'profile'
+              className={`px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold transition-all whitespace-nowrap cursor-pointer ${activeTab === 'profile'
                   ? 'bg-purple-500 text-white'
                   : 'bg-white/5 text-gray-400 hover:bg-white/10'
-              }`}
+                }`}
             >
               Profile Info
             </button>
             <button
               onClick={() => setActiveTab('portfolio')}
-              className={`px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold transition-all whitespace-nowrap cursor-pointer ${
-                activeTab === 'portfolio'
+              className={`px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold transition-all whitespace-nowrap cursor-pointer ${activeTab === 'portfolio'
                   ? 'bg-purple-500 text-white'
                   : 'bg-white/5 text-gray-400 hover:bg-white/10'
-              }`}
+                }`}
             >
               Portfolio
             </button>
             <button
               onClick={() => setActiveTab('completed')}
-              className={`px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold transition-all whitespace-nowrap cursor-pointer ${
-                activeTab === 'completed'
+              className={`px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold transition-all whitespace-nowrap cursor-pointer ${activeTab === 'completed'
                   ? 'bg-purple-500 text-white'
                   : 'bg-white/5 text-gray-400 hover:bg-white/10'
-              }`}
+                }`}
             >
               Completed Projects
             </button>
             <button
               onClick={() => setActiveTab('documents')}
-              className={`px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold transition-all whitespace-nowrap cursor-pointer ${
-                activeTab === 'documents'
+              className={`px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold transition-all whitespace-nowrap cursor-pointer ${activeTab === 'documents'
                   ? 'bg-purple-500 text-white'
                   : 'bg-white/5 text-gray-400 hover:bg-white/10'
-              }`}
+                }`}
             >
               Documents
             </button>
@@ -1159,76 +1157,119 @@ const FreelancerProfile = () => {
                 </h2>
                 <div className="flex items-center gap-3">
                   <div className="px-4 py-2 bg-green-500/20 border border-green-500/30 rounded-lg">
-                    <span className="text-green-400 font-semibold">{completedProjects.length} Projects</span>
+                    <span className="text-green-400 font-semibold">{(completedProjects?.totalCompletedProjects || 0)} Projects</span>
                   </div>
                   <div className="px-4 py-2 bg-purple-500/20 border border-purple-500/30 rounded-lg">
-                    <span className="text-purple-400 font-semibold">${completedProjects.reduce((acc, p) => acc + p.budget, 0).toLocaleString()} Earned</span>
+                    <span className="text-purple-400 font-semibold">${(completedProjects?.projects || []).reduce((acc, p) => acc + (p.budget || 0), 0).toLocaleString()} Earned</span>
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-4">
-                {completedProjects.map((project) => (
-                  <div key={project.id} className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 sm:p-6 border border-white/10 hover:border-purple-500/30 transition-all">
-                    <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
-                      {/* Project Info */}
-                      <div className="flex-1">
-                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-3">
-                          <div className="flex items-center gap-3">
-                            <span className="px-3 py-1 bg-purple-500/20 border border-purple-500/30 rounded-lg text-purple-300 text-xs font-medium">
-                              {project.category}
-                            </span>
-                            <span className="px-3 py-1 bg-green-500/20 border border-green-500/30 rounded-lg text-green-400 text-xs font-medium">
-                              Completed
-                            </span>
-                          </div>
-                          <span className="text-gray-400 text-sm">
-                            <i className="ri-calendar-line mr-1"></i>
-                            {new Date(project.completedDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
-                          </span>
-                        </div>
+              {completedProjectsLoading && (
+                <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-400 flex items-center gap-2">
+                  <i className="ri-loader-4-line animate-spin text-purple-300"></i>
+                  Loading completed projects...
+                </div>
+              )}
 
-                        <h3 className="text-lg sm:text-xl font-bold text-white mb-2">{project.title}</h3>
-                        <p className="text-sm sm:text-base text-gray-400 mb-4">{project.description}</p>
+              {completedProjectsError && (
+                <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+                  {completedProjectsError}
+                </div>
+              )}
 
-                        <div className="flex items-center gap-4">
-                          <div className="flex items-center gap-2">
-                            <i className="ri-money-dollar-circle-line text-green-400"></i>
-                            <span className="text-white font-semibold">${project.budget.toLocaleString()}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            {renderStars(project.rating)}
-                            <span className="text-white font-semibold ml-1">{project.rating}.0</span>
+              {!completedProjectsLoading && !completedProjectsError && (
+                <>
+                  {(completedProjects?.projects || []).length > 0 ? (
+                    <div className="space-y-4">
+                      {completedProjects.projects.map((project) => (
+                        <div key={project.id} className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 sm:p-6 border border-white/10 hover:border-purple-500/30 transition-all">
+                          <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
+                            {/* Project Info */}
+                            <div className="flex-1">
+                              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-3">
+                                <div className="flex items-center gap-3">
+                                  <span className="px-3 py-1 bg-purple-500/20 border border-purple-500/30 rounded-lg text-purple-300 text-xs font-medium">
+                                    {project.category || 'Uncategorized'}
+                                  </span>
+                                  <span className="px-3 py-1 bg-green-500/20 border border-green-500/30 rounded-lg text-green-400 text-xs font-medium">
+                                    {project.status || 'Unknown Status'}
+                                  </span>
+                                </div>
+                                {project.completedDate && !Number.isNaN(new Date(project.completedDate).getTime()) ? (
+                                  <span className="text-gray-400 text-sm">
+                                    <i className="ri-calendar-line mr-1"></i>
+                                    {new Date(project.completedDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                                  </span>
+                                ) : (
+                                  <span className="text-gray-500 text-sm italic">
+                                    <i className="ri-calendar-line mr-1"></i>
+                                    Unknown completion date
+                                  </span>
+                                )}
+                              </div>
+
+                              <h3 className="text-lg sm:text-xl font-bold text-white mb-2">{project.title || 'Untitled Project'}</h3>
+                              <p className="text-sm sm:text-base text-gray-400 mb-4">{project.description || 'No description provided'}</p>
+
+                              <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-2">
+                                  <i className="ri-money-dollar-circle-line text-green-400"></i>
+                                  <span className="text-white font-semibold">
+                                    ${project.budget !== null && project.budget !== undefined ? project.budget.toLocaleString() : '0'}
+                                  </span>
+                                </div>
+                                {project.rating !== null && project.rating !== undefined && project.rating > 0 ? (
+                                  <div className="flex items-center gap-1">
+                                    {renderStars(project.rating)}
+                                    <span className="text-white font-semibold ml-1">{project.rating}.0</span>
+                                  </div>
+                                ) : (
+                                  <span className="text-gray-500 text-xs italic">No rating yet</span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Client Review */}
+                            <div className="lg:w-80 bg-white/5 rounded-xl p-4 border border-white/10">
+                              <div className="flex items-center gap-3 mb-3">
+                                <div className="w-10 h-10 rounded-full overflow-hidden">
+                                  <img 
+                                    src={project.clientAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(project.client || 'Unknown Client')}&background=7c3aed&color=fff&bold=true`} 
+                                    alt={project.client || 'Unknown Client'} 
+                                    className="w-full h-full object-cover" 
+                                    onError={(e) => {
+                                      const target = e.target as HTMLImageElement;
+                                      const fallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(project.client || 'Unknown Client')}&background=7c3aed&color=fff&bold=true`;
+                                      if (target.src !== fallback) {
+                                        target.src = fallback;
+                                      }
+                                    }}
+                                  />
+                                </div>
+                                <div>
+                                  <h4 className="text-white font-semibold text-sm">{project.client || 'Unknown Client'}</h4>
+                                  <p className="text-gray-400 text-xs">Client</p>
+                                </div>
+                              </div>
+                              <p className="text-gray-300 text-sm italic">
+                                {project.review ? `"${project.review}"` : 'No feedback provided'}
+                              </p>
+                            </div>
                           </div>
                         </div>
-                      </div>
-
-                      {/* Client Review */}
-                      <div className="lg:w-80 bg-white/5 rounded-xl p-4 border border-white/10">
-                        <div className="flex items-center gap-3 mb-3">
-                          <div className="w-10 h-10 rounded-full overflow-hidden">
-                            <img src={project.clientAvatar} alt={project.client} className="w-full h-full object-cover" />
-                          </div>
-                          <div>
-                            <h4 className="text-white font-semibold text-sm">{project.client}</h4>
-                            <p className="text-gray-400 text-xs">Client</p>
-                          </div>
-                        </div>
-                        <p className="text-gray-300 text-sm italic">&quot;{project.review}&quot;</p>
-                      </div>
+                      ))}
                     </div>
-                  </div>
-                ))}
-              </div>
-
-              {completedProjects.length === 0 && (
-                <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-8 sm:p-12 border border-white/10 text-center">
-                  <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <i className="ri-folder-line text-3xl text-white/40"></i>
-                  </div>
-                  <h3 className="text-lg text-white font-semibold mb-2">No Completed Projects Yet</h3>
-                  <p className="text-gray-500 text-sm">Your completed freelance projects will appear here.</p>
-                </div>
+                  ) : (
+                    <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-8 sm:p-12 border border-white/10 text-center">
+                      <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i className="ri-folder-line text-3xl text-white/40"></i>
+                      </div>
+                      <h3 className="text-lg text-white font-semibold mb-2">No Completed Projects Yet</h3>
+                      <p className="text-gray-500 text-sm">Your completed freelance projects will appear here.</p>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
@@ -1241,10 +1282,10 @@ const FreelancerProfile = () => {
                 <label className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 bg-purple-500 text-white text-sm sm:text-base font-semibold rounded-lg hover:bg-purple-600 transition-colors whitespace-nowrap cursor-pointer text-center">
                   <i className="ri-upload-line mr-2"></i>
                   {isDocumentUploading ? 'Uploading...' : 'Upload Document'}
-                  <input 
-                    type="file" 
-                    onChange={handleFileUpload} 
-                    className="hidden" 
+                  <input
+                    type="file"
+                    onChange={handleFileUpload}
+                    className="hidden"
                     accept=".pdf,.doc,.docx,.txt,.zip"
                     disabled={isDocumentUploading}
                   />
@@ -1264,11 +1305,10 @@ const FreelancerProfile = () => {
               )}
               {documentStatus && (
                 <div
-                  className={`rounded-lg border px-3 py-2 text-xs ${
-                    documentStatus.type === 'success'
+                  className={`rounded-lg border px-3 py-2 text-xs ${documentStatus.type === 'success'
                       ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
                       : 'border-red-500/30 bg-red-500/10 text-red-200'
-                  }`}
+                    }`}
                 >
                   {documentStatus.message}
                 </div>
@@ -1279,9 +1319,8 @@ const FreelancerProfile = () => {
                   {documents.map((doc, index) => (
                     <div
                       key={doc.id}
-                      className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 p-4 sm:p-5 lg:p-6 ${
-                        index !== documents.length - 1 ? 'border-b border-white/10' : ''
-                      }`}
+                      className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 p-4 sm:p-5 lg:p-6 ${index !== documents.length - 1 ? 'border-b border-white/10' : ''
+                        }`}
                     >
                       <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto">
                         <div className="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-lg bg-purple-500/20 flex-shrink-0">
@@ -1293,13 +1332,13 @@ const FreelancerProfile = () => {
                         </div>
                       </div>
                       <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
-                        <button 
+                        <button
                           className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
                           onClick={() => doc.url && window.open(doc.url, '_blank', 'noopener,noreferrer')}
                         >
                           <i className="ri-download-line text-lg sm:text-xl text-white"></i>
                         </button>
-                        <button 
+                        <button
                           className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg bg-white/5 hover:bg-red-500/20 transition-colors cursor-pointer"
                           onClick={() => handleDeleteDocument(doc.id)}
                           disabled={deletingDocumentId === doc.id}
