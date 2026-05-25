@@ -227,9 +227,10 @@ const SearchResults = () => {
                   {filteredUsers.map(user => {
                     const primaryRole = user.roles[0];
                     const profileLink = primaryRole
-                      ? `/user/${user.id}?role=${primaryRole}`
-                      : `/user/${user.id}`;
-                    const showRating = typeof user.rating === 'number' && user.rating > 0;
+                      ? `/user/${user.userId}?role=${primaryRole}`
+                      : `/user/${user.userId}`;
+                    const canShowRating = user.roles.includes('client') || user.roles.includes('freelancer');
+                    const showRating = canShowRating && typeof user.rating === 'number' && user.rating > 0;
                     const showProjects = typeof user.completedProjects === 'number';
                     const showHourlyRate = typeof user.hourlyRate === 'number';
                     const hasSkills = Array.isArray(user.skills) && user.skills.length > 0;

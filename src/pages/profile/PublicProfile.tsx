@@ -4,7 +4,15 @@ import { useAuth } from '../../contexts/AuthContext';
 import Navbar from '../../components/feature/Navbar';
 import Footer from '../../components/feature/Footer';
 import UserRatingModal from './components/UserRatingModal';
-import { getEmployerCompanies } from '../../services/company.service';
+import {
+  type PublicProfileSummary,
+  getClientPublicProfile,
+  getEmployerPublicProfile,
+  getFreelancerPublicProfile,
+  getJobSeekerPublicProfile,
+  getLearnerPublicProfile,
+  getProfileSummary,
+} from '../../services/publicProfile.service';
 
 interface PublicUserData {
   id: string;
@@ -18,9 +26,12 @@ interface PublicUserData {
   location: string;
   hourlyRate?: number;
   bio: string;
+  learningGoals?: string;
   email: string;
   phone?: string;
   linkedin?: string;
+  website?: string;
+  gitHubUrl?: string;
   experience?: string;
   education?: string;
   interests?: string[];
@@ -29,269 +40,217 @@ interface PublicUserData {
   totalSpent?: number;
   activeProjects?: number;
   companies?: { id: string; name: string; industry: string; logo?: string }[];
-  portfolio?: { id: string; title: string; description: string; image: string; category: string; completedDate: string }[];
+  portfolio?: {  id: string;
+  title: string;
+  portfolioUrl: string;
+  categoryId: number;
+  categoryName?: string | null;
+  description?: string | null;
+  uploadedAt: string; }[];
+  documents?: { id: string; title: string; fileName: string; documentUrl: string; uploadedAt?: string | null; contentType?: string | null }[];
   completedWork?: { id: string; title: string; client: string; clientAvatar: string; description: string; budget: number; completedDate: string; rating: number; review: string; category: string }[];
   roadmaps?: { id: string; title: string; progress: number; totalSteps: number; completedSteps: number; category: string }[];
   courseProjects?: { id: string; courseName: string; projectTitle: string; description: string; githubLink: string; completedDate: string; technologies: string[] }[];
   appliedJobsCount?: number;
+  cv?: {cvUrl: string;contentType: string;jobTitle: string;isPublic: boolean; fileName: string; uploadedAt: string };
 }
 
-const mockPublicUsers: Record<string, PublicUserData> = {
-  '1': {
-    id: '1',
-    name: 'Sarah Johnson',
-    avatar: 'https://readdy.ai/api/search-image?query=professional%20young%20woman%20headshot%20portrait%20smiling%20confident%20business%20casual%20neutral%20background%20high%20quality%20photography&width=200&height=200&seq=user1&orientation=squarish',
-    roles: ['freelancer'],
-    skills: ['React', 'TypeScript', 'Node.js', 'UI/UX Design'],
-    rating: 4.9,
-    totalRatings: 38,
-    completedProjects: 47,
-    location: 'San Francisco, USA',
-    hourlyRate: 85,
-    bio: 'Full-stack developer with 6+ years of experience building scalable web applications. Passionate about clean code and user-centric design.',
-    email: 'sarah.j@example.com',
-    portfolio: [
-      {
-        id: '1',
-        title: 'E-commerce Platform',
-        description: 'Built a full-featured e-commerce platform with payment integration',
-        image: 'https://readdy.ai/api/search-image?query=modern%20ecommerce%20website%20interface%20showing%20product%20grid%20shopping%20cart%20checkout%20process%20clean%20white%20background%20professional%20design%20minimalist%20layout%20high%20quality&width=800&height=600&seq=pub-port1&orientation=landscape',
-        category: 'Web Development',
-        completedDate: '2024-01-15'
-      },
-      {
-        id: '2',
-        title: 'Mobile Banking App',
-        description: 'Developed a secure mobile banking application with biometric auth',
-        image: 'https://readdy.ai/api/search-image?query=mobile%20banking%20app%20interface%20showing%20account%20dashboard%20transaction%20history%20payment%20features%20modern%20ui%20design%20clean%20white%20background%20professional%20fintech%20application&width=800&height=600&seq=pub-port2&orientation=landscape',
-        category: 'Mobile Development',
-        completedDate: '2023-11-20'
-      }
-    ],
-    completedWork: [
-      {
-        id: '1',
-        title: 'E-commerce Website Redesign',
-        client: 'TechStart Inc.',
-        clientAvatar: 'https://readdy.ai/api/search-image?query=professional%20business%20person%20portrait%20corporate%20headshot%20clean%20white%20background%20friendly%20smile&width=100&height=100&seq=pub-client1&orientation=squarish',
-        description: 'Complete redesign and development of an e-commerce platform.',
-        budget: 4500,
-        completedDate: '2024-01-10',
-        rating: 5,
-        review: 'Excellent work! Delivered on time with exceptional quality.',
-        category: 'Web Development'
-      }
-    ]
-  },
-  '2': {
-    id: '2',
-    name: 'Michael Chen',
-    avatar: 'https://readdy.ai/api/search-image?query=professional%20asian%20man%20headshot%20portrait%20smiling%20confident%20business%20attire%20neutral%20background%20high%20quality%20photography&width=200&height=200&seq=user2&orientation=squarish',
-    roles: ['freelancer', 'employer'],
-    skills: ['Python', 'Machine Learning', 'Data Science', 'TensorFlow'],
-    rating: 4.8,
-    totalRatings: 25,
-    completedProjects: 32,
-    location: 'New York, USA',
-    hourlyRate: 120,
-    bio: 'AI/ML specialist helping companies leverage data for business growth. Also running a small AI consultancy.',
-    email: 'michael.c@example.com',
-    portfolio: [
-      {
-        id: '1',
-        title: 'ML Pipeline Dashboard',
-        description: 'Real-time ML model monitoring and management dashboard',
-        image: 'https://readdy.ai/api/search-image?query=machine%20learning%20dashboard%20interface%20showing%20model%20metrics%20charts%20graphs%20data%20visualization%20modern%20dark%20theme%20professional%20analytics%20tool&width=800&height=600&seq=pub-port3&orientation=landscape',
-        category: 'Data Science',
-        completedDate: '2024-02-01'
-      }
-    ],
-    completedWork: []
-  },
-  '3': {
-    id: '3',
-    name: 'Emma Williams',
-    avatar: 'https://readdy.ai/api/search-image?query=professional%20blonde%20woman%20headshot%20portrait%20friendly%20smile%20business%20professional%20neutral%20background%20high%20quality%20photography&width=200&height=200&seq=user3&orientation=squarish',
-    roles: ['client'],
-    skills: ['Project Management', 'Agile', 'Scrum'],
-    rating: 4.7,
-    totalRatings: 12,
-    completedProjects: 15,
-    location: 'London, UK',
-    bio: 'Startup founder looking for talented developers to build innovative products.',
-    email: 'emma.w@example.com',
-    totalSpent: 45000,
-    activeProjects: 3
-  },
-  '4': {
-    id: '4',
-    name: 'David Rodriguez',
-    avatar: 'https://readdy.ai/api/search-image?query=professional%20hispanic%20man%20headshot%20portrait%20confident%20smile%20casual%20business%20neutral%20background%20high%20quality%20photography&width=200&height=200&seq=user4&orientation=squarish',
-    roles: ['freelancer', 'learner'],
-    skills: ['Mobile Development', 'React Native', 'Flutter', 'iOS', 'Android'],
-    rating: 4.6,
-    totalRatings: 20,
-    completedProjects: 28,
-    location: 'Austin, USA',
-    hourlyRate: 75,
-    bio: 'Mobile app developer passionate about creating seamless user experiences. Currently learning advanced backend development.',
-    email: 'david.r@example.com',
-    interests: ['Mobile Development', 'Backend Systems', 'Cloud Architecture'],
-    goals: 'Become a full-stack mobile developer',
-    experienceLevel: 'Intermediate',
-    portfolio: [
-      {
-        id: '1',
-        title: 'Fitness Tracker App',
-        description: 'Cross-platform fitness tracking app with social features',
-        image: 'https://readdy.ai/api/search-image?query=fitness%20tracking%20mobile%20app%20interface%20showing%20workout%20stats%20health%20metrics%20progress%20charts%20modern%20design%20clean%20white%20background%20professional%20health%20application&width=800&height=600&seq=pub-port4&orientation=landscape',
-        category: 'Mobile Development',
-        completedDate: '2024-01-20'
-      }
-    ],
-    roadmaps: [
-      {
-        id: '1',
-        title: 'Backend Development Mastery',
-        progress: 45,
-        totalSteps: 20,
-        completedSteps: 9,
-        category: 'Backend'
-      }
-    ],
-    courseProjects: [
-      {
-        id: '1',
-        courseName: 'React Native Advanced',
-        projectTitle: 'Social Media App',
-        description: 'A full-featured social media app with real-time messaging and stories.',
-        githubLink: 'https://github.com/david/social-app',
-        completedDate: '2023-12-10',
-        technologies: ['React Native', 'Firebase', 'Redux']
-      }
-    ]
-  },
-  '5': {
-    id: '5',
-    name: 'Lisa Thompson',
-    avatar: 'https://readdy.ai/api/search-image?query=professional%20woman%20red%20hair%20headshot%20portrait%20warm%20smile%20creative%20professional%20neutral%20background%20high%20quality%20photography&width=200&height=200&seq=user5&orientation=squarish',
-    roles: ['employer'],
-    skills: ['HR Management', 'Recruitment', 'Team Building'],
-    rating: 4.9,
-    totalRatings: 8,
-    completedProjects: 0,
-    location: 'Toronto, Canada',
-    bio: 'HR Director at TechCorp seeking top talent for our growing engineering team.',
-    email: 'lisa.t@example.com',
-  },
-  '6': {
-    id: '6',
-    name: 'James Wilson',
-    avatar: 'https://readdy.ai/api/search-image?query=professional%20african%20american%20man%20headshot%20portrait%20confident%20business%20suit%20neutral%20background%20high%20quality%20photography&width=200&height=200&seq=user6&orientation=squarish',
-    roles: ['applicant', 'learner'],
-    skills: ['JavaScript', 'HTML', 'CSS', 'Vue.js'],
-    rating: 4.2,
-    totalRatings: 5,
-    completedProjects: 5,
-    location: 'Chicago, USA',
-    bio: 'Junior developer eager to learn and grow in the tech industry.',
-    email: 'james.w@example.com',
-    experience: '1 year of frontend development experience',
-    education: 'Bachelor of Science in Computer Science',
-    interests: ['Web Development', 'Open Source', 'UI Design'],
-    goals: 'Land a full-time frontend developer role',
-    experienceLevel: 'Beginner',
-    roadmaps: [
-      {
-        id: '1',
-        title: 'Frontend Web Development',
-        progress: 70,
-        totalSteps: 15,
-        completedSteps: 11,
-        category: 'Frontend'
-      }
-    ]
-  },
-  '7': {
-    id: '7',
-    name: 'Anna Kowalski',
-    avatar: 'https://readdy.ai/api/search-image?query=professional%20eastern%20european%20woman%20headshot%20portrait%20elegant%20smile%20business%20professional%20neutral%20background%20high%20quality%20photography&width=200&height=200&seq=user7&orientation=squarish',
-    roles: ['freelancer'],
-    skills: ['Graphic Design', 'Branding', 'Adobe Creative Suite', 'Figma'],
-    rating: 4.95,
-    totalRatings: 72,
-    completedProjects: 89,
-    location: 'Berlin, Germany',
-    hourlyRate: 65,
-    bio: 'Award-winning graphic designer specializing in brand identity and visual storytelling.',
-    email: 'anna.k@example.com',
-    portfolio: [
-      {
-        id: '1',
-        title: 'Brand Identity - Luxe',
-        description: 'Complete brand identity for a luxury fashion brand',
-        image: 'https://readdy.ai/api/search-image?query=luxury%20fashion%20brand%20identity%20design%20showing%20logo%20business%20cards%20packaging%20elegant%20minimalist%20style%20gold%20accents%20clean%20white%20background%20professional%20branding%20mockup&width=800&height=600&seq=pub-port5&orientation=landscape',
-        category: 'Branding',
-        completedDate: '2024-02-05'
-      },
-      {
-        id: '2',
-        title: 'App UI Kit',
-        description: 'Comprehensive UI kit for mobile applications',
-        image: 'https://readdy.ai/api/search-image?query=mobile%20app%20ui%20kit%20design%20showing%20multiple%20screens%20components%20buttons%20icons%20modern%20clean%20design%20system%20professional%20interface%20elements%20white%20background&width=800&height=600&seq=pub-port6&orientation=landscape',
-        category: 'UI Design',
-        completedDate: '2024-01-18'
-      }
-    ]
-  },
-  '8': {
-    id: '8',
-    name: 'Robert Kim',
-    avatar: 'https://readdy.ai/api/search-image?query=professional%20korean%20man%20headshot%20portrait%20friendly%20smile%20tech%20casual%20neutral%20background%20high%20quality%20photography&width=200&height=200&seq=user8&orientation=squarish',
-    roles: ['freelancer', 'client'],
-    skills: ['DevOps', 'AWS', 'Docker', 'Kubernetes', 'CI/CD'],
-    rating: 4.85,
-    totalRatings: 33,
-    completedProjects: 41,
-    location: 'Seattle, USA',
-    hourlyRate: 110,
-    bio: 'DevOps engineer helping teams ship faster with modern infrastructure.',
-    email: 'robert.k@example.com',
-    totalSpent: 12000,
-    activeProjects: 2
-  },
-  '9': {
-    id: '9',
-    name: 'Maria Garcia',
-    avatar: 'https://readdy.ai/api/search-image?query=professional%20latina%20woman%20headshot%20portrait%20confident%20smile%20business%20casual%20neutral%20background%20high%20quality%20photography&width=200&height=200&seq=user9&orientation=squarish',
-    roles: ['applicant'],
-    skills: ['Marketing', 'SEO', 'Content Writing', 'Social Media'],
-    rating: 4.5,
-    totalRatings: 10,
-    completedProjects: 12,
-    location: 'Miami, USA',
-    bio: 'Digital marketing specialist with a passion for growth hacking.',
-    email: 'maria.g@example.com',
-    experience: '4 years in digital marketing',
-    education: 'MBA in Marketing, University of Miami',
-    appliedJobsCount: 8
-  },
-  '10': {
-    id: '10',
-    name: 'Thomas Anderson',
-    avatar: 'https://readdy.ai/api/search-image?query=professional%20man%20glasses%20headshot%20portrait%20intellectual%20smile%20business%20casual%20neutral%20background%20high%20quality%20photography&width=200&height=200&seq=user10&orientation=squarish',
-    roles: ['freelancer', 'learner'],
-    skills: ['Blockchain', 'Solidity', 'Web3', 'Smart Contracts'],
-    rating: 4.7,
-    totalRatings: 15,
-    completedProjects: 19,
-    location: 'Amsterdam, Netherlands',
-    hourlyRate: 150,
-    bio: 'Blockchain developer building the decentralized future.',
-    email: 'thomas.a@example.com',
-    interests: ['Blockchain', 'DeFi', 'NFTs', 'Web3'],
-    goals: 'Build a successful Web3 startup',
-    experienceLevel: 'Advanced'
+const normalizeRole = (role: string) => {
+  const normalized = role.toLowerCase().replace(/[\s_-]/g, '');
+  if (normalized === 'jobseeker' || normalized === 'applicant') return 'applicant';
+  return normalized;
+};
+
+const normalizeRoles = (roles: string[]) =>
+  Array.from(new Set((roles ?? []).map(normalizeRole).filter(Boolean)));
+
+const getRoleProfileId = (summary: PublicProfileSummary, role: string) => {
+  switch (role) {
+    case 'freelancer':
+      return summary.freelancerId;
+    case 'client':
+      return summary.clientId;
+    case 'employer':
+      return summary.employerId;
+    case 'applicant':
+      return summary.jobSeekerId;
+    case 'learner':
+      return summary.learnerId;
+    default:
+      return null;
+  }
+};
+
+const buildBaseProfile = (summary: PublicProfileSummary): PublicUserData => ({
+  id: summary.userId,
+  name: summary.fullName,
+  avatar: summary.imageUrl,
+  roles: normalizeRoles(summary.roles),
+  skills: [],
+  rating: 0,
+  totalRatings: 0,
+  completedProjects: 0,
+  location: 'Not specified',
+  bio: 'No bio provided yet.',
+  email: summary.email,
+  portfolio: [],
+  documents: [],
+  completedWork: [],
+  roadmaps: [],
+  courseProjects: [],
+  companies: [],
+});
+
+const mergeRoleProfile = async (
+  summary: PublicProfileSummary,
+  role: string,
+  baseProfile: PublicUserData,
+): Promise<PublicUserData> => {
+  const roleProfileId = getRoleProfileId(summary, role);
+  if (!roleProfileId) return baseProfile;
+
+  switch (role) {
+    case 'freelancer': {
+      const profile = await getFreelancerPublicProfile(roleProfileId);
+      return {
+        ...baseProfile,
+        name: profile.fullName || baseProfile.name,
+        avatar: profile.imageUrl || baseProfile.avatar,
+        email: profile.email || baseProfile.email,
+        bio: profile.bio || baseProfile.bio,
+        location: profile.country || baseProfile.location,
+        phone: profile.phoneNumber,
+        linkedin: profile.websiteUrl || profile.gitHubUrl || undefined,
+        hourlyRate: profile.hourlyRate,
+        rating: profile.averageRating ?? 0,
+        totalRatings: profile.totalReviews ?? 0,
+        completedProjects: profile.completedProjectsCount ?? 0,
+        experience: profile.yearsOfExperience ? `${profile.yearsOfExperience} years` : undefined,
+        skills: profile.skills ?? [],
+        portfolio: (profile.portfolios ?? []).map((item) => ({
+          id: item.id,
+          title: item.title,
+          portfolioUrl: item.portfolioUrl,
+          categoryId: item.categoryId,
+          categoryName: item.categoryName || 'Uncategorized',
+          description: item.description || '',
+          uploadedAt: item.uploadedAt,
+        })),
+        documents: (profile.documents ?? []).map((document, index) => ({
+          id: document.id || String(index),
+          title: document.title || document.fileName || `Document ${index + 1}`,
+          fileName: document.fileName || document.title || `Document ${index + 1}`,
+          documentUrl: document.documentUrl || document.fileUrl || '',
+          uploadedAt: document.uploadedAt || null,
+          contentType: document.contentType || null,
+        })).filter((document) => document.documentUrl),
+        completedWork: (profile.completedProjects ?? []).map((project) => ({
+          id: project.id,
+          title: project.title || 'Untitled project',
+          client: project.client || 'Client',
+          clientAvatar: project.clientAvatar || '',
+          description: project.description || '',
+          budget: project.budget ?? project.totalPaid ?? 0,
+          completedDate: project.completedDate || '',
+          rating: project.rating ?? 0,
+          review: project.review || 'No review provided.',
+          category: project.category || 'Project',
+        })),
+      };
+    }
+    case 'client': {
+      const profile = await getClientPublicProfile(roleProfileId);
+      return {
+        ...baseProfile,
+        name: profile.fullName || baseProfile.name,
+        avatar: profile.imageUrl || baseProfile.avatar,
+        email: profile.email || baseProfile.email,
+        bio: profile.bio || baseProfile.bio,
+        location: profile.country || baseProfile.location,
+        phone: profile.phoneNumber,
+        linkedin: profile.websiteUrl || undefined,
+        rating: profile.averageRating ?? 0,
+        totalRatings: profile.totalReviews ?? 0,
+        completedProjects: profile.totalProjectsCompleted ?? 0,
+        totalSpent: profile.totalSpent ?? 0,
+        activeProjects: Math.max((profile.totalProjectsPosted ?? 0) - (profile.totalProjectsCompleted ?? 0), 0),
+      };
+    }
+    case 'employer': {
+      const profile = await getEmployerPublicProfile(roleProfileId);
+      return {
+        ...baseProfile,
+        name: profile.fullName || baseProfile.name,
+        avatar: profile.imageUrl || baseProfile.avatar,
+        email: profile.email || baseProfile.email,
+        location: profile.address || baseProfile.location,
+        phone: profile.phoneNumber || undefined,
+        website : profile.websiteUrl || undefined,
+        companies: (profile.companies ?? []).map((company: Record<string, unknown>) => ({
+          id: company.id,
+          name: company.name,
+          industry: company.industry || 'Not specified',
+          logo: company.logoUrl || undefined,
+        })),
+      };
+    }
+    case 'applicant': {
+      const profile = await getJobSeekerPublicProfile(roleProfileId);
+      return {
+        ...baseProfile,
+        name: profile.fullName || baseProfile.name,
+        avatar: profile.imageUrl || baseProfile.avatar,
+        email: profile.email || baseProfile.email,
+        location: profile.address || baseProfile.location,
+        phone: profile.phoneNumber || undefined,
+        gitHubUrl: profile.gitHubUrl || undefined,
+        website : profile.websiteUrl || profile.gitHubUrl || undefined,
+        experience: profile.experience || undefined,
+        education: profile.education || undefined,
+        cv: profile.cv ? {
+          cvUrl: profile.cv.cvUrl,
+          contentType: profile.cv.contentType,
+          jobTitle: profile.cv.jobTitle,
+          isPublic: profile.cv.isPublic,
+          fileName: profile.cv.fileName,
+          uploadedAt: profile.cv.uploadedAt
+        } : undefined
+      };
+    }
+    case 'learner': {
+      const profile = await getLearnerPublicProfile(roleProfileId);
+      return {
+        ...baseProfile,
+        name: profile.fullName || baseProfile.name,
+        avatar: profile.imageUrl || baseProfile.avatar,
+        email: profile.email || baseProfile.email,
+        bio: profile.bio || baseProfile.bio,
+        goals: profile.learningGoals || undefined,
+        interests: profile.interests ?? [],
+        completedProjects: profile.projectsCompleted ?? 0,
+        roadmaps: (profile.enrollments ?? []).map((enrollment) => ({
+          id: enrollment.enrollmentId,
+          title: enrollment.trackName,
+          progress: enrollment.progressPercent,
+          totalSteps: enrollment.totalTopics,
+          completedSteps: enrollment.completedTopics,
+          category: enrollment.isCompleted ? 'Completed' : 'In Progress',
+        })),
+        courseProjects: (profile.projects ?? []).map((project) => ({
+          id: project.projectId,
+          courseName: project.trackName,
+          projectTitle: project.title,
+          description: project.description,
+          githubLink: project.repoUrl,
+          completedDate: project.submittedAt,
+          technologies: [],
+        })),
+        location: profile.address || baseProfile.location,
+        learningGoals: profile.learningGoals || undefined,
+      };
+    }
+    default:
+      return baseProfile;
   }
 };
 
@@ -355,55 +314,104 @@ const PublicProfile = () => {
   const { userId } = useParams<{ userId: string }>();
   const [searchParams] = useSearchParams();
   const { user: currentUser } = useAuth();
+  const [profileSummary, setProfileSummary] = useState<PublicProfileSummary | null>(null);
   const [profileUser, setProfileUser] = useState<PublicUserData | null>(null);
   const [activeRole, setActiveRole] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(true);
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [activeTab, setActiveTab] = useState<string>('overview');
 
-  const isOwnProfile = currentUser?.id === userId;
 
   useEffect(() => {
-    const id = userId || '';
-    const userData = mockPublicUsers[id];
-    if (userData) {
-      setProfileUser(userData);
-      const roleParam = searchParams.get('role');
-      if (roleParam && userData.roles.includes(roleParam)) {
-        setActiveRole(roleParam);
-      } else {
-        setActiveRole(userData.roles[0]);
+    let isCurrent = true;
+
+    const loadSummary = async () => {
+      const id = String(userId ?? '').trim();
+      if (!id) {
+        setProfileSummary(null);
+        setProfileUser(null);
+        setActiveRole('');
+        setIsLoading(false);
+        return;
       }
-    }
-  }, [userId, searchParams]);
-
-  useEffect(() => {
-    const loadEmployerCompanies = async () => {
-      if (activeRole !== 'employer') return;
-
-      const employerId = String(currentUser?.employerId ?? '').trim();
-      if (!employerId) return;
 
       try {
-        const apiCompanies = await getEmployerCompanies(employerId);
-        const mapped = apiCompanies.map((company) => ({
-          id: company.id,
-          name: company.name,
-          industry: 'Not specified',
-          logo: company.logoUrl || undefined,
-        }));
+        setIsLoading(true);
+        const summary = await getProfileSummary(id);
+        if (!isCurrent) return;
 
-        setProfileUser((prev) => (prev ? { ...prev, companies: mapped } : prev));
+        const baseProfile = buildBaseProfile(summary);
+        const roleParam = normalizeRole(searchParams.get('role') || '');
+        const selectedRole = roleParam && baseProfile.roles.includes(roleParam)
+          ? roleParam
+          : baseProfile.roles[0] || '';
+
+        setProfileSummary(summary);
+        setProfileUser(baseProfile);
+        setActiveRole(selectedRole);
       } catch {
-        setProfileUser((prev) => (prev ? { ...prev, companies: [] } : prev));
+        if (!isCurrent) return;
+        setProfileSummary(null);
+        setProfileUser(null);
+        setActiveRole('');
+        setIsLoading(false);
       }
     };
 
-    loadEmployerCompanies();
-  }, [activeRole, currentUser?.employerId]);
+    loadSummary();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [userId, searchParams]);
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    const loadRoleProfile = async () => {
+      if (!profileSummary || !activeRole) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        setIsLoading(true);
+        const baseProfile = buildBaseProfile(profileSummary);
+        const roleProfile = await mergeRoleProfile(profileSummary, activeRole, baseProfile);
+        if (isCurrent) setProfileUser(roleProfile);
+      } catch {
+        if (isCurrent) setProfileUser(buildBaseProfile(profileSummary));
+      } finally {
+        if (isCurrent) setIsLoading(false);
+      }
+    };
+
+    loadRoleProfile();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [profileSummary, activeRole]);
 
   useEffect(() => {
     setActiveTab('overview');
   }, [activeRole]);
+
+  if (isLoading && !profileUser) {
+    return (
+      <div className="min-h-screen bg-[#0f1225]">
+        <Navbar />
+        <div className="pt-32 pb-16 text-center">
+          <div className="w-20 h-20 flex items-center justify-center mx-auto mb-6 bg-white/5 rounded-full">
+            <i className="ri-loader-4-line text-4xl text-gray-500 animate-spin"></i>
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">Loading profile</h2>
+          <p className="text-gray-400">Fetching the latest public profile details.</p>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
 
   if (!profileUser) {
     return (
@@ -429,6 +437,7 @@ const PublicProfile = () => {
 
   const accent = getRoleAccent(activeRole);
   const gradient = getRoleGradient(activeRole);
+  const canShowRating = activeRole === 'client' || activeRole === 'freelancer';
 
   const renderStars = (rating: number) => {
     return Array.from({ length: 5 }, (_, i) => (
@@ -442,13 +451,13 @@ const PublicProfile = () => {
   const getTabsForRole = (role: string) => {
     switch (role) {
       case 'freelancer':
-        return ['overview', 'portfolio', 'completed'];
+        return ['overview', 'portfolio', 'completed','documents'];
       case 'client':
         return ['overview'];
       case 'employer':
         return ['overview', 'companies'];
       case 'applicant':
-        return ['overview'];
+        return ['overview', 'cv'];
       case 'learner':
         return ['overview', 'roadmaps', 'projects'];
       default:
@@ -461,7 +470,9 @@ const PublicProfile = () => {
       overview: 'Overview',
       portfolio: 'Portfolio',
       completed: 'Completed Projects',
+      documents: 'Documents',
       companies: 'Companies',
+      cv: 'CV',
       roadmaps: 'Roadmaps',
       projects: 'Course Projects'
     };
@@ -493,11 +504,14 @@ const PublicProfile = () => {
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                   <div>
                     <h1 className="text-3xl font-bold text-white mb-1">{profileUser.name}</h1>
-                    <p className="text-gray-400 text-sm flex items-center gap-2 mb-3">
-                      <i className="ri-map-pin-line"></i>
-                      {profileUser.location}
-                    </p>
-
+                    <div className="flex flex-wrap items-center gap-3 mb-3">
+                     {profileUser.phone && <span className="flex items-center gap-1.5 text-xs text-gray-300"><i className="ri-phone-line text-orange-400"></i>{profileUser.phone}</span>}
+                     {profileUser.email && <span className="flex items-center gap-1.5 text-xs text-gray-300"><i className="ri-mail-line text-orange-400"></i>{profileUser.email}</span>}
+                     {profileUser.location && <span className="flex items-center gap-1.5 text-xs text-gray-300"><i className="ri-map-pin-line text-orange-400"></i>{profileUser.location}</span>}
+                     {profileUser.website && <a href={profileUser.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-gray-300"><i className="ri-global-line text-orange-400"></i>{profileUser.website}</a>}
+                     {profileUser.gitHubUrl && <a href={profileUser.gitHubUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-gray-300"><i className="ri-github-line text-gray-400"></i>{profileUser.gitHubUrl}</a>}
+                    
+                    </div>
                     {/* Role Tags */}
                     <div className="flex flex-wrap gap-2 mb-4">
                       {profileUser.roles.map(role => (
@@ -512,27 +526,21 @@ const PublicProfile = () => {
                     </div>
                   </div>
 
-                  {/* Rating & Rate Button */}
-                  <div className="flex flex-col items-end gap-3">
-                    <div className="flex items-center gap-2 px-4 py-2 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
-                      <div className="flex items-center gap-1">{renderStars(profileUser.rating)}</div>
-                      <span className="text-yellow-400 font-bold text-lg">{profileUser.rating}</span>
-                      <span className="text-gray-500 text-sm">({profileUser.totalRatings})</span>
-                    </div>
+                  {/* Rating */}
+                  {canShowRating && (
+                    <div className="flex flex-col items-end gap-3">
+                      <div className="flex items-center gap-2 px-4 py-2 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
+                        <div className="flex items-center gap-1">{renderStars(profileUser.rating)}</div>
+                        <span className="text-yellow-400 font-bold text-lg">{profileUser.rating}</span>
+                        <span className="text-gray-500 text-sm">({profileUser.totalRatings})</span>
+                      </div>
 
-                    {!isOwnProfile && (
-                      <button
-                        onClick={() => setShowRatingModal(true)}
-                        className={`px-5 py-2.5 bg-gradient-to-r ${gradient} text-white rounded-lg font-medium text-sm hover:opacity-90 transition-opacity cursor-pointer whitespace-nowrap flex items-center gap-2`}
-                      >
-                        <i className="ri-star-line"></i>
-                        Rate This User
-                      </button>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Stats Row */}
+
                 <div className="flex flex-wrap items-center gap-4 sm:gap-6">
                   {profileUser.completedProjects > 0 && (
                     <div className="flex items-center gap-2 text-sm">
@@ -546,14 +554,7 @@ const PublicProfile = () => {
                       <span className="text-gray-300">${profileUser.hourlyRate}/hr</span>
                     </div>
                   )}
-                  {profileUser.totalSpent && activeRole === 'client' && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <i className="ri-money-dollar-circle-line text-orange-400"></i>
-                      <span className="text-gray-300">
-                        ${profileUser.totalSpent.toLocaleString()} spent
-                      </span>
-                    </div>
-                  )}
+                  
                   {profileUser.activeProjects !== undefined && activeRole === 'client' && (
                     <div className="flex items-center gap-2 text-sm">
                       <i className="ri-briefcase-line text-orange-400"></i>
@@ -569,7 +570,7 @@ const PublicProfile = () => {
           {profileUser.roles.length > 1 && (
             <div className="bg-white/5 border border-white/10 rounded-xl p-2 mb-6">
               <div className="flex items-center gap-2">
-                <span className="text-gray-400 text-sm px-3 whitespace-nowrap">View as:</span>
+                
                 {profileUser.roles.map(role => (
                   <button
                     key={role}
@@ -610,11 +611,21 @@ const PublicProfile = () => {
           {/* Overview Tab */}
           {activeTab === 'overview' && (
             <div className="space-y-6">
-              {/* Bio */}
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-                <h2 className="text-xl font-bold text-white mb-3">About</h2>
-                <p className="text-gray-300 leading-relaxed">{profileUser.bio}</p>
-              </div>
+              {profileUser.bio && (
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+                  <h2 className="text-xl font-bold text-white mb-3">About</h2>
+                  <p className="text-gray-300 leading-relaxed">{profileUser.bio}</p>
+                </div>
+              )}
+
+              
+              {profileUser.learningGoals && (
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+                  <h2 className="text-xl font-bold text-white mb-3">Learning Goals</h2>
+                  <p className="text-gray-300">{profileUser.learningGoals}</p>
+                </div>
+              )}
+
 
               {/* Skills */}
               {profileUser.skills.length > 0 && (
@@ -688,7 +699,7 @@ const PublicProfile = () => {
 
               {/* Client-specific stats */}
               {activeRole === 'client' && (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-12 flex items-center justify-center rounded-xl bg-orange-500/20">
@@ -711,19 +722,7 @@ const PublicProfile = () => {
                       </div>
                     </div>
                   </div>
-                  <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 flex items-center justify-center rounded-xl bg-amber-500/20">
-                        <i className="ri-money-dollar-circle-line text-2xl text-amber-400"></i>
-                      </div>
-                      <div>
-                        <p className="text-gray-400 text-xs">Total Spent</p>
-                        <p className="text-2xl font-bold text-white">
-                          ${profileUser.totalSpent?.toLocaleString() ?? 0}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+                  
                 </div>
               )}
             </div>
@@ -731,31 +730,83 @@ const PublicProfile = () => {
 
           {/* Portfolio Tab (Freelancer) */}
           {activeTab === 'portfolio' && profileUser.portfolio && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {profileUser.portfolio.map(item => (
-                <div
-                  key={item.id}
-                  className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden hover:border-emerald-500/50 transition-all"
-                >
-                  <div className="w-full h-52 overflow-hidden">
-                    <img src={item.image} alt={item.title} className="w-full h-full object-cover object-top" />
-                  </div>
-                  <div className="p-5">
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="px-3 py-1 bg-emerald-500/20 border border-emerald-500/30 rounded-lg text-emerald-300 text-xs font-medium">
-                        {item.category}
-                      </span>
-                      <span className="text-gray-400 text-xs">{item.completedDate}</span>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                {profileUser.portfolio.map((item) => (
+                  <div key={item.id} className="bg-white/5 backdrop-blur-sm rounded-2xl overflow-hidden border border-white/10 hover:border-purple-500/50 transition-all">
+                    {/* PDF Preview Area */}
+                    <div className="w-full h-40 sm:h-48 bg-gradient-to-br from-purple-500/10 to-pink-500/10 border-b border-white/10 flex flex-col items-center justify-center gap-3 relative">
+                      <div className="w-16 h-16 flex items-center justify-center rounded-2xl bg-purple-500/20 border border-purple-500/30">
+                        <i className="ri-file-pdf-line text-4xl text-purple-400"></i>
+                      </div>
+                      <div className="text-center px-4">
+                        <p className="text-white text-sm font-medium truncate max-w-xs">{item.title}</p>
+                      </div>
+                      <a
+                        href={item.portfolioUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 hover:bg-purple-500/30 border border-white/10 hover:border-purple-500/40 text-gray-300 hover:text-purple-300 transition-all cursor-pointer"
+                        title="Download PDF"
+                      >
+                         <i className="ri-external-link-line text-sm"></i>
+                      </a>
                     </div>
-                    <h3 className="text-lg font-bold text-white mb-2">{item.title}</h3>
-                    <p className="text-gray-400 text-sm">{item.description}</p>
+
+                    {/* Card Info */}
+                    <div className="p-4 sm:p-5 lg:p-6">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0 mb-3">
+                        <span className="px-3 py-1 bg-purple-500/20 border border-purple-500/30 rounded-lg text-purple-300 text-xs sm:text-sm font-medium">
+                          {item.categoryName || 'Uncategorized'}
+                        </span>
+                        <span className="text-gray-400 text-xs sm:text-sm">{item.uploadedAt}</span>
+                      </div>
+                      <h3 className="text-lg sm:text-xl font-bold text-white mb-2">{item.title}</h3>
+                      <p className="text-sm sm:text-base text-gray-400">{item.description}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+          )}
+
+          {/* Documents Tab (Freelancer) */}
+          {activeTab === 'documents' && activeRole === 'freelancer' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+              {(profileUser.documents ?? []).map((document) => (
+                <div
+                  key={document.id}
+                  className="bg-white/5 border border-white/10 rounded-2xl p-5 hover:border-emerald-500/40 transition-all"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-4 min-w-0">
+                      <div className="w-12 h-12 flex-shrink-0 flex items-center justify-center rounded-xl bg-emerald-500/20 border border-emerald-500/30">
+                        <i className="ri-file-text-line text-2xl text-emerald-400"></i>
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="text-white font-semibold truncate">{document.title}</h3>
+                        <p className="text-gray-400 text-sm truncate">{document.fileName}</p>
+                        {document.uploadedAt && (
+                          <p className="text-gray-500 text-xs mt-1">
+                            {new Date(document.uploadedAt).toLocaleDateString()}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <a
+                      href={document.documentUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-lg bg-white/10 hover:bg-emerald-500/30 border border-white/10 hover:border-emerald-500/40 text-gray-300 hover:text-emerald-300 transition-all cursor-pointer"
+                      title="Open document"
+                    >
+                      <i className="ri-external-link-line text-sm"></i>
+                    </a>
                   </div>
                 </div>
               ))}
-              {profileUser.portfolio.length === 0 && (
-                <div className="col-span-2 text-center py-12 bg-white/5 border border-white/10 rounded-2xl">
-                  <i className="ri-folder-line text-5xl text-gray-500 mb-4"></i>
-                  <p className="text-gray-400">No portfolio items yet</p>
+              {(profileUser.documents ?? []).length === 0 && (
+                <div className="md:col-span-2 text-center py-12 bg-white/5 border border-white/10 rounded-2xl">
+                  <i className="ri-file-search-line text-5xl text-gray-500 mb-4"></i>
+                  <p className="text-gray-400">No documents yet</p>
                 </div>
               )}
             </div>
@@ -839,6 +890,55 @@ const PublicProfile = () => {
                   <p className="text-gray-400 text-sm">{company.industry}</p>
                 </div>
               ))}
+              {profileUser.companies.length === 0 && (
+                <div className="sm:col-span-2 lg:col-span-3 text-center py-12 bg-white/5 border border-white/10 rounded-2xl">
+                  <i className="ri-building-line text-5xl text-gray-500 mb-4"></i>
+                  <p className="text-gray-400">No companies available</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* CV Tab (Applicant) */}
+          {activeTab === 'cv' && profileUser.cv?.isPublic && activeRole === 'applicant' && (
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+              {profileUser.cv?.cvUrl ? (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 flex items-center justify-center rounded-xl bg-pink-500/20 border border-pink-500/30">
+                      <i className="ri-file-pdf-line text-3xl text-pink-400"></i>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-white">{profileUser.cv.fileName || 'CV.pdf'}</h3>
+                      <p className="text-gray-400 text-sm">
+                        {profileUser.cv.jobTitle || 'Applicant CV'}
+                        {profileUser.cv.uploadedAt ? ` • ${new Date(profileUser.cv.uploadedAt).toLocaleDateString()}` : ''}
+                      </p>
+                    </div>
+                  </div>
+                  <a
+                    href={profileUser.cv.cvUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-pink-500/20 text-pink-300 border border-pink-500/30 rounded-lg hover:bg-pink-500 hover:text-white transition-colors cursor-pointer whitespace-nowrap"
+                  >
+                    <i className="ri-external-link-line"></i>
+                    View CV
+                  </a>
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <i className="ri-file-search-line text-5xl text-gray-500 mb-4"></i>
+                  <p className="text-gray-400">No public CV available</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'cv' && (!profileUser.cv || !profileUser.cv.isPublic) && (
+            <div className="text-center py-12 bg-white/5 border border-white/10 rounded-2xl">
+              <i className="ri-file-search-line text-5xl text-gray-500 mb-4"></i>
+              <p className="text-gray-400">No public CV available</p>
             </div>
           )}
 

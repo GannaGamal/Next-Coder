@@ -5,6 +5,7 @@ import type { UserRole } from '../types';
 
 export interface AppUserSearchResult {
   id: string;
+  userId: string;
   name: string;
   username?: string | null;
   avatar?: string | null;
@@ -86,8 +87,18 @@ const normalizeRoles = (rawRoles: unknown): UserRole[] => {
 };
 
 const parseSearchUser = (raw: Record<string, unknown>): AppUserSearchResult | null => {
-  const id = toNonEmptyString(raw.id ?? raw.Id ?? raw.userId ?? raw.UserId);
-  if (!id) return null;
+  const id = toNonEmptyString(raw.id ?? raw.Id ?? raw.searchResultId ?? raw.SearchResultId);
+  const userId = toNonEmptyString(
+    raw.userId ??
+      raw.UserId ??
+      raw.appUserId ??
+      raw.AppUserId ??
+      raw.applicationUserId ??
+      raw.ApplicationUserId ??
+      id
+  );
+
+  if (!userId) return null;
 
   const username = toNonEmptyString(
     raw.userName ?? raw.UserName ?? raw.username ?? raw.Username
@@ -115,7 +126,8 @@ const parseSearchUser = (raw: Record<string, unknown>): AppUserSearchResult | nu
   const skills = toStringArray(raw.skills ?? raw.Skills);
 
   return {
-    id,
+    id: id ?? userId,
+    userId,
     name,
     username,
     avatar: buildUserImageUrl(avatarRaw),
