@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
-  fetchRoadmapTracks,
+  fetchRoadmapTracksWithPagination,
+  fetchRoadmapTrackbyname,
   enrollInTrack,
   clearRoadmapCache,
   getUserEnrollments,
@@ -55,6 +56,13 @@ const BrowsePaths = () => {
   const [error, setError]                               = useState<string | null>(null);
   const [searchQuery, setSearchQuery]                   = useState('');
   const [selectedTrack, setSelectedTrack]               = useState<RoadmapTrack | null>(null);
+  
+  // Pagination states
+  const [pageNumber, setPageNumber]                     = useState(1);
+  const [pageSize] = useState(9);
+  const [hasNext, setHasNext]                           = useState(false);
+  const [hasPrev, setHasPrev]                           = useState(false);
+  const [totalPages, setTotalPages]                     = useState(0);
 
   // enrollment counts: trackName → number (now directly from API)
   const [enrollCounts, setEnrollCounts]                 = useState<Map<string, number>>(new Map());
@@ -69,13 +77,25 @@ const BrowsePaths = () => {
   const loadTracks = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setTracks([]);
     try {
-      const data = await fetchRoadmapTracks();
-      setTracks(data);
+      const result = await fetchRoadmapTracksWithPagination(pageNumber, pageSize, searchQuery);
+      if(searchQuery.trim()) {
+         let newTracks;
+         for (const track of result.tracks) {
+          const curr = await fetchRoadmapTrackbyname(track.trackName);
+          newTracks = [...(newTracks ?? []), curr];
+        }
+        setTracks(newTracks ?? []);
+      }
+      else setTracks(result.tracks);
+      setHasNext(result.hasNext);
+      setHasPrev(result.hasPrev);
+      setTotalPages(result.totalPages);
       
       // Use enrolledUsersCount directly from the API response instead of fetching separately
       const enrollCountMap = new Map<string, number>();
-      data.forEach(t => {
+      result.tracks.forEach(t => {
         enrollCountMap.set(t.trackName, t.enrolledUsersCount);
       });
       setEnrollCounts(enrollCountMap);
@@ -84,7 +104,7 @@ const BrowsePaths = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [pageNumber, pageSize,searchQuery]);
 
   useEffect(() => { loadTracks(); }, [loadTracks]);
 
@@ -110,6 +130,19 @@ const BrowsePaths = () => {
   }, [isAuthenticated]);
 
   const handleRetry = () => { clearRoadmapCache(); loadTracks(); };
+
+  const handleNextPage = () => {
+    if (hasNext) {
+      setPageNumber(prev => prev + 1);
+    }
+  };
+
+  const handlePreviousPage = () => {
+    if (hasPrev) {
+      setPageNumber(prev => prev - 1);
+    }
+  };
+
 
   // ── Enroll ─────────────────────────────────────────────────────────────────
   const handleEnroll = useCallback(async (e: React.MouseEvent, trackName: string) => {
@@ -141,15 +174,6 @@ const BrowsePaths = () => {
     }
   }, [enrollingSet, enrolledSet]);
 
-  // ── Filter ─────────────────────────────────────────────────────────────────
-  const filteredTracks = useMemo(() => {
-    if (!searchQuery.trim()) return tracks;
-    const q = searchQuery.toLowerCase();
-    return tracks.filter(t =>
-      t.trackName.toLowerCase().includes(q) ||
-      t.topics.some(topic => topic.title.toLowerCase().includes(q))
-    );
-  }, [tracks, searchQuery]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -200,7 +224,7 @@ const BrowsePaths = () => {
       {/* Track grid */}
       {!loading && !error && (
         <>
-          {filteredTracks.length === 0 ? (
+          {tracks.length === 0 && !loading ? (
             <div className="text-center py-16">
               <i className="ri-search-line text-6xl text-white/20 mb-4 block"></i>
               <h3 className="text-xl font-semibold text-white mb-2">No tracks found</h3>
@@ -208,11 +232,9 @@ const BrowsePaths = () => {
             </div>
           ) : (
             <>
-              <p className="text-white/40 text-sm mb-4">
-                {filteredTracks.length} track{filteredTracks.length !== 1 ? 's' : ''} available
-              </p>
+              
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredTracks.map((track, idx) => {
+                {tracks.map((track, idx) => {
                   const accent        = getAccent(track.trackName);
                   const totalSub      = track.topics.reduce((a, t) => a + t.subtopics.length, 0);
                   const previewTopics = track.topics.slice(0, 4);
@@ -308,6 +330,41 @@ const BrowsePaths = () => {
                   );
                 })}
               </div>
+
+              {/* Pagination Controls */}
+              {(tracks.length > 0) && (
+                <div className="mt-12 flex items-center justify-center gap-2 sm:gap-4">
+                  <button
+                    onClick={handlePreviousPage}
+                    disabled={!hasPrev || loading}
+                    className={`px-3 sm:px-4 py-2 rounded-lg font-semibold text-sm sm:text-base transition-all flex items-center gap-2 ${
+                      hasPrev && !loading
+                        ? 'bg-white/10 text-white hover:bg-white/20'
+                        : 'bg-white/5 text-gray-500 cursor-not-allowed'
+                    }`}
+                  >
+                    <i className="ri-arrow-left-s-line"></i>
+                    <span className="hidden sm:inline"></span>
+                  </button>
+
+                  <div className="px-3 sm:px-4 py-2 rounded-lg font-semibold text-sm sm:text-base bg-white/5 text-white">
+                    {pageNumber} / {totalPages}
+                  </div>
+
+                  <button
+                    onClick={handleNextPage}
+                    disabled={!hasNext || loading}
+                    className={`px-3 sm:px-4 py-2 rounded-lg font-semibold text-sm sm:text-base transition-all flex items-center gap-2 ${
+                      hasNext && !loading
+                        ? 'bg-purple-600 text-white hover:bg-purple-700'
+                        : 'bg-white/5 text-gray-500 cursor-not-allowed'
+                    }`}
+                  >
+                    <span className="hidden sm:inline"></span>
+                    <i className="ri-arrow-right-s-line"></i>
+                  </button>
+                </div>
+              )}
             </>
           )}
         </>

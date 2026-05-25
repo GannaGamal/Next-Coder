@@ -229,12 +229,13 @@ const FreelanceMarketplace = () => {
   const experienceLevelOptions = apiExperienceLevels.map(e => ({ value: e.value, label: e.name }))
 
   // Projects loaded from API
-
-  // Projects loaded from API
   const [projectsData, setProjectsData] = useState<Project[]>([]);
-  const [, setLoadingProjects] = useState(false);
-  const [pageNumber] = useState(1);
+  const [loadingProjects, setLoadingProjects] = useState(false);
+  const [pageNumber, setPageNumber] = useState(1);
   const [pageSize] = useState(12);
+  const [hasNext, setHasNext] = useState(false);
+  const [hasPrev, setHasPrev] = useState(false);
+  const [totalPages, setTotalPages] = useState(0);
   const projects = projectsData;
 
   const toggleSkill = (skill: string) => {
@@ -288,6 +289,12 @@ const FreelanceMarketplace = () => {
         };
         const res = await getProjects(params);
         if (!mounted) return;
+        
+        // Store pagination metadata
+        setHasNext(res.hasNext);
+        setHasPrev(res.hasPrev);
+        setTotalPages(res.totalPages);
+        
         // Map API items to Project shape used in the component
         const mapped = res.items.map((it) => ({
           id: String(it.id),
@@ -369,6 +376,18 @@ const FreelanceMarketplace = () => {
   const handleOpenComplaint = (clientName: string, clientAvatar: string) => {
     setSelectedClient({ name: clientName, avatar: clientAvatar });
     setShowComplaintModal(true);
+  };
+
+  const handleNextPage = () => {
+    if (hasNext) {
+      setPageNumber(prev => prev + 1);
+    }
+  };
+
+  const handlePreviousPage = () => {
+    if (hasPrev) {
+      setPageNumber(prev => prev - 1);
+    }
   };
 
   return (
@@ -630,6 +649,48 @@ const FreelanceMarketplace = () => {
                       <ProjectCard key={project.id} project={project} selectedSkills={selectedSkills} formatBudget={formatBudget} onReportClient={handleOpenComplaint} isLightMode={isLightMode} t={t} />
                     ))}
                   </div>
+                </div>
+              )}
+
+              {(featuredProjects.length > 0 || regularProjects.length > 0) && (
+                <div className="mt-8 flex items-center justify-center gap-2 sm:gap-4">
+                  <button
+                    onClick={handlePreviousPage}
+                    disabled={!hasPrev || loadingProjects}
+                    className={`px-3 sm:px-4 py-2 rounded-lg font-semibold text-sm sm:text-base transition-all flex items-center gap-2 ${
+                      hasPrev && !loadingProjects
+                        ? isLightMode
+                          ? 'bg-gray-200 text-gray-900 hover:bg-gray-300'
+                          : 'bg-white/10 text-white hover:bg-white/20'
+                        : isLightMode
+                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                          : 'bg-white/5 text-gray-500 cursor-not-allowed'
+                    }`}
+                  >
+                    <i className="ri-arrow-left-s-line"></i>
+                    <span className="hidden sm:inline"></span>
+                  </button>
+
+                  <div className={`px-3 sm:px-4 py-2 rounded-lg font-semibold text-sm sm:text-base ${isLightMode ? 'bg-gray-100 text-gray-900' : 'bg-white/5 text-white'}`}>
+                    {pageNumber} {'/'} {totalPages}
+                  </div>
+
+                  <button
+                    onClick={handleNextPage}
+                    disabled={!hasNext || loadingProjects}
+                    className={`px-3 sm:px-4 py-2 rounded-lg font-semibold text-sm sm:text-base transition-all flex items-center gap-2 ${
+                      hasNext && !loadingProjects
+                        ? isLightMode
+                          ? 'bg-purple-500 text-white hover:bg-purple-600'
+                          : 'bg-purple-600 text-white hover:bg-purple-700'
+                        : isLightMode
+                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                          : 'bg-white/5 text-gray-500 cursor-not-allowed'
+                    }`}
+                  >
+                    <span className="hidden sm:inline"></span>
+                    <i className="ri-arrow-right-s-line"></i>
+                  </button>
                 </div>
               )}
 

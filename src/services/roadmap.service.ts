@@ -76,7 +76,7 @@ let fetchPromise: Promise<RoadmapTrack[]> | null = null;
  */
 export const fetchRoadmapTracks = async (page: number = 1, pageSize: number = 100): Promise<RoadmapTrack[]> => {
   if (cachedTracks) return cachedTracks;
-
+  
   // Deduplicate concurrent calls — return the same in-flight promise
   if (fetchPromise) return fetchPromise;
 
@@ -110,6 +110,79 @@ export const fetchRoadmapTracks = async (page: number = 1, pageSize: number = 10
     fetchPromise = null;
   }
 };
+
+/**
+ * Fetches roadmap tracks with pagination support (non-cached).
+ * Returns both the tracks and pagination metadata for UI pagination.
+ */
+
+export const fetchRoadmapTrackbyname = async (trackName: string): Promise<RoadmapTrack> => {
+  const encoded = encodeURIComponent(trackName);
+  const response = await fetch(`${API_BASE}/roadmap/${encoded}`);
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }   
+  const responseData = await response.json();
+  const track: RoadmapTrack = responseData.data;
+  if (!track || typeof track !== 'object') {
+    throw new Error('Invalid roadmap track response format');
+  }
+  return track;
+}
+
+export const fetchRoadmapTracksWithPagination = async (
+  page: number = 1,
+  pageSize: number = 9,
+  searchQuery: string = ''
+): Promise<{ tracks: RoadmapTrack[]; hasNext: boolean; hasPrev: boolean; totalPages: number; pageNumber: number }> => {
+  let url = `${API_BASE}/roadmap/tracks-content?Page=${page}&PageSize=${pageSize}`;
+
+  if (searchQuery.trim()) {
+    const encodedQuery = encodeURIComponent(searchQuery.trim());
+    url = `${API_BASE}/roadmap/search?query=${encodedQuery}&Page=${page}&PageSize=${pageSize}`;
+  }
+  
+  const response = await fetch(url);
+
+  if(response.status === 404) {
+    // No results found is treated as empty list with no pagination
+    return {
+      tracks: [],
+      hasNext: false,
+      hasPrev: false,
+      totalPages: 1,
+      pageNumber: page,
+    };
+  }
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+  const responseData = await response.json();
+  
+  // Handle paginated response: extract items and pagination metadata
+  const paginatedData: PaginatedRoadmapResponse = responseData.data || {};
+  const tracks: RoadmapTrack[] = paginatedData.items || [];
+  const meta = paginatedData.meta || {};
+  
+  if (!Array.isArray(tracks)) {
+    throw new Error('Invalid roadmap tracks response format');
+  }
+  
+  return {
+    tracks,
+    hasNext: meta.hasNextPage ?? false,
+    hasPrev: meta.hasPreviousPage ?? false,
+    totalPages: meta.totalPages ?? 1,
+    pageNumber: page,
+  };
+};
+
+/**
+ * Searches roadmap tracks by query with pagination.
+ * GET /api/roadmap/search?query={query}&Page={page}&PageSize={pageSize}
+ */
+
 
 /** Get pagination metadata from the last fetch */
 export const getRoadmapPaginationMeta = (): PaginationMeta | null => {
