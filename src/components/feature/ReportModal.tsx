@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useTranslation } from 'react-i18next';
 import { createReport, type ReportType } from '../../services/clientDashboard.service';
+import { createFreelancerReport } from '../../services/freelancerDashboard.service';
 
 interface ReportModalProps {
   isOpen: boolean;
@@ -62,6 +63,10 @@ const ReportModal = ({ isOpen, onClose, targetName, targetAvatar, projectId, rep
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!reportType || !description.trim()) return;
+    if (!Number.isFinite(projectId) || projectId <= 0) {
+      setSubmitError('Invalid project. Please try again.');
+      return;
+    }
 
     setIsSubmitting(true);
     setSubmitError(null);
@@ -69,7 +74,9 @@ const ReportModal = ({ isOpen, onClose, targetName, targetAvatar, projectId, rep
     try {
       const apiReportType = reportTypeMapping[reportType] as ReportType;
       
-      await createReport({
+      const submitReport = reporterRole === 'freelancer' ? createFreelancerReport : createReport;
+
+      await submitReport({
         projectId,
         reportType: apiReportType,
         description: description.trim(),
@@ -79,6 +86,7 @@ const ReportModal = ({ isOpen, onClose, targetName, targetAvatar, projectId, rep
       setIsSubmitted(true);
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : 'Failed to submit report');
+    } finally {
       setIsSubmitting(false);
     }
   };
@@ -107,6 +115,9 @@ const ReportModal = ({ isOpen, onClose, targetName, targetAvatar, projectId, rep
   const cancelBtn = isLightMode
     ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
     : 'bg-white/5 text-white hover:bg-white/10';
+  const avatarSrc = targetAvatar
+    ? (targetAvatar.startsWith('http') ? targetAvatar : `https://nextcoder.runasp.net/${targetAvatar}`)
+    : '';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -147,8 +158,8 @@ const ReportModal = ({ isOpen, onClose, targetName, targetAvatar, projectId, rep
 
             <div className={`flex items-center gap-4 p-4 ${infoCard} rounded-xl border mb-6`}>
               <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0">
-                {targetAvatar && (
-                  <img src={`https://nextcoder.runasp.net/${targetAvatar}`} alt={targetName} className="w-full h-full object-cover" />
+                {avatarSrc && (
+                  <img src={avatarSrc} alt={targetName} className="w-full h-full object-cover" />
                 )}
                 {!targetAvatar && (
                   <img src="https://readdy.ai/api/search-image?query=professional%20default%20user%20avatar%20icon%20simple%20clean%20minimal%20design%20on%20dark%20background&width=100&height=100&seq=avatar1&orientation=squarish" alt={targetName} className="w-full h-full object-cover" />
