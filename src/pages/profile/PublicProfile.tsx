@@ -84,7 +84,7 @@ const getRoleProfileId = (summary: PublicProfileSummary, role: string) => {
 const buildBaseProfile = (summary: PublicProfileSummary): PublicUserData => ({
   id: summary.userId,
   name: summary.fullName,
-  avatar: summary.imageUrl,
+  avatar: summary.imageUrl || '',
   roles: normalizeRoles(summary.roles),
   skills: [],
   rating: 0,
@@ -495,7 +495,7 @@ const PublicProfile = () => {
                   <img src={profileUser.avatar} alt={profileUser.name} className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
-                    <i className="ri-user-line text-5xl text-white"></i>
+                    <i className="ri-user-line text-2xl text-white/70"></i>
                   </div>
                 )}
               </div>
@@ -618,28 +618,30 @@ const PublicProfile = () => {
                 </div>
               )}
 
-              
-              {profileUser.learningGoals && (
-                <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-                  <h2 className="text-xl font-bold text-white mb-3">Learning Goals</h2>
-                  <p className="text-gray-300">{profileUser.learningGoals}</p>
-                </div>
-              )}
-
 
               {/* Skills */}
-              {profileUser.skills.length > 0 && (
+              {Array.isArray(profileUser.skills) && profileUser.skills.length > 0 && (
                 <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
                   <h2 className="text-xl font-bold text-white mb-4">Skills</h2>
                   <div className="flex flex-wrap gap-2">
-                    {profileUser.skills.map(skill => (
-                      <span
-                        key={skill}
-                        className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-gray-300 text-sm"
-                      >
-                        {skill}
-                      </span>
-                    ))}
+                    {profileUser.skills.map((skill, index) => {
+                      let skillName: string;
+                      if (typeof skill === 'string') {
+                        skillName = skill;
+                      } else if (typeof skill === 'object' && skill !== null) {
+                        skillName = (skill as Record<string, any>).name || (skill as Record<string, any>).title || String(skill);
+                      } else {
+                        skillName = String(skill);
+                      }
+                      return (
+                        <span
+                          key={`skill-${index}-${skillName}`}
+                          className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-gray-300 text-sm"
+                        >
+                          {skillName}
+                        </span>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -729,28 +731,31 @@ const PublicProfile = () => {
           )}
 
           {/* Portfolio Tab (Freelancer) */}
-          {activeTab === 'portfolio' && profileUser.portfolio && (
+          {activeTab === 'portfolio' && Array.isArray(profileUser.portfolio) && profileUser.portfolio.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                 {profileUser.portfolio.map((item) => (
-                  <div key={item.id} className="bg-white/5 backdrop-blur-sm rounded-2xl overflow-hidden border border-white/10 hover:border-purple-500/50 transition-all">
-                    {/* PDF Preview Area */}
-                    <div className="w-full h-40 sm:h-48 bg-gradient-to-br from-purple-500/10 to-pink-500/10 border-b border-white/10 flex flex-col items-center justify-center gap-3 relative">
-                      <div className="w-16 h-16 flex items-center justify-center rounded-2xl bg-purple-500/20 border border-purple-500/30">
-                        <i className="ri-file-pdf-line text-4xl text-purple-400"></i>
+                  item && item.id ? (
+                    <div key={item.id} className="bg-white/5 backdrop-blur-sm rounded-2xl overflow-hidden border border-white/10 hover:border-purple-500/50 transition-all">
+                      {/* PDF Preview Area */}
+                      <div className="w-full h-40 sm:h-48 bg-gradient-to-br from-purple-500/10 to-pink-500/10 border-b border-white/10 flex flex-col items-center justify-center gap-3 relative">
+                        <div className="w-16 h-16 flex items-center justify-center rounded-2xl bg-purple-500/20 border border-purple-500/30">
+                          <i className="ri-file-pdf-line text-4xl text-purple-400"></i>
+                        </div>
+                        <div className="text-center px-4">
+                          <p className="text-white text-sm font-medium truncate max-w-xs">{item.title || 'Untitled'}</p>
+                        </div>
+                        {item.portfolioUrl && (
+                          <a
+                            href={item.portfolioUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 hover:bg-purple-500/30 border border-white/10 hover:border-purple-500/40 text-gray-300 hover:text-purple-300 transition-all cursor-pointer"
+                            title="Download PDF"
+                          >
+                             <i className="ri-external-link-line text-sm"></i>
+                          </a>
+                        )}
                       </div>
-                      <div className="text-center px-4">
-                        <p className="text-white text-sm font-medium truncate max-w-xs">{item.title}</p>
-                      </div>
-                      <a
-                        href={item.portfolioUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 hover:bg-purple-500/30 border border-white/10 hover:border-purple-500/40 text-gray-300 hover:text-purple-300 transition-all cursor-pointer"
-                        title="Download PDF"
-                      >
-                         <i className="ri-external-link-line text-sm"></i>
-                      </a>
-                    </div>
 
                     {/* Card Info */}
                     <div className="p-4 sm:p-5 lg:p-6">
@@ -764,6 +769,7 @@ const PublicProfile = () => {
                       <p className="text-sm sm:text-base text-gray-400">{item.description}</p>
                     </div>
                   </div>
+                  ) : null
                 ))}
               </div>
           )}
@@ -772,36 +778,38 @@ const PublicProfile = () => {
           {activeTab === 'documents' && activeRole === 'freelancer' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
               {(profileUser.documents ?? []).map((document) => (
-                <div
-                  key={document.id}
-                  className="bg-white/5 border border-white/10 rounded-2xl p-5 hover:border-emerald-500/40 transition-all"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-start gap-4 min-w-0">
-                      <div className="w-12 h-12 flex-shrink-0 flex items-center justify-center rounded-xl bg-emerald-500/20 border border-emerald-500/30">
-                        <i className="ri-file-text-line text-2xl text-emerald-400"></i>
+                document && document.id && document.documentUrl ? (
+                  <div
+                    key={document.id}
+                    className="bg-white/5 border border-white/10 rounded-2xl p-5 hover:border-emerald-500/40 transition-all"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start gap-4 min-w-0">
+                        <div className="w-12 h-12 flex-shrink-0 flex items-center justify-center rounded-xl bg-emerald-500/20 border border-emerald-500/30">
+                          <i className="ri-file-text-line text-2xl text-emerald-400"></i>
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="text-white font-semibold truncate">{document.title || 'Untitled'}</h3>
+                          <p className="text-gray-400 text-sm truncate">{document.fileName || 'Document'}</p>
+                          {document.uploadedAt && (
+                            <p className="text-gray-500 text-xs mt-1">
+                              {new Date(document.uploadedAt).toLocaleDateString()}
+                            </p>
+                          )}
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <h3 className="text-white font-semibold truncate">{document.title}</h3>
-                        <p className="text-gray-400 text-sm truncate">{document.fileName}</p>
-                        {document.uploadedAt && (
-                          <p className="text-gray-500 text-xs mt-1">
-                            {new Date(document.uploadedAt).toLocaleDateString()}
-                          </p>
-                        )}
-                      </div>
+                      <a
+                        href={document.documentUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-lg bg-white/10 hover:bg-emerald-500/30 border border-white/10 hover:border-emerald-500/40 text-gray-300 hover:text-emerald-300 transition-all cursor-pointer"
+                        title="Open document"
+                      >
+                        <i className="ri-external-link-line text-sm"></i>
+                      </a>
                     </div>
-                    <a
-                      href={document.documentUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-lg bg-white/10 hover:bg-emerald-500/30 border border-white/10 hover:border-emerald-500/40 text-gray-300 hover:text-emerald-300 transition-all cursor-pointer"
-                      title="Open document"
-                    >
-                      <i className="ri-external-link-line text-sm"></i>
-                    </a>
                   </div>
-                </div>
+                ) : null
               ))}
               {(profileUser.documents ?? []).length === 0 && (
                 <div className="md:col-span-2 text-center py-12 bg-white/5 border border-white/10 rounded-2xl">
@@ -813,54 +821,60 @@ const PublicProfile = () => {
           )}
 
           {/* Completed Projects Tab (Freelancer) */}
-          {activeTab === 'completed' && profileUser.completedWork && (
+          {activeTab === 'completed' && Array.isArray(profileUser.completedWork) && profileUser.completedWork.length > 0 && (
             <div className="space-y-4">
               {profileUser.completedWork.map(project => (
-                <div
-                  key={project.id}
-                  className="bg-white/5 border border-white/10 rounded-2xl p-6 hover:border-emerald-500/30 transition-all"
-                >
-                  <div className="flex flex-col lg:flex-row gap-6">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-3">
-                        <span className="px-3 py-1 bg-emerald-500/20 border border-emerald-500/30 rounded-lg text-emerald-300 text-xs font-medium">
-                          {project.category}
-                        </span>
-                        <span className="text-gray-400 text-sm">
-                          <i className="ri-calendar-line mr-1"></i>
-                          {new Date(project.completedDate).toLocaleDateString('en-US', {
-                            year: 'numeric',
-                            month: 'short',
-                            day: 'numeric'
-                          })}
-                        </span>
-                      </div>
-                      <h3 className="text-xl font-bold text-white mb-2">{project.title}</h3>
-                      <p className="text-gray-400 mb-4">{project.description}</p>
-                      <div className="flex items-center gap-4">
-                        <span className="text-white font-semibold">
-                          <i className="ri-money-dollar-circle-line text-green-400 mr-1"></i>
-                          ${project.budget.toLocaleString()}
-                        </span>
-                        <div className="flex items-center gap-1">{renderStars(project.rating)}</div>
-                      </div>
-                    </div>
-                    <div className="lg:w-72 bg-white/5 rounded-xl p-4 border border-white/10">
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className="w-10 h-10 rounded-full overflow-hidden">
-                          <img src={project.clientAvatar} alt={project.client} className="w-full h-full object-cover" />
+                project && project.id ? (
+                  <div
+                    key={project.id}
+                    className="bg-white/5 border border-white/10 rounded-2xl p-6 hover:border-emerald-500/30 transition-all"
+                  >
+                    <div className="flex flex-col lg:flex-row gap-6">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-3">
+                          <span className="px-3 py-1 bg-emerald-500/20 border border-emerald-500/30 rounded-lg text-emerald-300 text-xs font-medium">
+                            {project.category || 'Project'}
+                          </span>
+                          <span className="text-gray-400 text-sm">
+                            <i className="ri-calendar-line mr-1"></i>
+                            {project.completedDate ? new Date(project.completedDate).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric'
+                            }) : 'N/A'}
+                          </span>
                         </div>
-                        <div>
-                          <h4 className="text-white font-semibold text-sm">{project.client}</h4>
-                          <p className="text-gray-400 text-xs">Client</p>
+                        <h3 className="text-xl font-bold text-white mb-2">{project.title || 'Untitled'}</h3>
+                        <p className="text-gray-400 mb-4">{project.description || ''}</p>
+                        <div className="flex items-center gap-4">
+                          <span className="text-white font-semibold">
+                            <i className="ri-money-dollar-circle-line text-green-400 mr-1"></i>
+                            ${(project.budget || 0).toLocaleString()}
+                          </span>
+                          <div className="flex items-center gap-1">{renderStars(project.rating || 0)}</div>
                         </div>
                       </div>
+                      <div className="lg:w-72 bg-white/5 rounded-xl p-4 border border-white/10">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-purple-500/30 to-pink-500/30 flex items-center justify-center">
+                            {project.clientAvatar ? (
+                              <img src={project.clientAvatar} alt={project.client} className="w-full h-full object-cover" />
+                            ) : (
+                              <i className="ri-user-line text-2xl text-white/70"></i>
+                            )}
+                          </div>
+                          <div>
+                            <h4 className="text-white font-semibold text-sm">{project.client || 'Client'}</h4>
+                            <p className="text-gray-400 text-xs">Client</p>
+                          </div>
+                        </div>
                       <p className="text-gray-300 text-sm italic">&quot;{project.review}&quot;</p>
                     </div>
                   </div>
                 </div>
+                ) : null
               ))}
-              {profileUser.completedWork.length === 0 && (
+              {(profileUser.completedWork ?? []).length === 0 && (
                 <div className="text-center py-12 bg-white/5 border border-white/10 rounded-2xl">
                   <i className="ri-folder-line text-5xl text-gray-500 mb-4"></i>
                   <p className="text-gray-400">No completed projects yet</p>

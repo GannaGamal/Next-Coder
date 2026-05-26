@@ -2,14 +2,13 @@ import { API_BASE } from './api.config';
 import { parseApiError } from './api.utils';
 
 const imgBase = "https://nextcoder.runasp.net/";
-const generalAvatar = "https://readdy.ai/api/search-image?query=professional%20default%20user%20avatar%20icon%20simple%20clean%20minimal%20design%20on%20dark%20background&width=100&height=100&seq=avatar1&orientation=squarish"
 const token = localStorage.getItem('authToken') ?? '';
 
 export interface PublicProfileSummary {
   userId: string;
   fullName: string;
   email: string;
-  imageUrl: string;
+  imageUrl?: string | null;
   roles: string[];
   jobSeekerId?: string | null;
   employerId?: string | null;
@@ -23,7 +22,7 @@ export interface ClientPublicProfile{
   appUserId: string;
   fullName: string;
   email: string;
-  imageUrl: string;
+  imageUrl?: string | null;
   bio: string;
   country: string;
   phoneNumber: string;
@@ -49,7 +48,7 @@ export interface EmployerCV {
 export interface jobSeekerPublicProfile {
   fullName: string;
   email: string;
-  imageUrl: string;
+  imageUrl?: string | null;
   phoneNumber?: string | null;
   address?: string | null;
   gitHubUrl?: string | null;
@@ -99,7 +98,7 @@ export interface FreelancerPublicProfile {
   appUserId: string;
   fullName: string;
   email: string;
-  imageUrl: string;
+  imageUrl?: string | null;
   bio?: string | null;
   websiteUrl?: string | null;
   title?: string | null;
@@ -144,7 +143,7 @@ export interface LearnerPublicProfile {
   address?: string | null;
   fullName: string;
   email: string;
-  imageUrl: string;
+  imageUrl?: string | null;
   bio?: string | null;
   learningGoals?: string | null;
   interests: string[];
@@ -168,7 +167,7 @@ export interface Company {
 export interface EmployerPublicProfile {
   fullName: string;
   email: string;
-  imageUrl: string;
+  imageUrl?: string | null;
   phoneNumber?: string | null;
   address?: string | null;
   websiteUrl?: string | null;
@@ -285,7 +284,7 @@ export async function getFreelancerPublicProfile(freelancerId: string): Promise<
     portfolio.uploadedAt = valueAsString(portfolio.uploadedAt ?? portfolio.UploadedAt);
   }
 
-  returnData.documents = (returnData.documents ?? []).map((document: Record<string, unknown>, index: number) => ({
+  returnData.documents = ((returnData.documents ?? []) as Record<string, unknown>[]).map((document: Record<string, unknown>, index: number) => ({
     id: valueAsString(document.id ?? document.Id) || String(index),
     title: valueAsString(document.title ?? document.Title) || null,
     fileName: valueAsString(document.fileName ?? document.FileName ?? document.name ?? document.Name) || null,
@@ -293,13 +292,13 @@ export async function getFreelancerPublicProfile(freelancerId: string): Promise<
     fileUrl: buildAbsoluteUrl(document.fileUrl ?? document.FileUrl ?? document.documentUrl ?? document.DocumentUrl ?? document.filePath ?? document.FilePath),
     uploadedAt: valueAsString(document.uploadedAt ?? document.UploadedAt ?? document.createdAt ?? document.CreatedAt) || null,
     contentType: valueAsString(document.contentType ?? document.ContentType) || null,
-  }));
+  })) as unknown as FreelancerDocument[];
 
-  returnData.completedProjects = (returnData.completedProjects as Record<string, unknown>[]).map((project) => ({
+  returnData.completedProjects = ((returnData.completedProjects as Record<string, unknown>[]) ?? []).map((project) => ({
     id: valueAsString(project.id ?? project.Id),
     title: valueAsString(project.title ?? project.Title) || null,
     client: valueAsString(project.client ?? project.Client ?? project.clientName ?? project.ClientName) || null,
-    clientAvatar: buildAbsoluteUrl(project.clientAvatar ?? project.ClientAvatar ?? project.clientImageUrl ?? project.ClientImageUrl) || null,
+    clientAvatar: buildAbsoluteUrl(project.clientAvatar ?? project.ClientAvatar ?? project.clientImageUrl ?? buildAbsoluteUrl(project.ClientImageUrl)),
     description: valueAsString(project.description ?? project.Description) || null,
     budget: valueAsNumber(project.budget ?? project.Budget),
     totalPaid: valueAsNumber(project.totalPaid ?? project.TotalPaid),
@@ -308,9 +307,9 @@ export async function getFreelancerPublicProfile(freelancerId: string): Promise<
     review: valueAsString(project.review ?? project.Review) || null,
     category: valueAsString(project.category ?? project.Category) || null,
     status: valueAsString(project.status ?? project.Status) || null,
-  }));
+  })) as unknown as completedProject[];
 
-  return returnData as FreelancerPublicProfile;
+  return returnData as unknown as FreelancerPublicProfile;
 }
 
 
@@ -327,7 +326,7 @@ export async function getLearnerPublicProfile(learnerId: string): Promise<Learne
   }
   const responseData = await response.json();
   const returnData = responseData.data;
-  returnData.imageUrl = imgBase + returnData.imageUrl;
+  returnData.imageUrl = buildAbsoluteUrl(returnData.imageUrl ?? returnData.ImageUrl);
   return returnData as LearnerPublicProfile;
 }
 
@@ -356,6 +355,7 @@ const valueAsNumber = (value: unknown): number => {
 };
 
 const buildAbsoluteUrl = (url: unknown): string => {
+  if(url == '' || url == null || url == undefined || url == '/') return '';
   const value = valueAsString(url).trim();
   if (!value) return '';
   if (/^https?:\/\//i.test(value)) return value;
@@ -470,7 +470,7 @@ export async function getJobSeekerPublicProfile(jobSeekerId: string): Promise<jo
   return {
     fullName: valueAsString(raw.fullName ?? raw.FullName),
     email: valueAsString(raw.email ?? raw.Email),
-    imageUrl: imageUrl ? imgBase + imageUrl : '',
+    imageUrl: buildAbsoluteUrl(imageUrl),
     phoneNumber: valueAsString(raw.phoneNumber ?? raw.PhoneNumber) || null,
     address: valueAsString(raw.address ?? raw.Address) || null,
     gitHubUrl: valueAsString(raw.gitHubUrl ?? raw.GitHubUrl) || null,
