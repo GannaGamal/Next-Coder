@@ -68,7 +68,9 @@ export interface FreelancerCompletedProject {
   totalPaid: number | null;
   clientName: string | null;
   clientRatingGivenByFreelancer: number | null;
+  clientRatingCommentFromFreelancer: string | null;
   freelancerRatingFromClient: number | null;
+  freelancerRatingCommentFromClient: string | null;
   comments: unknown[] | null;
   completedAt: string | null;
 }

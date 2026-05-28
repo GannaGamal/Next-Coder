@@ -54,7 +54,9 @@ interface CompletedProject {
   clientName: string;
   clientAvatar: string;
   clientRatingGivenByFreelancer: number | null;
+  clientRatingCommentFromFreelancer: string | null;
   freelancerRatingFromClient: number | null;
+  freelancerRatingCommentFromClient: string | null;
   comments: ProjectComment[];
   completedAt: string | null;
 }
@@ -77,7 +79,6 @@ const FreelancerDashboard = () => {
   const [selectedProject, setSelectedProject] = useState<CompletedProject | null>(null);
   const [selectedActiveProject, setSelectedActiveProject] = useState<ActiveProject | null>(null);
   const [selectedApplication, setSelectedApplication] = useState<AppliedProject | null>(null);
-  const [showEditMilestoneModal, setShowEditMilestoneModal] = useState(false);
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [showProjectDetailModal, setShowProjectDetailModal] = useState(false);
   const [showRemoveConfirmModal, setShowRemoveConfirmModal] = useState(false);
@@ -102,7 +103,6 @@ const FreelancerDashboard = () => {
   const [activeReloadKey, setActiveReloadKey] = useState(0);
   const [isLoadingCompleted, setIsLoadingCompleted] = useState(true);
   const [completedError, setCompletedError] = useState<string | null>(null);
-  const [editingMilestone, setEditingMilestone] = useState<ActiveMilestone | null>(null);
   const [submittingMilestone, setSubmittingMilestone] = useState<ActiveMilestone | null>(null);
   const [submitNote, setSubmitNote] = useState('');
   const [submitFile, setSubmitFile] = useState<File | null>(null);
@@ -113,7 +113,6 @@ const FreelancerDashboard = () => {
   const [ratingError, setRatingError] = useState<string | null>(null);
   const [isSubmittingRating, setIsSubmittingRating] = useState(false);
   const [newComment, setNewComment] = useState('');
-  const [milestoneComment, setMilestoneComment] = useState('');
   const [isSubmittingProjectComment, setIsSubmittingProjectComment] = useState(false);
   const [projectCommentError, setProjectCommentError] = useState<string | null>(null);
   const [expandedMilestone, setExpandedMilestone] = useState<number | null>(null);
@@ -155,17 +154,6 @@ const FreelancerDashboard = () => {
 
   useEffect(() => {
     let isMounted = true;
-
-    const withdrawnKey = 'freelancer.withdrawnApplications';
-    const getWithdrawnIds = () => {
-      try {
-        const raw = localStorage.getItem(withdrawnKey);
-        const parsed = raw ? JSON.parse(raw) : [];
-        return Array.isArray(parsed) ? parsed : [];
-      } catch {
-        return [];
-      }
-    };
 
     const toSafeNumber = (value: number | null | undefined): number =>
       typeof value === 'number' && Number.isFinite(value) ? value : 0;
@@ -222,7 +210,9 @@ const FreelancerDashboard = () => {
           .filter((application) => !withdrawnIds.includes(application.proposalId))
           .map((application) => ({
           ...application,
-          clientAvatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(application.clientName || 'Client')}&background=0D8ABC&color=fff&rounded=true`,
+          clientAvatar: (application as any).clientImageUrl
+            ? `https://nextcoder.runasp.net/${(application as any).clientImageUrl}`
+            : `https://ui-avatars.com/api/?name=${encodeURIComponent(application.clientName || 'Client')}&background=0D8ABC&color=fff&rounded=true`,
         }));
 
         setAppliedProjects(mapped);
@@ -268,7 +258,9 @@ const FreelancerDashboard = () => {
 
           return {
             ...project,
-            clientAvatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(project.clientName || 'Client')}&background=0D8ABC&color=fff&rounded=true`,
+            clientAvatar: (project as any).clientImageUrl
+              ? `https://nextcoder.runasp.net/${(project as any).clientImageUrl}`
+              : `https://ui-avatars.com/api/?name=${encodeURIComponent(project.clientName || 'Client')}&background=0D8ABC&color=fff&rounded=true`,
             milestones: (Array.isArray(project.milestones) ? project.milestones : []).map((milestone) => ({
               ...milestone,
               comments: [],
@@ -325,9 +317,13 @@ const FreelancerDashboard = () => {
             status: project.status ?? 'Completed',
             totalPaid: typeof project.totalPaid === 'number' && Number.isFinite(project.totalPaid) ? project.totalPaid : 0,
             clientName: project.clientName ?? '',
-            clientAvatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(project.clientName || 'Client')}&background=0D8ABC&color=fff&rounded=true`,
+            clientAvatar: (project as any).clientImageUrl
+              ? `https://nextcoder.runasp.net/${(project as any).clientImageUrl}`
+              : `https://ui-avatars.com/api/?name=${encodeURIComponent(project.clientName || 'Client')}&background=0D8ABC&color=fff&rounded=true`,
             clientRatingGivenByFreelancer: project.clientRatingGivenByFreelancer ?? null,
+            clientRatingCommentFromFreelancer: project.clientRatingCommentFromFreelancer ?? null,
             freelancerRatingFromClient: project.freelancerRatingFromClient ?? null,
+            freelancerRatingCommentFromClient: project.freelancerRatingCommentFromClient ?? null,
             comments: normalizedComments,
             completedAt: project.completedAt ?? null,
           };
@@ -539,29 +535,6 @@ const FreelancerDashboard = () => {
   const handleStartProject = (_project?: CompletedProject | AppliedProject) => {
     setActiveTab('active');
   };
-  const handleEditMilestone = (milestone: ActiveMilestone) => {
-    setEditingMilestone({ ...milestone });
-    setShowEditMilestoneModal(true);
-  };
-
-  const handleSaveEditedMilestone = () => {
-    if (!editingMilestone || !selectedActiveProject) return;
-    setActiveProjects(prev =>
-      prev.map(p =>
-        p.projectId === selectedActiveProject.projectId
-          ? {
-              ...p,
-              milestones: p.milestones.map(m =>
-                m.id === editingMilestone.id ? { ...editingMilestone, status: 'Pending' } : m
-              ),
-            }
-          : p
-      )
-    );
-    setShowEditMilestoneModal(false);
-    setEditingMilestone(null);
-  };
-
   const handleOpenSubmitDeliverables = (milestone: ActiveMilestone, project: ActiveProject) => {
     setSubmittingMilestone(milestone);
     setSelectedActiveProject(project);
@@ -606,29 +579,6 @@ const FreelancerDashboard = () => {
     } finally {
       setIsSubmittingDeliverables(false);
     }
-  };
-
-  const handleAddMilestoneComment = (projectId: number, milestoneId: number) => {
-    if (!milestoneComment.trim()) return;
-    const today = new Date().toISOString().split('T')[0];
-    setActiveProjects(prev =>
-      prev.map(p =>
-        p.projectId === projectId
-          ? {
-              ...p,
-              milestones: p.milestones.map(m =>
-                m.id === milestoneId
-                  ? {
-                      ...m,
-                      comments: [...m.comments, { id: `mc-${Date.now()}`, author: 'You', authorRole: 'freelancer' as const, text: milestoneComment, date: today }],
-                    }
-                  : m
-              ),
-            }
-          : p
-      )
-    );
-    setMilestoneComment('');
   };
 
   const handleSubmitRating = async () => {
@@ -985,14 +935,6 @@ const FreelancerDashboard = () => {
                             </div>
                             <div className="flex items-center gap-2">
                               {/* Action buttons */}
-                              {(statusKey === 'pending' || statusKey === 'rejected') && (
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); setSelectedActiveProject(project); handleEditMilestone(milestone); }}
-                                  className="px-3 py-1.5 bg-white/5 text-white text-xs font-semibold rounded-lg hover:bg-white/10 transition-colors whitespace-nowrap cursor-pointer"
-                                >
-                                  <i className="ri-edit-line mr-1"></i>{t('freelancerDashboard.edit')}
-                                </button>
-                              )}
                               {(statusKey === 'inprogress' || statusKey === 'rejected') && (
                                 <button
                                   onClick={(e) => { e.stopPropagation(); handleOpenSubmitDeliverables(milestone, project); }}
@@ -1066,52 +1008,7 @@ const FreelancerDashboard = () => {
                               </div>
                             )}
 
-                            {/* Milestone Comments */}
-                            <div>
-                              <span className="text-white/50 text-xs font-medium uppercase tracking-wider">{t('freelancerDashboard.discussion')}</span>
-                              {milestone.comments.length > 0 ? (
-                                <div className="space-y-2 mt-2">
-                                  {milestone.comments.map(c => (
-                                    <div key={c.id} className="flex gap-3 p-2.5 bg-white/[0.03] rounded-lg">
-                                      <div className={`w-6 h-6 flex items-center justify-center rounded-full flex-shrink-0 ${c.authorRole === 'client' ? 'bg-cyan-500/20' : 'bg-teal-500/20'}`}>
-                                        <i className={`ri-user-line text-xs ${c.authorRole === 'client' ? 'text-cyan-400' : 'text-teal-400'}`}></i>
-                                      </div>
-                                      <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2 mb-0.5">
-                                          <span className="text-white text-xs font-semibold">{c.author}</span>
-                                          <span className="text-white/30 text-xs">{c.date}</span>
-                                        </div>
-                                        <p className="text-white/70 text-sm">{c.text}</p>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : (
-                                <p className="text-white/30 text-sm mt-2">{t('common.noCommentsYet')}</p>
-                              )}
-                              {statusKey !== 'finished' && (
-                                <div className="flex gap-2 mt-3">
-                                  <input
-                                    type="text"
-                                    value={expandedMilestone === milestone.id ? milestoneComment : ''}
-                                    onChange={(e) => setMilestoneComment(e.target.value)}
-                                    placeholder={t('common.addComment')}
-                                    className={`flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-teal-500 ${
-                                      isLightMode
-                                        ? 'bg-gray-100 border-gray-300 text-gray-800 placeholder-gray-400'
-                                        : 'bg-white/5 border-white/10 text-white placeholder-gray-500'
-                                    }`}
-                                    onClick={(e) => e.stopPropagation()}
-                                  />
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); handleAddMilestoneComment(project.projectId, milestone.id); }}
-                                    className="px-4 py-2 bg-teal-500 text-white text-sm font-semibold rounded-lg hover:bg-teal-600 transition-colors whitespace-nowrap cursor-pointer"
-                                  >
-                                    {t('common.send')}
-                                  </button>
-                                </div>
-                              )}
-                            </div>
+                            {/* Milestone discussion UI removed */}
                           </div>
                         )}
                       </div>
@@ -1230,10 +1127,15 @@ const FreelancerDashboard = () => {
                 <div className="bg-white/5 rounded-lg p-4">
                   <span className="text-white/60 text-sm mb-2 block">{t('freelancerDashboard.myRatingForClient')}</span>
                   {project.clientRatingGivenByFreelancer != null ? (
-                    <div className="flex items-center gap-2">
-                      {[...Array(5)].map((_, i) => (
-                        <i key={i} className={`ri-star-fill text-xl ${i < project.clientRatingGivenByFreelancer! ? 'text-yellow-400' : 'text-white/20'}`}></i>
-                      ))}
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        {[...Array(5)].map((_, i) => (
+                          <i key={i} className={`ri-star-fill text-xl ${i < project.clientRatingGivenByFreelancer! ? 'text-yellow-400' : 'text-white/20'}`}></i>
+                        ))}
+                      </div>
+                      {project.clientRatingCommentFromFreelancer && (
+                        <p className="text-white/60 text-sm italic">"{project.clientRatingCommentFromFreelancer}"</p>
+                      )}
                     </div>
                   ) : (
                     <button
@@ -1253,10 +1155,15 @@ const FreelancerDashboard = () => {
                 <div className="bg-white/5 rounded-lg p-4">
                   <span className="text-white/60 text-sm mb-2 block">{t('freelancerDashboard.ratingFromClient')}</span>
                   {project.freelancerRatingFromClient != null ? (
-                    <div className="flex items-center gap-2">
-                      {[...Array(5)].map((_, i) => (
-                        <i key={i} className={`ri-star-fill text-xl ${i < project.freelancerRatingFromClient! ? 'text-yellow-400' : 'text-white/20'}`}></i>
-                      ))}
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        {[...Array(5)].map((_, i) => (
+                          <i key={i} className={`ri-star-fill text-xl ${i < project.freelancerRatingFromClient! ? 'text-yellow-400' : 'text-white/20'}`}></i>
+                        ))}
+                      </div>
+                      {project.freelancerRatingCommentFromClient && (
+                        <p className="text-white/60 text-sm italic">"{project.freelancerRatingCommentFromClient}"</p>
+                      )}
                     </div>
                   ) : (
                     <span className="text-white/40 text-sm">Not rated yet</span>
@@ -1264,9 +1171,9 @@ const FreelancerDashboard = () => {
                 </div>
               </div>
 
-              <div>
+              {/* <div>
                 <h4 className="text-lg font-bold text-white mb-3">{t('freelancerDashboard.projectComments')}</h4>
-                {project.comments.length > 0 ? (
+                {project.comments.length > 0 && (
                   <div className="space-y-3">
                     {project.comments.map((comment) => (
                       <div key={comment.id} className="bg-white/5 rounded-lg p-4">
@@ -1278,10 +1185,8 @@ const FreelancerDashboard = () => {
                       </div>
                     ))}
                   </div>
-                ) : (
-                  <p className="text-white/40 text-sm">No comments yet</p>
                 )}
-              </div>
+              </div> */}
             </div>
           ))}
         </div>
@@ -1433,119 +1338,6 @@ const FreelancerDashboard = () => {
                   ? t('common.delete')
                   : t('freelancerDashboard.withdrawApplication')}
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Milestone Modal */}
-      {showEditMilestoneModal && editingMilestone && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowEditMilestoneModal(false)}></div>
-          <div className={`relative rounded-2xl border p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto ${
-            isLightMode ? 'bg-white border-gray-200' : 'bg-[#1e2442] border-white/10'
-          }`}>
-            <button onClick={() => setShowEditMilestoneModal(false)} className={`absolute top-4 right-4 w-8 h-8 flex items-center justify-center cursor-pointer ${isLightMode ? 'text-gray-400 hover:text-gray-700' : 'text-gray-400 hover:text-white'}`}>
-              <i className="ri-close-line text-xl"></i>
-            </button>
-            <h3 className={`text-2xl font-bold mb-1 ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{t('freelancerDashboard.editMilestone')}</h3>
-            <p className={`text-sm mb-6 ${isLightMode ? 'text-gray-500' : 'text-white/50'}`}>
-              {normalizeMilestoneStatus(editingMilestone.status) === 'rejected'
-                ? 'This milestone was rejected. Update it and resubmit for approval.'
-                : 'Changes will require client approval.'}
-            </p>
-
-            {editingMilestone.clientComment && (
-              <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg mb-6">
-                <div className="flex items-center gap-2 mb-1">
-                  <i className="ri-close-circle-line text-red-400 text-sm"></i>
-                  <span className="text-red-400 text-xs font-semibold">{t('freelancerDashboard.clientFeedback')}</span>
-                </div>
-                <p className="text-red-500 text-sm">{editingMilestone.clientComment}</p>
-              </div>
-            )}
-
-            <div className="space-y-4">
-              <div>
-                <label className={`block font-medium mb-2 ${isLightMode ? 'text-gray-700' : 'text-white'}`}>{t('freelancerDashboard.milestoneTitle')}</label>
-                <input
-                  type="text"
-                  value={editingMilestone.title ?? ''}
-                  onChange={(e) => setEditingMilestone({ ...editingMilestone, title: e.target.value })}
-                  className={`w-full border rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-teal-500 ${
-                    isLightMode ? 'bg-gray-50 border-gray-300 text-gray-800' : 'bg-white/5 border-white/10 text-white'
-                  }`}
-                />
-              </div>
-              <div>
-                <label className={`block font-medium mb-2 ${isLightMode ? 'text-gray-700' : 'text-white'}`}>{t('freelancerDashboard.deliverables_label')}</label>
-                <textarea
-                  value={editingMilestone.description ?? ''}
-                  onChange={(e) => setEditingMilestone({ ...editingMilestone, description: e.target.value })}
-                  rows={3}
-                  maxLength={500}
-                  className={`w-full border rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-teal-500 resize-none ${
-                    isLightMode ? 'bg-gray-50 border-gray-300 text-gray-800' : 'bg-white/5 border-white/10 text-white'
-                  }`}
-                ></textarea>
-                <p className="text-gray-500 text-xs mt-1 text-right">{(editingMilestone.description ?? '').length}/500</p>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className={`block font-medium mb-2 ${isLightMode ? 'text-gray-700' : 'text-white'}`}>{t('freelancerDashboard.budget')}</label>
-                  <input
-                    type="number"
-                    value={editingMilestone.amount ?? ''}
-                    onChange={(e) => {
-                      const nextValue = e.target.value.trim();
-                      setEditingMilestone({
-                        ...editingMilestone,
-                        amount: nextValue ? Number(nextValue) : null,
-                      });
-                    }}
-                    min="0"
-                    className={`w-full border rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-teal-500 ${
-                      isLightMode ? 'bg-gray-50 border-gray-300 text-gray-800' : 'bg-white/5 border-white/10 text-white'
-                    }`}
-                  />
-                </div>
-                <div>
-                  <label className={`block font-medium mb-2 ${isLightMode ? 'text-gray-700' : 'text-white'}`}>{t('freelancerDashboard.duration')}</label>
-                  <input
-                    type="number"
-                    value={editingMilestone.duration ?? ''}
-                    onChange={(e) => {
-                      const nextValue = e.target.value.trim();
-                      setEditingMilestone({
-                        ...editingMilestone,
-                        duration: nextValue ? Number(nextValue) : null,
-                      });
-                    }}
-                    className={`w-full border rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-teal-500 ${
-                      isLightMode ? 'bg-gray-50 border-gray-300 text-gray-800' : 'bg-white/5 border-white/10 text-white'
-                    }`}
-                  />
-                </div>
-              </div>
-              <div>
-                <label className={`block font-medium mb-2 ${isLightMode ? 'text-gray-700' : 'text-white'}`}>{t('freelancerDashboard.deadline')}</label>
-                <input
-                  type="date"
-                    value={editingMilestone.deadline ?? ''}
-                  onChange={(e) => setEditingMilestone({ ...editingMilestone, deadline: e.target.value })}
-                  className={`w-full border rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-teal-500 ${
-                    isLightMode ? 'bg-gray-50 border-gray-300 text-gray-800' : 'bg-white/5 border-white/10 text-white'
-                  }`}
-                />
-              </div>
-              <div className="flex gap-3 pt-4">
-                <button onClick={() => setShowEditMilestoneModal(false)} className={`flex-1 px-5 py-3 font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${isLightMode ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' : 'bg-white/5 text-white hover:bg-white/10'}`}>
-                  {t('common.cancel')}
-                </button>
-                <button onClick={handleSaveEditedMilestone} className="flex-1 px-5 py-3 bg-teal-500 text-white font-semibold rounded-lg hover:bg-teal-600 transition-colors whitespace-nowrap cursor-pointer">
-                  {t('freelancerDashboard.resubmitForApproval')}
-                </button>
-              </div>
             </div>
           </div>
         </div>
