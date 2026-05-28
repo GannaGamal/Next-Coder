@@ -436,23 +436,14 @@ const ProjectDetail = () => {
                         <div className="flex items-center gap-1 text-sm">
                           <i className="ri-star-fill text-yellow-400"></i>
                           <span className={isLightMode ? 'text-gray-900' : 'text-white'}>{project.client.rating}</span>
-                          <span className={isLightMode ? 'text-gray-400' : 'text-gray-500'}>({project.client.reviewCount})</span>
                         </div>
                       </div>
                     </div>
 
                     <div className="space-y-3 text-sm">
                       <div className="flex items-center justify-between">
-                        <span className={isLightMode ? 'text-gray-500' : 'text-gray-400'}>{t('marketplace.memberSince')}</span>
-                        <span className={isLightMode ? 'text-gray-900' : 'text-white'}>{project.client.memberSince}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
                         <span className={isLightMode ? 'text-gray-500' : 'text-gray-400'}>{t('marketplace.projectsPosted')}</span>
                         <span className={isLightMode ? 'text-gray-900' : 'text-white'}>{project.client.projectsPosted}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className={isLightMode ? 'text-gray-500' : 'text-gray-400'}>{t('marketplace.hireRate')}</span>
-                        <span className={isLightMode ? 'text-gray-900' : 'text-white'}>{project.client.hireRate}%</span>
                       </div>
                     </div>
                   </div>
