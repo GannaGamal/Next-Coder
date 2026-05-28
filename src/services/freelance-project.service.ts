@@ -52,6 +52,32 @@ export interface CreatedProject {
   proposalCount: number;
 }
 
+export interface ProjectDetail {
+  id: number;
+  title: string;
+  description: string;
+  categoryId: number;
+  categoryName: string;
+  experienceLevelId: number;
+  experienceLevelName: string;
+  budget: number;
+  duration: number;
+  durationTypeId: number;
+  durationTypeName: string;
+  status: string;
+  clientId: number;
+  clientAppUserId: string;
+  clientImageUrl?: string | null;
+  clientName: string;
+  clientRate: number;
+  clientTotalProjects: number;
+  createdAt: string;
+  skills: string[];
+  requirements: string[];
+  deliverables: string[];
+  proposalCount: number;
+}
+
 // ─── Lookup types ────────────────────────────────────────────────────────────
 
 export interface LookupItem {
@@ -203,5 +229,19 @@ export async function getProjects(params?: {
   const body =
     await handleResponse<PaginatedResult<CreatedProject>>(res);
 
+  return body.data;
+}
+
+/**
+ * GET /api/FreelanceProject/{id}
+ * Fetch project details by project ID.
+ */
+export async function getProjectDetails(id: number): Promise<ProjectDetail> {
+  const res = await fetch(`${API_BASE}/FreelanceProject/${id}`, {
+    method: 'GET',
+    headers: authHeaders(),
+  });
+
+  const body = await handleResponse<ProjectDetail>(res);
   return body.data;
 }

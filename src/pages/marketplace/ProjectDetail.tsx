@@ -4,6 +4,7 @@ import Navbar from '../../components/feature/Navbar';
 import Footer from '../../components/feature/Footer';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useTranslation } from 'react-i18next';
+import { getProjectDetails, ProjectDetail as ProjectDetailType } from '../../services/freelance-project.service';
 
 interface Milestone {
   id: string;
@@ -60,6 +61,9 @@ const ProjectDetail = () => {
   const { isLightMode } = useTheme();
   const { t } = useTranslation();
   const [showProposalModal, setShowProposalModal] = useState(false);
+  const [project, setProject] = useState<Project | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [milestones, setMilestones] = useState<Milestone[]>([
     {
       id: '1',
@@ -73,57 +77,64 @@ const ProjectDetail = () => {
   const [totalBudget, setTotalBudget] = useState(0);
   const [proposalSubmitted, setProposalSubmitted] = useState(false);
 
+  // Fetch project details on component mount
+  useEffect(() => {
+    const fetchProjectDetails = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        if (!projectId) {
+          setError('No project ID provided');
+          return;
+        }
+        
+        const apiData = await getProjectDetails(Number(projectId));
+        
+        // Map API response to component's Project interface
+        const mappedProject: Project = {
+          id: apiData.id.toString(),
+          title: apiData.title,
+          description: apiData.description,
+          client: {
+            name: apiData.clientName,
+            avatar: apiData.clientImageUrl || 'https://readdy.ai/api/search-image?query=user+profile+avatar&width=200&height=200',
+            rating: apiData.clientRate,
+            reviewCount: 0,
+            verified: true,
+            memberSince: new Date(apiData.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long' }),
+            projectsPosted: apiData.clientTotalProjects,
+            hireRate: 85,
+          },
+          budget: { min: apiData.budget, max: apiData.budget, type: 'fixed' },
+          duration: `${apiData.duration} ${apiData.durationTypeName}`,
+          skills: apiData.skills,
+          proposals: apiData.proposalCount,
+          postedDate: new Date(apiData.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          category: apiData.categoryName,
+          experienceLevel: apiData.experienceLevelName as 'Entry' | 'Intermediate' | 'Expert',
+          projectType: 'Fixed Price',
+          featured: false,
+          requirements: apiData.requirements,
+          deliverables: apiData.deliverables,
+        };
+        
+        setProject(mappedProject);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load project details');
+        console.error('Error fetching project details:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchProjectDetails();
+  }, [projectId]);
+
   // Calculate total budget whenever milestones change
   useEffect(() => {
     const total = milestones.reduce((sum, m) => sum + (m.amount || 0), 0);
     setTotalBudget(total);
   }, [milestones]);
-
-  // Mock project data – in a real app, fetch based on projectId
-  const project: Project = {
-    id: projectId || '1',
-    title: 'E-commerce Website Development with React',
-    description:
-      'Looking for an experienced React developer to build a modern e-commerce platform with payment integration, product management, and user authentication. The project requires clean code, responsive design, and integration with Stripe for payments.\n\nWe need a full-featured online store that can handle hundreds of products, support multiple payment methods, and provide an excellent user experience on both desktop and mobile devices.\n\nThe ideal candidate should have:\n- Strong experience with React and modern JavaScript\n- Knowledge of state management (Redux or Context API)\n- Experience with payment gateway integration\n- Understanding of responsive design principles\n- Ability to write clean, maintainable code\n- Good communication skills',
-    client: {
-      name: 'TechStart Inc.',
-      avatar:
-        'https://readdy.ai/api/search-image?query=modern%20tech%20startup%20company%20logo%20minimalist%20design%20clean%20professional%20blue%20gradient%20simple%20white%20background&width=200&height=200&seq=client1&orientation=squarish',
-      rating: 4.9,
-      reviewCount: 47,
-      verified: true,
-      memberSince: 'January 2022',
-      projectsPosted: 23,
-      hireRate: 87,
-    },
-    budget: { min: 3000, max: 5000, type: 'fixed' },
-    duration: '2-3 months',
-    skills: ['React', 'Node.js', 'TypeScript', 'MongoDB', 'Stripe'],
-    proposals: 12,
-    postedDate: '2 days ago',
-    category: 'Web Development',
-    experienceLevel: 'Expert',
-    projectType: 'Fixed Price',
-    featured: true,
-    requirements: [
-      'Minimum 3 years of React development experience',
-      'Portfolio showcasing previous e-commerce projects',
-      'Experience with payment gateway integration',
-      'Knowledge of responsive design and mobile-first approach',
-      'Ability to work in EST timezone (at least 4 hours overlap)',
-      'Strong communication skills and regular updates',
-    ],
-    deliverables: [
-      'Fully functional e-commerce website',
-      'Admin dashboard for product management',
-      'User authentication and profile management',
-      'Shopping cart and checkout system',
-      'Payment integration with Stripe',
-      'Responsive design for all devices',
-      'Source code with documentation',
-      'Deployment and setup instructions',
-    ],
-  };
 
   const addMilestone = () => {
     const newMilestone: Milestone = {
@@ -213,151 +224,177 @@ const ProjectDetail = () => {
             {t('marketplace.backToMarketplace')}
           </Link>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Main Content */}
-            <div className="lg:col-span-2 space-y-6">
-              {/* Project Header */}
-              <div className={`backdrop-blur-sm rounded-xl border p-6 ${isLightMode ? 'bg-white border-gray-200' : 'bg-white/5 border-white/10'}`}>
-                {project.featured && (
-                  <div className="flex items-center gap-2 mb-4">
-                    <i className="ri-star-fill text-yellow-400"></i>
-                    <span className="text-yellow-400 text-xs font-semibold uppercase tracking-wide">{t('marketplace.featuredProject')}</span>
-                  </div>
-                )}
-
-                <h1 className={`text-3xl font-bold mb-4 ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{project.title}</h1>
-
-                <div className={`flex flex-wrap items-center gap-4 text-sm mb-4 ${isLightMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                  <div className="flex items-center gap-1"><i className="ri-folder-line"></i><span>{project.category}</span></div>
-                  <div className="flex items-center gap-1"><i className="ri-time-line"></i><span>{project.duration}</span></div>
-                  <div className="flex items-center gap-1"><i className="ri-bar-chart-line"></i><span>{project.experienceLevel}</span></div>
-                  <div className="flex items-center gap-1"><i className="ri-file-list-line"></i><span>{project.proposals} {t('marketplace.proposals')}</span></div>
-                  <div className={`flex items-center gap-1 ${isLightMode ? 'text-gray-400' : 'text-gray-500'}`}><i className="ri-calendar-line"></i><span>Posted {project.postedDate}</span></div>
+          {/* Loading State */}
+          {loading && (
+            <div className={`flex items-center justify-center py-16 ${isLightMode ? 'bg-white' : 'bg-white/5'} rounded-xl border ${isLightMode ? 'border-gray-200' : 'border-white/10'}`}>
+              <div className="text-center">
+                <div className="inline-block p-3 bg-purple-500/20 rounded-full mb-4">
+                  <i className="ri-loader-4-line text-2xl text-purple-400 animate-spin"></i>
                 </div>
-
-                <div className="flex flex-wrap gap-2">
-                  {project.skills.map((skill) => (
-                    <span key={skill} className="px-3 py-1 bg-purple-500/20 border border-purple-500/30 text-purple-400 text-sm rounded-lg">{skill}</span>
-                  ))}
-                </div>
-              </div>
-
-              {/* Project Description */}
-              <div className={`backdrop-blur-sm rounded-xl border p-6 ${isLightMode ? 'bg-white border-gray-200' : 'bg-white/5 border-white/10'}`}>
-                <h2 className={`text-xl font-bold mb-4 flex items-center gap-2 ${isLightMode ? 'text-gray-900' : 'text-white'}`}>
-                  <i className="ri-file-text-line text-purple-400"></i>{t('marketplace.projectDescription')}
-                </h2>
-                <div className={`leading-relaxed whitespace-pre-line ${isLightMode ? 'text-gray-700' : 'text-gray-300'}`}>{project.description}</div>
-              </div>
-
-              {/* Requirements */}
-              <div className={`backdrop-blur-sm rounded-xl border p-6 ${isLightMode ? 'bg-white border-gray-200' : 'bg-white/5 border-white/10'}`}>
-                <h2 className={`text-xl font-bold mb-4 flex items-center gap-2 ${isLightMode ? 'text-gray-900' : 'text-white'}`}>
-                  <i className="ri-checkbox-circle-line text-purple-400"></i>{t('marketplace.requirements')}
-                </h2>
-                <ul className="space-y-2">
-                  {project.requirements.map((req, index) => (
-                    <li key={index} className={`flex items-start gap-3 ${isLightMode ? 'text-gray-700' : 'text-gray-300'}`}><i className="ri-check-line text-green-400 mt-1 flex-shrink-0"></i><span>{req}</span></li>
-                  ))}
-                </ul>
-              </div>
-
-              {/* Deliverables */}
-              <div className={`backdrop-blur-sm rounded-xl border p-6 ${isLightMode ? 'bg-white border-gray-200' : 'bg-white/5 border-white/10'}`}>
-                <h2 className={`text-xl font-bold mb-4 flex items-center gap-2 ${isLightMode ? 'text-gray-900' : 'text-white'}`}>
-                  <i className="ri-gift-line text-purple-400"></i>{t('marketplace.deliverables')}
-                </h2>
-                <ul className="space-y-2">
-                  {project.deliverables.map((item, index) => (
-                    <li key={index} className={`flex items-start gap-3 ${isLightMode ? 'text-gray-700' : 'text-gray-300'}`}><i className="ri-check-line text-green-400 mt-1 flex-shrink-0"></i><span>{item}</span></li>
-                  ))}
-                </ul>
+                <p className={isLightMode ? 'text-gray-600' : 'text-gray-300'}>Loading project details...</p>
               </div>
             </div>
+          )}
 
-            {/* Sidebar */}
-            <div className="lg:col-span-1">
-              <div className="sticky top-28 space-y-6">
-                {/* Budget Card */}
+          {/* Error State */}
+          {error && (
+            <div className={`flex items-center gap-3 p-4 rounded-xl border ${isLightMode ? 'bg-red-50 border-red-200 text-red-700' : 'bg-red-500/10 border-red-500/30 text-red-400'}`}>
+              <i className="ri-error-warning-line text-xl flex-shrink-0"></i>
+              <div>
+                <p className="font-semibold">Error loading project</p>
+                <p className="text-sm">{error}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Project Content */}
+          {project && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Main Content */}
+              <div className="lg:col-span-2 space-y-6">
+                {/* Project Header */}
                 <div className={`backdrop-blur-sm rounded-xl border p-6 ${isLightMode ? 'bg-white border-gray-200' : 'bg-white/5 border-white/10'}`}>
-                  <div className="text-center mb-6">
-                    <div className={`text-sm mb-2 ${isLightMode ? 'text-gray-500' : 'text-gray-400'}`}>{t('marketplace.projectBudget')}</div>
-                    <div className="text-3xl font-bold text-purple-400">${project.budget.min.toLocaleString()} - {project.budget.max.toLocaleString()}</div>
-                    <div className={`text-xs mt-1 ${isLightMode ? 'text-gray-400' : 'text-gray-500'}`}>{project.projectType}</div>
+                  {project.featured && (
+                    <div className="flex items-center gap-2 mb-4">
+                      <i className="ri-star-fill text-yellow-400"></i>
+                      <span className="text-yellow-400 text-xs font-semibold uppercase tracking-wide">{t('marketplace.featuredProject')}</span>
+                    </div>
+                  )}
+
+                  <h1 className={`text-3xl font-bold mb-4 ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{project.title}</h1>
+
+                  <div className={`flex flex-wrap items-center gap-4 text-sm mb-4 ${isLightMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                    <div className="flex items-center gap-1"><i className="ri-folder-line"></i><span>{project.category}</span></div>
+                    <div className="flex items-center gap-1"><i className="ri-time-line"></i><span>{project.duration}</span></div>
+                    <div className="flex items-center gap-1"><i className="ri-bar-chart-line"></i><span>{project.experienceLevel}</span></div>
+                    <div className="flex items-center gap-1"><i className="ri-file-list-line"></i><span>{project.proposals} {t('marketplace.proposals')}</span></div>
+                    <div className={`flex items-center gap-1 ${isLightMode ? 'text-gray-400' : 'text-gray-500'}`}><i className="ri-calendar-line"></i><span>Posted {project.postedDate}</span></div>
                   </div>
 
-                  <button
-                    onClick={() => setShowProposalModal(true)}
-                    className="w-full px-6 py-3 bg-purple-500 text-white font-semibold rounded-lg hover:bg-purple-600 transition-colors whitespace-nowrap cursor-pointer flex items-center justify-center gap-2"
-                  >
-                    <i className="ri-send-plane-line"></i>
-                    {t('marketplace.submitProposal')}
-                  </button>
-
-                  <div className={`mt-4 pt-4 border-t space-y-3 text-sm ${isLightMode ? 'border-gray-200' : 'border-white/10'}`}>
-                    <div className="flex items-center justify-between">
-                      <span className={isLightMode ? 'text-gray-500' : 'text-gray-400'}>{t('marketplace.proposals')}</span>
-                      <span className={`font-semibold ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{project.proposals}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className={isLightMode ? 'text-gray-500' : 'text-gray-400'}>{t('marketplace.duration')}</span>
-                      <span className={`font-semibold ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{project.duration}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className={isLightMode ? 'text-gray-500' : 'text-gray-400'}>{t('marketplace.experienceLevel')}</span>
-                      <span className={`font-semibold ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{project.experienceLevel}</span>
-                    </div>
+                  <div className="flex flex-wrap gap-2">
+                    {project.skills.map((skill) => (
+                      <span key={skill} className="px-3 py-1 bg-purple-500/20 border border-purple-500/30 text-purple-400 text-sm rounded-lg">{skill}</span>
+                    ))}
                   </div>
                 </div>
 
-                {/* Client Card */}
+                {/* Project Description */}
                 <div className={`backdrop-blur-sm rounded-xl border p-6 ${isLightMode ? 'bg-white border-gray-200' : 'bg-white/5 border-white/10'}`}>
-                  <h3 className={`text-lg font-bold mb-4 ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{t('marketplace.aboutClient')}</h3>
-
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0"><img src={project.client.avatar} alt={project.client.name} className="w-full h-full object-cover" /></div>
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={`font-semibold ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{project.client.name}</span>
-                        {project.client.verified && <i className="ri-verified-badge-fill text-blue-400"></i>}
-                      </div>
-                      <div className="flex items-center gap-1 text-sm">
-                        <i className="ri-star-fill text-yellow-400"></i>
-                        <span className={isLightMode ? 'text-gray-900' : 'text-white'}>{project.client.rating}</span>
-                        <span className={isLightMode ? 'text-gray-400' : 'text-gray-500'}>({project.client.reviewCount})</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3 text-sm">
-                    <div className="flex items-center justify-between">
-                      <span className={isLightMode ? 'text-gray-500' : 'text-gray-400'}>{t('marketplace.memberSince')}</span>
-                      <span className={isLightMode ? 'text-gray-900' : 'text-white'}>{project.client.memberSince}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className={isLightMode ? 'text-gray-500' : 'text-gray-400'}>{t('marketplace.projectsPosted')}</span>
-                      <span className={isLightMode ? 'text-gray-900' : 'text-white'}>{project.client.projectsPosted}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className={isLightMode ? 'text-gray-500' : 'text-gray-400'}>{t('marketplace.hireRate')}</span>
-                      <span className={isLightMode ? 'text-gray-900' : 'text-white'}>{project.client.hireRate}%</span>
-                    </div>
-                  </div>
+                  <h2 className={`text-xl font-bold mb-4 flex items-center gap-2 ${isLightMode ? 'text-gray-900' : 'text-white'}`}>
+                    <i className="ri-file-text-line text-purple-400"></i>{t('marketplace.projectDescription')}
+                  </h2>
+                  <div className={`leading-relaxed whitespace-pre-line ${isLightMode ? 'text-gray-700' : 'text-gray-300'}`}>{project.description}</div>
                 </div>
 
-                {/* Tips Card */}
-                <div className={`backdrop-blur-sm rounded-xl border p-6 ${isLightMode ? 'bg-purple-50 border-purple-200' : 'bg-gradient-to-br from-purple-500/10 to-pink-500/10 border-purple-500/30'}`}>
-                  <div className="flex items-start gap-3 mb-3">
-                    <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-purple-500/20"><i className="ri-lightbulb-line text-purple-400"></i></div>
-                    <div>
-                      <h4 className={`font-semibold mb-1 ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{t('marketplace.tipsForSuccess')}</h4>
-                      <p className={`text-sm ${isLightMode ? 'text-gray-600' : 'text-gray-300'}`}>{t('marketplace.tipsBody')}</p>
+                {/* Requirements */}
+                <div className={`backdrop-blur-sm rounded-xl border p-6 ${isLightMode ? 'bg-white border-gray-200' : 'bg-white/5 border-white/10'}`}>
+                  <h2 className={`text-xl font-bold mb-4 flex items-center gap-2 ${isLightMode ? 'text-gray-900' : 'text-white'}`}>
+                    <i className="ri-checkbox-circle-line text-purple-400"></i>{t('marketplace.requirements')}
+                  </h2>
+                  <ul className="space-y-2">
+                    {project.requirements.map((req, index) => (
+                      <li key={index} className={`flex items-start gap-3 ${isLightMode ? 'text-gray-700' : 'text-gray-300'}`}><i className="ri-check-line text-green-400 mt-1 flex-shrink-0"></i><span>{req}</span></li>
+                    ))}
+                  </ul>
+                </div>
+
+                {/* Deliverables */}
+                <div className={`backdrop-blur-sm rounded-xl border p-6 ${isLightMode ? 'bg-white border-gray-200' : 'bg-white/5 border-white/10'}`}>
+                  <h2 className={`text-xl font-bold mb-4 flex items-center gap-2 ${isLightMode ? 'text-gray-900' : 'text-white'}`}>
+                    <i className="ri-gift-line text-purple-400"></i>{t('marketplace.deliverables')}
+                  </h2>
+                  <ul className="space-y-2">
+                    {project.deliverables.map((item, index) => (
+                      <li key={index} className={`flex items-start gap-3 ${isLightMode ? 'text-gray-700' : 'text-gray-300'}`}><i className="ri-check-line text-green-400 mt-1 flex-shrink-0"></i><span>{item}</span></li>
+                    ))}
+                  </ul>
+                </div>
+            </div>
+
+              {/* Sidebar */}
+              <div className="lg:col-span-1">
+                <div className="sticky top-28 space-y-6">
+                  {/* Budget Card */}
+                  <div className={`backdrop-blur-sm rounded-xl border p-6 ${isLightMode ? 'bg-white border-gray-200' : 'bg-white/5 border-white/10'}`}>
+                    <div className="text-center mb-6">
+                      <div className={`text-sm mb-2 ${isLightMode ? 'text-gray-500' : 'text-gray-400'}`}>{t('marketplace.projectBudget')}</div>
+                      <div className="text-3xl font-bold text-purple-400">${project.budget.min.toLocaleString()} - {project.budget.max.toLocaleString()}</div>
+                      <div className={`text-xs mt-1 ${isLightMode ? 'text-gray-400' : 'text-gray-500'}`}>{project.projectType}</div>
+                    </div>
+
+                    <button
+                      onClick={() => setShowProposalModal(true)}
+                      className="w-full px-6 py-3 bg-purple-500 text-white font-semibold rounded-lg hover:bg-purple-600 transition-colors whitespace-nowrap cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      <i className="ri-send-plane-line"></i>
+                      {t('marketplace.submitProposal')}
+                    </button>
+
+                    <div className={`mt-4 pt-4 border-t space-y-3 text-sm ${isLightMode ? 'border-gray-200' : 'border-white/10'}`}>
+                      <div className="flex items-center justify-between">
+                        <span className={isLightMode ? 'text-gray-500' : 'text-gray-400'}>{t('marketplace.proposals')}</span>
+                        <span className={`font-semibold ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{project.proposals}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className={isLightMode ? 'text-gray-500' : 'text-gray-400'}>{t('marketplace.duration')}</span>
+                        <span className={`font-semibold ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{project.duration}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className={isLightMode ? 'text-gray-500' : 'text-gray-400'}>{t('marketplace.experienceLevel')}</span>
+                        <span className={`font-semibold ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{project.experienceLevel}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Client Card */}
+                  <div className={`backdrop-blur-sm rounded-xl border p-6 ${isLightMode ? 'bg-white border-gray-200' : 'bg-white/5 border-white/10'}`}>
+                    <h3 className={`text-lg font-bold mb-4 ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{t('marketplace.aboutClient')}</h3>
+
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0"><img src={project.client.avatar} alt={project.client.name} className="w-full h-full object-cover" /></div>
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`font-semibold ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{project.client.name}</span>
+                          {project.client.verified && <i className="ri-verified-badge-fill text-blue-400"></i>}
+                        </div>
+                        <div className="flex items-center gap-1 text-sm">
+                          <i className="ri-star-fill text-yellow-400"></i>
+                          <span className={isLightMode ? 'text-gray-900' : 'text-white'}>{project.client.rating}</span>
+                          <span className={isLightMode ? 'text-gray-400' : 'text-gray-500'}>({project.client.reviewCount})</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span className={isLightMode ? 'text-gray-500' : 'text-gray-400'}>{t('marketplace.memberSince')}</span>
+                        <span className={isLightMode ? 'text-gray-900' : 'text-white'}>{project.client.memberSince}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className={isLightMode ? 'text-gray-500' : 'text-gray-400'}>{t('marketplace.projectsPosted')}</span>
+                        <span className={isLightMode ? 'text-gray-900' : 'text-white'}>{project.client.projectsPosted}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className={isLightMode ? 'text-gray-500' : 'text-gray-400'}>{t('marketplace.hireRate')}</span>
+                        <span className={isLightMode ? 'text-gray-900' : 'text-white'}>{project.client.hireRate}%</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Tips Card */}
+                  <div className={`backdrop-blur-sm rounded-xl border p-6 ${isLightMode ? 'bg-purple-50 border-purple-200' : 'bg-gradient-to-br from-purple-500/10 to-pink-500/10 border-purple-500/30'}`}>
+                    <div className="flex items-start gap-3 mb-3">
+                      <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-purple-500/20"><i className="ri-lightbulb-line text-purple-400"></i></div>
+                      <div>
+                        <h4 className={`font-semibold mb-1 ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{t('marketplace.tipsForSuccess')}</h4>
+                        <p className={`text-sm ${isLightMode ? 'text-gray-600' : 'text-gray-300'}`}>{t('marketplace.tipsBody')}</p>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
