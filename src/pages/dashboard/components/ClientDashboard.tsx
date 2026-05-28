@@ -147,6 +147,32 @@ const ClientDashboard = () => {
     return colors[status] || 'bg-gray-500/20 text-gray-400';
   };
 
+  const formatDate = (value?: string | null) => {
+    if (!value) return 'N/A';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return 'N/A';
+    return parsed.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  };
+
+  const formatDurationLabel = (duration?: number | null, durationType?: string | null) => {
+    if (typeof duration !== 'number' || !Number.isFinite(duration)) return 'N/A';
+    const unit = durationType?.trim() || '';
+    return unit ? `${duration} ${unit}` : `${duration}`;
+  };
+
+  const durationToDays = (duration?: number | null, durationType?: string | null) => {
+    if (typeof duration !== 'number' || !Number.isFinite(duration)) return 0;
+    const key = durationType?.trim().toLowerCase();
+    if (key === 'week' || key === 'weeks') return duration * 7;
+    if (key === 'month' || key === 'months') return duration * 30;
+    if (key === 'year' || key === 'years') return duration * 365;
+    return duration;
+  };
+
+  const getEstimatedProposalDays = (
+    milestones: Array<{ duration?: number | null; durationType?: string | null }>
+  ) => milestones.reduce((sum, m) => sum + durationToDays(m.duration, m.durationType), 0);
+
   // ─── Handlers ──────────────────────────────────────────────────────────────
 
   /** Open the applicants modal and lazily load proposals for the project. */
@@ -507,7 +533,7 @@ const ClientDashboard = () => {
                 <div>
                   {/* Service returns createdAt; mapped as posted date */}
                   <span className={`${textSec} text-sm`}>{t('clientDashboard.postedDate')}</span>
-                  <p className={`${textPrimary} font-bold text-lg`}>{project.createdAt}</p>
+                  <p className={`${textPrimary} font-bold text-lg`}>{formatDate(project.createdAt)}</p>
                 </div>
                 <div>
                   {/* proposalCount replaces applicants array length */}
@@ -774,7 +800,7 @@ const ClientDashboard = () => {
                       <div className="flex justify-between items-start mb-2">
                         {/* Service uses senderName / senderImage / content / createdAt */}
                         <span className={`${textPrimary} font-semibold`}>{comment.senderName}</span>
-                        <span className={`${textSec} text-sm`}>{comment.createdAt}</span>
+                        <span className={`${textSec} text-sm`}>{formatDate(comment.createdAt)}</span>
                       </div>
                       <p className={textLight}>{comment.content}</p>
                     </div>
@@ -921,16 +947,23 @@ const ClientDashboard = () => {
       {showApplicantsModal && selectedPostedProject && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowApplicantsModal(false)}></div>
-          <div className={`relative ${modalBg} rounded-2xl p-8 w-full max-w-4xl max-h-[90vh] overflow-y-auto`}>
-            <button
-              onClick={() => setShowApplicantsModal(false)}
-              className={`absolute top-4 right-4 w-8 h-8 flex items-center justify-center ${closeBtn} cursor-pointer`}
-            >
-              <i className="ri-close-line text-xl"></i>
-            </button>
-            <h3 className={`text-2xl font-bold ${textPrimary} mb-6`}>
-              Freelancers for {selectedPostedProject.title}
-            </h3>
+          <div className={`relative ${modalBg} rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden`}>
+            <div className={`flex items-start justify-between gap-4 p-6 border-b ${divider}`}>
+              <div>
+                <h3 className={`text-2xl font-bold ${textPrimary}`}>
+                  Freelancers for {selectedPostedProject.title}
+                </h3>
+                <p className={`${textSec} text-sm mt-1`}>
+                  {proposalsLoading ? 'Loading proposals…' : `${proposals.length} proposal${proposals.length === 1 ? '' : 's'} submitted`}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowApplicantsModal(false)}
+                className={`w-9 h-9 flex items-center justify-center ${closeBtn} cursor-pointer`}
+              >
+                <i className="ri-close-line text-xl"></i>
+              </button>
+            </div>
 
             {proposalsLoading ? (
               <div className="flex items-center justify-center py-16">
@@ -942,64 +975,101 @@ const ClientDashboard = () => {
                 <p className={textSec}>{t('clientDashboard.noApplicants')}</p>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="p-6 space-y-5 overflow-y-auto max-h-[calc(90vh-96px)]">
                 {proposals.map((proposal) => (
-                  <div key={proposal.id} className={`${innerCard} rounded-xl p-6`}>
-                    <div className="flex items-start gap-4 mb-4">
-                      {proposal.freelancerImageUrl ? (
-                        <img
-                          src={`https://nextcoder.runasp.net/${proposal.freelancerImageUrl}`}
-                          alt={proposal.freelancerName}
-                          className="w-16 h-16 rounded-lg object-cover"
-                        />
-                      ) : (
-                        <img
-                          src={generalAvatar}
-                          alt={proposal.freelancerName}
-                          className="w-16 h-16 rounded-lg object-cover"
-                        />
-                      )}
-                      <div className="flex-1">
-                        <h4 className={`text-xl font-bold ${textPrimary} mb-1`}>{proposal.freelancerName}</h4>
-                        <div className="flex items-center gap-4 text-sm mb-2">
-                          <span className={`${textSec} capitalize`}>{proposal.status}</span>
-                          <span className={textSec}>{proposal.createdAt}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Cover letter */}
-                    <div className="mb-4">
-                      <h5 className={`${textPrimary} font-semibold mb-2`}>{t('clientDashboard.proposal')}</h5>
-                      <p className={`${textLight} text-sm`}>{proposal.coverLetter}</p>
-                    </div>
-
-                    {/* Milestones summary */}
-                    {proposal.milestones.length > 0 && (
-                      <div className="mb-4">
-                        <h5 className={`${textPrimary} font-semibold mb-2 text-sm`}>Milestones</h5>
-                        <div className="space-y-2">
-                          {proposal.milestones.map((m) => (
-                            <div key={m.id} className={`flex justify-between items-center px-3 py-2 rounded-lg ${isLightMode ? 'bg-gray-100' : 'bg-white/5'}`}>
-                              <span className={`${textLight} text-sm`}>{m.title}</span>
-                              <span className="text-green-500 text-sm font-semibold">${m.amount}</span>
+                  <div
+                    key={proposal.id}
+                    className={`${innerCard} rounded-2xl p-6 ${isLightMode ? '' : `border ${divider}`}`}
+                  >
+                    <div className="flex flex-col gap-5">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-start gap-4">
+                          {proposal.freelancerImageUrl ? (
+                            <img
+                              src={`https://nextcoder.runasp.net/${proposal.freelancerImageUrl}`}
+                              alt={proposal.freelancerName}
+                              className="w-16 h-16 rounded-lg object-cover"
+                            />
+                          ) : (
+                            <img
+                              src={generalAvatar}
+                              alt={proposal.freelancerName}
+                              className="w-16 h-16 rounded-lg object-cover"
+                            />
+                          )}
+                          <div>
+                            <h4 className={`text-xl font-bold ${textPrimary}`}>{proposal.freelancerName}</h4>
+                            <div className="flex flex-wrap items-center gap-2 mt-1 text-xs">
+                              <span className={`px-2 py-0.5 rounded-full ${isLightMode ? 'bg-teal-500/10 text-teal-600' : 'bg-teal-500/15 text-teal-400'} capitalize`}>
+                                {proposal.status}
+                              </span>
+                              <span className={textSec}>{formatDate(proposal.createdAt)}</span>
                             </div>
-                          ))}
+                          </div>
+                        </div>
+
+                        <div className="text-right">
+                          <div className={`${labelSmall} text-xs`}>{t('clientDashboard.proposedBudget')}</div>
+                          <div className="text-green-500 font-bold text-xl">${proposal.totalAmount}</div>
                         </div>
                       </div>
-                    )}
 
-                    <div className="flex justify-between items-center">
+                      <div className={`border-t ${divider}`}></div>
+
+                      {/* Cover letter */}
                       <div>
-                        <span className={`${textSec} text-sm`}>{t('clientDashboard.proposedBudget')} </span>
-                        <span className="text-green-500 font-bold text-lg">${proposal.totalAmount}</span>
+                        <h5 className={`${textPrimary} font-semibold mb-2 text-sm`}>{t('clientDashboard.proposal')}</h5>
+                        <p className={`${textLight} text-sm leading-relaxed`}>{proposal.coverLetter}</p>
                       </div>
-                      <button
-                        onClick={() => handleAcceptProposal(proposal.id)}
-                        className="px-6 py-2 bg-teal-500 text-white font-semibold rounded-lg hover:bg-teal-600 transition-colors whitespace-nowrap cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {actionLoading ? <i className="ri-loader-4-line animate-spin"></i> : t('clientDashboard.acceptProposal')}
-                      </button>
+
+                      {/* Milestones summary */}
+                      {proposal.milestones.length > 0 && (
+                        <div>
+                          <div className="flex items-center justify-between mb-3">
+                            <h5 className={`${textPrimary} font-semibold text-sm`}>Milestones</h5>
+                            {(() => {
+                              const totalDays = getEstimatedProposalDays(proposal.milestones);
+                              if (!totalDays) return null;
+                              return (
+                                <span className={`${textSec} text-xs`}>Est. {totalDays} days</span>
+                              );
+                            })()}
+                          </div>
+                          <div className="space-y-3">
+                            {proposal.milestones.map((m) => (
+                              <div
+                                key={m.id}
+                                className={`rounded-xl p-4 ${isLightMode ? 'bg-white border border-gray-200' : 'bg-white/5 border border-white/10'}`}
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div>
+                                    <div className={`${textLight} text-sm font-semibold`}>{m.title}</div>
+                                    <div className={`${textSec} text-xs mt-1`}>{m.description || 'N/A'}</div>
+                                    <div className={`${textLight} font-semibold text-xs mt-2`}>{formatDurationLabel(m.duration, m.durationType)}</div>
+                                  </div>
+                                  <div className="text-green-500 text-sm font-semibold">${m.amount}</div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          {(() => {
+                            const totalDays = getEstimatedProposalDays(proposal.milestones);
+                            if (!totalDays) return null;
+                            return (
+                              <p className={`${textSec} text-xs mt-3`}>Estimated project completion: {totalDays} days from proposal acceptance</p>
+                            );
+                          })()}
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-end">
+                        <button
+                          onClick={() => handleAcceptProposal(proposal.id)}
+                          className="px-6 py-2 bg-teal-500 text-white font-semibold rounded-lg hover:bg-teal-600 transition-colors whitespace-nowrap cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {actionLoading ? <i className="ri-loader-4-line animate-spin"></i> : t('clientDashboard.acceptProposal')}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}

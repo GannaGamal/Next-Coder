@@ -77,7 +77,20 @@ async function handleResponse<T>(res: Response): Promise<ApiResponse<T>> {
   if (!res.ok) {
     throw new Error(await parseApiError(res));
   }
-  return res.json() as Promise<ApiResponse<T>>;
+  if (res.status === 204) {
+    return { success: true, message: '', data: null as T, errors: null };
+  }
+
+  const contentType = res.headers.get('content-type') || '';
+  const raw = await res.text();
+  if (!raw.trim()) {
+    return { success: true, message: '', data: null as T, errors: null };
+  }
+  if (!contentType.includes('application/json')) {
+    return { success: true, message: '', data: null as T, errors: null };
+  }
+
+  return JSON.parse(raw) as ApiResponse<T>;
 }
 
 const authMultipartHeaders = (): HeadersInit => ({
@@ -151,9 +164,7 @@ export async function submitFreelancerMilestone(params: {
 }): Promise<string> {
   const form = new FormData();
   form.append('MilestoneId', String(params.milestoneId));
-  if (params.note?.trim()) {
-    form.append('Note', params.note.trim());
-  }
+  form.append('Note', params.note?.trim() ?? '');
   form.append('File', params.file);
 
   const res = await fetch(`${API_BASE}/FreelancerDashboard/milestones/submit`, {

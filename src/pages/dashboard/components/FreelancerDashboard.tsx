@@ -139,6 +139,29 @@ const FreelancerDashboard = () => {
   const [appliedProjects, setAppliedProjects] = useState<AppliedProject[]>([]);
   const [activeProjects, setActiveProjects] = useState<ActiveProject[]>([]);
 
+  const withdrawnStorageKey = 'freelancer.withdrawnApplications';
+  const getWithdrawnIds = (): number[] => {
+    try {
+      const raw = localStorage.getItem(withdrawnStorageKey);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const addWithdrawnId = (proposalId: number) => {
+    try {
+      const next = getWithdrawnIds();
+      if (!next.includes(proposalId)) {
+        next.push(proposalId);
+        localStorage.setItem(withdrawnStorageKey, JSON.stringify(next));
+      }
+    } catch {
+      localStorage.setItem(withdrawnStorageKey, JSON.stringify([proposalId]));
+    }
+  };
+
   const [completedProjects, setCompletedProjects] = useState<CompletedProject[]>([
     {
       id: '5',
@@ -188,6 +211,17 @@ const FreelancerDashboard = () => {
 
   useEffect(() => {
     let isMounted = true;
+
+    const withdrawnKey = 'freelancer.withdrawnApplications';
+    const getWithdrawnIds = () => {
+      try {
+        const raw = localStorage.getItem(withdrawnKey);
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    };
 
     const toSafeNumber = (value: number | null | undefined): number =>
       typeof value === 'number' && Number.isFinite(value) ? value : 0;
@@ -239,7 +273,10 @@ const FreelancerDashboard = () => {
         const data = await getFreelancerApplications();
         if (!isMounted) return;
 
-        const mapped = (Array.isArray(data) ? data : []).map((application) => ({
+        const withdrawnIds = getWithdrawnIds();
+        const mapped = (Array.isArray(data) ? data : [])
+          .filter((application) => !withdrawnIds.includes(application.proposalId))
+          .map((application) => ({
           ...application,
           clientAvatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(application.clientName || 'Client')}&background=0D8ABC&color=fff&rounded=true`,
         }));
@@ -360,15 +397,35 @@ const FreelancerDashboard = () => {
 
   const getApplicationStatusKey = (status: string | null | undefined) => {
     const normalized = status?.trim().toLowerCase();
+    if (!normalized) return 'applied';
     if (normalized === 'accepted') return 'accepted';
     if (normalized === 'rejected') return 'rejected';
-    if (normalized === 'in-progress') return 'in-progress';
+    if (normalized === 'withdrawn') return 'withdrawn';
+    if (normalized === 'applied') return 'applied';
+    if (normalized === 'pending' || normalized === 'submitted') return 'applied';
+    if (normalized === 'under review' || normalized === 'underreview') return 'applied';
+    if (normalized === 'in-progress' || normalized === 'inprogress') return 'in-progress';
     if (normalized === 'completed') return 'completed';
-    return 'applied';
+    return 'unknown';
   };
 
-  const getApplicationStatusLabel = (status: string | null | undefined) =>
-    status?.trim() || t('freelancerDashboard.noAvailable');
+  const getApplicationStatusLabel = (status: string | null | undefined) => {
+    const raw = status?.trim() || '';
+    if (!raw) return 'Applied';
+    const key = raw.toLowerCase().replace(/[\s_-]/g, '');
+    const labels: Record<string, string> = {
+      accepted: 'Accepted',
+      rejected: 'Rejected',
+      withdrawn: 'Withdrawn',
+      applied: 'Applied',
+      pending: 'Applied',
+      submitted: 'Applied',
+      underreview: 'Applied',
+      inprogress: 'In Progress',
+      completed: 'Completed',
+    };
+    return labels[key] || raw;
+  };
 
   const selectedApplicationStatusKey = selectedApplication
     ? getApplicationStatusKey(selectedApplication.proposalStatus)
@@ -397,7 +454,10 @@ const FreelancerDashboard = () => {
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
       applied: 'bg-amber-500/20 text-amber-400',
+      pending: 'bg-amber-500/20 text-amber-400',
+      submitted: 'bg-amber-500/20 text-amber-400',
       accepted: 'bg-green-500/20 text-green-400',
+      withdrawn: 'bg-gray-500/20 text-gray-400',
       'in-progress': 'bg-cyan-500/20 text-cyan-400',
       completed: 'bg-green-500/20 text-green-400',
       rejected: 'bg-red-500/20 text-red-400',
@@ -443,9 +503,14 @@ const FreelancerDashboard = () => {
     setAppliedActionMessage(null);
 
     try {
-      const message = statusKey === 'rejected'
+      const isRejected = statusKey === 'rejected';
+      const message = isRejected
         ? await deleteFreelancerApplication(applicationToRemove.proposalId)
         : await withdrawFreelancerApplication(applicationToRemove.proposalId);
+
+      if (!isRejected) {
+        addWithdrawnId(applicationToRemove.proposalId);
+      }
 
       setAppliedProjects(prev => prev.filter(p => p.proposalId !== applicationToRemove.proposalId));
       setStats(prev => ({
@@ -687,6 +752,8 @@ const FreelancerDashboard = () => {
             const statusLabel = getApplicationStatusLabel(application.proposalStatus);
             const isAccepted = statusKey === 'accepted';
             const isRejected = statusKey === 'rejected';
+            const isWithdrawn = statusKey === 'withdrawn';
+            const canWithdraw = statusKey === 'applied' || statusKey === 'pending' || statusKey === 'submitted' || statusKey === 'unknown';
 
             return (
               <div key={application.proposalId} className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
@@ -732,7 +799,7 @@ const FreelancerDashboard = () => {
                       <i className="ri-play-line mr-2"></i>{t('freelancerDashboard.startProject')}
                     </button>
                   )}
-                  {!isRejected && !isAccepted && (
+                  {canWithdraw && !isAccepted && !isRejected && !isWithdrawn && (
                     <button onClick={() => handleRemoveProject(application)} className="px-4 py-2 bg-red-500/20 text-red-400 font-semibold rounded-lg hover:bg-red-500/30 transition-colors whitespace-nowrap cursor-pointer">
                       <i className="ri-close-circle-line mr-2"></i>{t('freelancerDashboard.withdrawApplication')}
                     </button>
@@ -892,7 +959,7 @@ const FreelancerDashboard = () => {
                                   <i className="ri-edit-line mr-1"></i>{t('freelancerDashboard.edit')}
                                 </button>
                               )}
-                              {(statusKey === 'approved' || statusKey === 'accepted') && (
+                              {statusKey === 'inprogress' && (
                                 <button
                                   onClick={(e) => { e.stopPropagation(); handleOpenSubmitDeliverables(milestone, project); }}
                                   className="px-3 py-1.5 bg-teal-500 text-white text-xs font-semibold rounded-lg hover:bg-teal-600 transition-colors whitespace-nowrap cursor-pointer"
@@ -1245,7 +1312,7 @@ const FreelancerDashboard = () => {
                   <i className="ri-play-line mr-2"></i>{t('freelancerDashboard.startProject')}
                 </button>
               )}
-              {selectedApplicationStatusKey !== 'rejected' && selectedApplicationStatusKey !== 'accepted' && (
+              {(selectedApplicationStatusKey === 'applied' || selectedApplicationStatusKey === 'pending' || selectedApplicationStatusKey === 'submitted' || selectedApplicationStatusKey === 'unknown') && (
                 <button onClick={() => { setShowProjectDetailModal(false); handleRemoveProject(selectedApplication); }} className="flex-1 px-5 py-3 bg-red-500/20 text-red-500 font-semibold rounded-lg hover:bg-red-500/30 transition-colors whitespace-nowrap cursor-pointer">
                   {t('freelancerDashboard.withdrawApplication')}
                 </button>

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useTranslation } from 'react-i18next';
+import CustomSelect from '../base/CustomSelect';
 import { createReport, type ReportType } from '../../services/clientDashboard.service';
 import { createFreelancerReport } from '../../services/freelancerDashboard.service';
 
@@ -16,37 +17,20 @@ interface ReportModalProps {
 const ReportModal = ({ isOpen, onClose, targetName, targetAvatar, projectId, reporterRole }: ReportModalProps) => {
   const { isLightMode } = useTheme();
   const { t } = useTranslation();
-  const [reportType, setReportType] = useState('');
+  const [reportType, setReportType] = useState<ReportType | ''>('');
   const [description, setDescription] = useState('');
   const [evidenceFiles, setEvidenceFiles] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // Mapping from UI report types to API ReportType
-  const reportTypeMapping: { [key: string]: ReportType } = {
-    'missed-deadline': 'MissedDeadline',
-    'poor-quality': 'PoorQuality',
-    'unprofessional': 'UnprofessionalBehavior',
-    'fraud': 'Fraud',
-    'other': 'Other',
-  };
-
-  const clientReportTypes = [
-    { value: 'missed-deadline', label: 'Deadline Missed' },
-    { value: 'poor-quality', label: 'Poor Quality' },
-    { value: 'unprofessional', label: 'Unprofessional Behavior' },
-    { value: 'fraud', label: 'Fraud' },
-    { value: 'other', label: 'Other' },
+  const reportTypes: Array<{ value: ReportType; label: string }> = [
+    { value: 'MissedDeadline', label: 'Missed Deadline' },
+    { value: 'PoorQuality', label: 'Poor Quality' },
+    { value: 'UnprofessionalBehavior', label: 'Unprofessional Behavior' },
+    { value: 'Fraud', label: 'Fraud' },
+    { value: 'Other', label: 'Other' },
   ];
-
-  const freelancerReportTypes = [
-    { value: 'unprofessional', label: 'Unprofessional Behavior' },
-    { value: 'fraud', label: 'Fraud' },
-    { value: 'other', label: 'Other' },
-  ];
-
-  const reportTypes = reporterRole === 'freelancer' ? freelancerReportTypes : clientReportTypes;
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -72,13 +56,11 @@ const ReportModal = ({ isOpen, onClose, targetName, targetAvatar, projectId, rep
     setSubmitError(null);
 
     try {
-      const apiReportType = reportTypeMapping[reportType] as ReportType;
-      
       const submitReport = reporterRole === 'freelancer' ? createFreelancerReport : createReport;
 
       await submitReport({
         projectId,
-        reportType: apiReportType,
+        reportType,
         description: description.trim(),
         evidence: evidenceFiles.length > 0 ? evidenceFiles[0] : undefined,
       });
@@ -175,32 +157,15 @@ const ReportModal = ({ isOpen, onClose, targetName, targetAvatar, projectId, rep
 
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
-                <label className={`block ${titleText} font-medium mb-3`}>
+                <label className={`block ${titleText} font-medium mb-2`}>
                   {t('report.reportType')} <span className="text-red-400">*</span>
                 </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {reportTypes.map(type => (
-                    <button
-                      key={type.value}
-                      type="button"
-                      onClick={() => setReportType(type.value)}
-                      className={`px-4 py-3 rounded-lg text-sm font-medium transition-all cursor-pointer border ${
-                        reportType === type.value
-                          ? 'bg-red-500/20 border-red-500/50 text-red-400'
-                          : isLightMode
-                            ? 'bg-gray-100 border-gray-200 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
-                            : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10 hover:text-white'
-                      }`}
-                    >
-                      {type.value === 'missed-deadline' && <i className="ri-time-line mr-2"></i>}
-                      {type.value === 'poor-quality' && <i className="ri-spam-line mr-2"></i>}
-                      {type.value === 'unprofessional' && <i className="ri-shield-user-line mr-2"></i>}
-                      {type.value === 'fraud' && <i className="ri-alert-line mr-2"></i>}
-                      {type.value === 'other' && <i className="ri-more-line mr-2"></i>}
-                      {type.label}
-                    </button>
-                  ))}
-                </div>
+                <CustomSelect
+                  value={reportType}
+                  onChange={(value) => setReportType(value as ReportType)}
+                  options={reportTypes.map(type => ({ value: type.value, label: type.label }))}
+                  placeholder="Select report type"
+                />
               </div>
 
               <div>
