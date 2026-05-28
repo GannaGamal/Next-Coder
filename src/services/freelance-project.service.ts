@@ -78,6 +78,45 @@ export interface ProjectDetail {
   proposalCount: number;
 }
 
+// ─── Proposal types ──────────────────────────────────────────────────────────
+
+export type DurationType = 'Days' | 'Weeks' | 'Months';
+
+export interface ProposalMilestoneRequest {
+  title: string;
+  description: string;
+  amount: number;
+  duration: number;
+  durationType: DurationType;
+}
+
+export interface SubmitProposalRequest {
+  coverLetter: string;
+  milestones: ProposalMilestoneRequest[];
+}
+
+export interface ProposalMilestone {
+  id: number;
+  title: string;
+  description: string;
+  amount: number;
+  duration: number;
+  durationType: DurationType;
+  status: string;
+}
+
+export interface SubmittedProposal {
+  id: number;
+  coverLetter: string;
+  status: string;
+  projectId: number;
+  freelancerId: number;
+  freelancerName: string | null;
+  totalAmount: number;
+  createdAt: string;
+  milestones: ProposalMilestone[];
+}
+
 // ─── Lookup types ────────────────────────────────────────────────────────────
 
 export interface LookupItem {
@@ -243,5 +282,25 @@ export async function getProjectDetails(id: number): Promise<ProjectDetail> {
   });
 
   const body = await handleResponse<ProjectDetail>(res);
+  return body.data;
+}
+
+/**
+ * POST /api/FreelanceProject/Project/{projectId}/proposals
+ * Submit a proposal (with milestones) for a freelance project.
+ */
+export async function submitProposal(
+  projectId: number,
+  payload: SubmitProposalRequest
+): Promise<SubmittedProposal> {
+  const res = await fetch(
+    `${API_BASE}/FreelanceProject/Project/${projectId}/proposals`,
+    {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(payload),
+    }
+  );
+  const body = await handleResponse<SubmittedProposal>(res);
   return body.data;
 }

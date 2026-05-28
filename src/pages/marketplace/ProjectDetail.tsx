@@ -2,16 +2,26 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import Navbar from '../../components/feature/Navbar';
 import Footer from '../../components/feature/Footer';
+import ComplaintModal from '../../components/feature/ComplaintModal';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useTranslation } from 'react-i18next';
-import { getProjectDetails, ProjectDetail as ProjectDetailType } from '../../services/freelance-project.service';
+import {
+  getProjectDetails,
+  submitProposal,
+  getDurationTypes,
+  ProjectDetail as ProjectDetailType,
+  DurationType,
+  type LookupItem,
+} from '../../services/freelance-project.service';
+import CustomSelect from '../../components/base/CustomSelect';
 
 interface Milestone {
   id: string;
   title: string;
   description: string;
   amount: number;
-  duration: string;
+  duration: number;
+  durationType: DurationType;
 }
 
 interface Project {
@@ -27,10 +37,10 @@ interface Project {
     memberSince: string;
     projectsPosted: number;
     hireRate: number;
+    appUserId: string;
   };
   budget: {
-    min: number;
-    max: number;
+    amount: number;
     type: 'fixed' | 'hourly';
   };
   duration: string;
@@ -70,12 +80,17 @@ const ProjectDetail = () => {
       title: '',
       description: '',
       amount: 0,
-      duration: '',
+      duration: 0,
+      durationType: 'Days',
     },
   ]);
   const [coverLetter, setCoverLetter] = useState('');
   const [totalBudget, setTotalBudget] = useState(0);
   const [proposalSubmitted, setProposalSubmitted] = useState(false);
+  const [proposalSubmitting, setProposalSubmitting] = useState(false);
+  const [proposalError, setProposalError] = useState<string | null>(null);
+  const [apiDurationTypes, setApiDurationTypes] = useState<LookupItem[]>([]);
+  const [showComplaintModal, setShowComplaintModal] = useState(false);
 
   // Fetch project details on component mount
   useEffect(() => {
@@ -97,15 +112,18 @@ const ProjectDetail = () => {
           description: apiData.description,
           client: {
             name: apiData.clientName,
-            avatar: apiData.clientImageUrl || 'https://readdy.ai/api/search-image?query=user+profile+avatar&width=200&height=200',
+            avatar: apiData.clientImageUrl
+              ? 'https://nextcoder.runasp.net/' + apiData.clientImageUrl
+              : `https://ui-avatars.com/api/?name=${encodeURIComponent(apiData.clientName || 'C')}&background=7c3aed&color=fff&size=128`,
             rating: apiData.clientRate,
             reviewCount: 0,
             verified: true,
             memberSince: new Date(apiData.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long' }),
             projectsPosted: apiData.clientTotalProjects,
             hireRate: 85,
+            appUserId: apiData.clientAppUserId,
           },
-          budget: { min: apiData.budget, max: apiData.budget, type: 'fixed' },
+          budget: { amount: apiData.budget, type: 'fixed' },
           duration: `${apiData.duration} ${apiData.durationTypeName}`,
           skills: apiData.skills,
           proposals: apiData.proposalCount,
@@ -130,6 +148,21 @@ const ProjectDetail = () => {
     fetchProjectDetails();
   }, [projectId]);
 
+  // Fetch duration types for the proposal milestone dropdowns
+  useEffect(() => {
+    getDurationTypes()
+      .then((data) => {
+        setApiDurationTypes(data);
+        if (data.length > 0) {
+          // Re-seed existing milestones with the first API value
+          setMilestones((prev) =>
+            prev.map((m) => ({ ...m, durationType: data[0].value as DurationType }))
+          );
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   // Calculate total budget whenever milestones change
   useEffect(() => {
     const total = milestones.reduce((sum, m) => sum + (m.amount || 0), 0);
@@ -142,7 +175,8 @@ const ProjectDetail = () => {
       title: '',
       description: '',
       amount: 0,
-      duration: '',
+      duration: 0,
+      durationType: 'Days',
     };
     setMilestones([...milestones, newMilestone]);
   };
@@ -171,19 +205,17 @@ const ProjectDetail = () => {
     return milestones.reduce((sum, m) => sum + (m.amount || 0), 0);
   };
 
-  const handleSubmitProposal = (e: React.FormEvent) => {
+  const handleSubmitProposal = async (e: React.FormEvent) => {
     e.preventDefault();
+    setProposalError(null);
 
     const total = calculateTotal();
 
     // Guard against malformed budget data
-    const minBudget = project?.budget?.min ?? 0;
-    const maxBudget = project?.budget?.max ?? Infinity;
+    const budget = project?.budget?.amount ?? 0;
 
-    if (total < minBudget || total > maxBudget) {
-      alert(
-        `Total budget must be between $${minBudget.toLocaleString()} and $${maxBudget.toLocaleString()}`
-      );
+    if (total > budget) {
+      alert(`Total budget cannot exceed $${budget.toLocaleString()}`);
       return;
     }
 
@@ -201,17 +233,43 @@ const ProjectDetail = () => {
       return;
     }
 
-    // Simulate successful submission
-    setProposalSubmitted(true);
-    setTimeout(() => {
-      setShowProposalModal(false);
-      setProposalSubmitted(false);
-    }, 2000);
+    try {
+      setProposalSubmitting(true);
+      await submitProposal(Number(projectId), {
+        coverLetter,
+        milestones: milestones.map((m) => ({
+          title: m.title,
+          description: m.description,
+          amount: m.amount,
+          duration: m.duration,
+          durationType: m.durationType,
+        })),
+      });
+      setProposalSubmitted(true);
+      setTimeout(() => {
+        setShowProposalModal(false);
+        setProposalSubmitted(false);
+      }, 2000);
+    } catch (err) {
+      setProposalError(
+        err instanceof Error ? err.message : 'Failed to submit proposal. Please try again.'
+      );
+    } finally {
+      setProposalSubmitting(false);
+    }
   };
 
   return (
     <div className={`min-h-screen ${isLightMode ? 'bg-gray-50' : 'bg-[#1a1f37]'}`}>
       <Navbar />
+
+      <ComplaintModal
+        isOpen={showComplaintModal}
+        onClose={() => setShowComplaintModal(false)}
+        targetName={project?.client.name ?? ''}
+        targetAvatar={project?.client.avatar ?? ''}
+        targetType="client"
+      />
 
       <div className="pt-28 pb-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-6xl mx-auto">
@@ -318,7 +376,7 @@ const ProjectDetail = () => {
                   <div className={`backdrop-blur-sm rounded-xl border p-6 ${isLightMode ? 'bg-white border-gray-200' : 'bg-white/5 border-white/10'}`}>
                     <div className="text-center mb-6">
                       <div className={`text-sm mb-2 ${isLightMode ? 'text-gray-500' : 'text-gray-400'}`}>{t('marketplace.projectBudget')}</div>
-                      <div className="text-3xl font-bold text-purple-400">${project.budget.min.toLocaleString()} - {project.budget.max.toLocaleString()}</div>
+                      <div className="text-3xl font-bold text-purple-400">${project.budget.amount.toLocaleString()}</div>
                       <div className={`text-xs mt-1 ${isLightMode ? 'text-gray-400' : 'text-gray-500'}`}>{project.projectType}</div>
                     </div>
 
@@ -351,10 +409,28 @@ const ProjectDetail = () => {
                     <h3 className={`text-lg font-bold mb-4 ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{t('marketplace.aboutClient')}</h3>
 
                     <div className="flex items-center gap-3 mb-4">
-                      <div className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0"><img src={project.client.avatar} alt={project.client.name} className="w-full h-full object-cover" /></div>
+                      <div className="relative flex-shrink-0 group/avatar">
+                        <Link
+                          to={`/user/${project.client.appUserId}`}
+                          className="block w-16 h-16 rounded-xl overflow-hidden hover:ring-2 hover:ring-purple-500 transition-all cursor-pointer"
+                        >
+                          <img src={project.client.avatar} alt={project.client.name} className="w-full h-full object-cover" />
+                        </Link>
+                        <button
+                          onClick={() => setShowComplaintModal(true)}
+                          className={`absolute -top-1 -right-1 w-6 h-6 flex items-center justify-center border rounded-full text-gray-400 hover:text-red-400 hover:border-red-500/50 transition-all cursor-pointer opacity-0 group-hover/avatar:opacity-100 ${isLightMode ? 'bg-white border-gray-200' : 'bg-[#1a1f37] border-white/10'}`}
+                        >
+                          <i className="ri-flag-line text-xs"></i>
+                        </button>
+                      </div>
                       <div>
                         <div className="flex items-center gap-2 mb-1">
-                          <span className={`font-semibold ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{project.client.name}</span>
+                          <Link
+                            to={`/user/${project.client.appUserId}`}
+                            className={`font-semibold hover:underline hover:text-purple-500 transition-colors ${isLightMode ? 'text-gray-900' : 'text-white'}`}
+                          >
+                            {project.client.name}
+                          </Link>
                           {project.client.verified && <i className="ri-verified-badge-fill text-blue-400"></i>}
                         </div>
                         <div className="flex items-center gap-1 text-sm">
@@ -527,15 +603,36 @@ const ProjectDetail = () => {
                             </div>
 
                             <div>
-                              <input
-                                type="text"
-                                value={milestone.duration}
-                                onChange={(e) =>
-                                  updateMilestone(milestone.id, 'duration', e.target.value)
-                                }
-                                placeholder="Duration (e.g., 2 weeks)"
-                                className={`w-full border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm ${isLightMode ? 'bg-white border-gray-300 text-gray-900 placeholder-gray-400' : 'bg-white/5 border-white/10 text-white placeholder-gray-500'}`}
-                              />
+                              <div className="flex gap-2">
+                                <input
+                                  type="number"
+                                  value={milestone.duration || ''}
+                                  onChange={(e) =>
+                                    updateMilestone(milestone.id, 'duration', Number(e.target.value))
+                                  }
+                                  placeholder="Duration"
+                                  min="1"
+                                  className={`w-1/2 border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm ${isLightMode ? 'bg-white border-gray-300 text-gray-900 placeholder-gray-400' : 'bg-white/5 border-white/10 text-white placeholder-gray-500'}`}
+                                />
+                                <div className="w-1/2">
+                                  <CustomSelect
+                                    value={milestone.durationType}
+                                    onChange={(val) =>
+                                      updateMilestone(milestone.id, 'durationType', val as DurationType)
+                                    }
+                                    options={
+                                      apiDurationTypes.length > 0
+                                        ? apiDurationTypes.map((d) => ({ value: d.value as string, label: d.name }))
+                                        : [
+                                            { value: 'Days', label: 'Days' },
+                                            { value: 'Weeks', label: 'Weeks' },
+                                            { value: 'Months', label: 'Months' },
+                                          ]
+                                    }
+                                    placeholder="Type"
+                                  />
+                                </div>
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -550,8 +647,7 @@ const ProjectDetail = () => {
                             {t('marketplace.totalBudget')}
                           </div>
                           <div className={`text-xs ${isLightMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                            {t('marketplace.budgetBetween')} ${project.budget.min.toLocaleString()} - $
-                            {project.budget.max.toLocaleString()}
+                            {t('marketplace.projectBudget')}: ${project.budget.amount.toLocaleString()}
                           </div>
                         </div>
                         <div className="text-2xl font-bold text-purple-400">
@@ -563,18 +659,35 @@ const ProjectDetail = () => {
 
                   {/* Action Buttons */}
                   <div className="flex gap-3 pt-4">
+                    {proposalError && (
+                      <div className={`w-full mb-3 flex items-center gap-2 px-4 py-3 rounded-lg text-sm ${isLightMode ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-red-500/10 border border-red-500/30 text-red-400'}`}>
+                        <i className="ri-error-warning-line flex-shrink-0"></i>
+                        <span>{proposalError}</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex gap-3">
                     <button
                       type="button"
                       onClick={() => setShowProposalModal(false)}
-                      className={`flex-1 px-5 py-3 font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${isLightMode ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' : 'bg-white/5 text-white hover:bg-white/10'}`}
+                      disabled={proposalSubmitting}
+                      className={`flex-1 px-5 py-3 font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer disabled:opacity-50 ${isLightMode ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' : 'bg-white/5 text-white hover:bg-white/10'}`}
                     >
                       {t('common.cancel')}
                     </button>
                     <button
                       type="submit"
-                      className="flex-1 px-5 py-3 bg-purple-500 text-white font-semibold rounded-lg hover:bg-purple-600 transition-colors whitespace-nowrap cursor-pointer"
+                      disabled={proposalSubmitting}
+                      className="flex-1 px-5 py-3 bg-purple-500 text-white font-semibold rounded-lg hover:bg-purple-600 transition-colors whitespace-nowrap cursor-pointer disabled:opacity-70 flex items-center justify-center gap-2"
                     >
-                      {t('marketplace.submitProposal')}
+                      {proposalSubmitting ? (
+                        <>
+                          <i className="ri-loader-4-line animate-spin"></i>
+                          Submitting…
+                        </>
+                      ) : (
+                        t('marketplace.submitProposal')
+                      )}
                     </button>
                   </div>
                 </form>
