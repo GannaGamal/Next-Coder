@@ -25,34 +25,37 @@ interface PublicUserData {
   completedProjects: number;
   location: string;
   hourlyRate?: number;
+  title?: string | null;
   bio: string;
-  learningGoals?: string;
+  learningGoals?: string | null;
   email: string;
-  phone?: string;
-  linkedin?: string;
-  website?: string;
-  gitHubUrl?: string;
-  experience?: string;
-  education?: string;
+  phone?: string | null;
+  linkedin?: string | null;
+  website?: string | null;
+  gitHubUrl?: string | null;
+  experience?: string | null;
+  education?: string | null;
   interests?: string[];
-  goals?: string;
-  experienceLevel?: string;
+  goals?: string | null;
+  experienceLevel?: string | null;
   totalSpent?: number;
   activeProjects?: number;
+  isAvailable:boolean;
   companies?: { id: string; name: string; industry: string; logo?: string }[];
   portfolio?: {  id: string;
-  title: string;
+  title?: string | null;
   portfolioUrl: string;
   categoryId: number;
   categoryName?: string | null;
   description?: string | null;
   uploadedAt: string; }[];
   documents?: { id: string; title: string; fileName: string; documentUrl: string; uploadedAt?: string | null; contentType?: string | null }[];
-  completedWork?: { id: string; title: string; client: string; clientAvatar: string; description: string; budget: number; completedDate: string; rating: number; review: string; category: string }[];
+  completedWork?: { id: string; title: string; clientName: string; clientImageUrl: string; description: string; completedAt: string; rating: number; comment?: string | null; category: string }[];
   roadmaps?: { id: string; title: string; progress: number; totalSteps: number; completedSteps: number; category: string }[];
   courseProjects?: { id: string; courseName: string; projectTitle: string; description: string; githubLink: string; completedDate: string; technologies: string[] }[];
   appliedJobsCount?: number;
   cv?: {cvUrl: string;contentType: string;jobTitle: string;isPublic: boolean; fileName: string; uploadedAt: string };
+  completedProjectsCount?: number;
 }
 
 const normalizeRole = (role: string) => {
@@ -90,8 +93,10 @@ const buildBaseProfile = (summary: PublicProfileSummary): PublicUserData => ({
   rating: 0,
   totalRatings: 0,
   completedProjects: 0,
+  title: '',
+  isAvailable: true,
   location: 'Not specified',
-  bio: 'No bio provided yet.',
+  bio: '',
   email: summary.email,
   portfolio: [],
   documents: [],
@@ -127,6 +132,7 @@ const mergeRoleProfile = async (
         completedProjects: profile.completedProjectsCount ?? 0,
         experience: profile.yearsOfExperience ? `${profile.yearsOfExperience} years` : undefined,
         skills: profile.skills ?? [],
+        isAvailable: profile.isAvailable ?? true,
         portfolio: (profile.portfolios ?? []).map((item) => ({
           id: item.id,
           title: item.title,
@@ -145,17 +151,18 @@ const mergeRoleProfile = async (
           contentType: document.contentType || null,
         })).filter((document) => document.documentUrl),
         completedWork: (profile.completedProjects ?? []).map((project) => ({
-          id: project.id,
+          id: project.projectId,
           title: project.title || 'Untitled project',
-          client: project.client || 'Client',
-          clientAvatar: project.clientAvatar || '',
+          clientName: project.clientName || 'Client',
+          clientImageUrl: project.clientImageUrl || '',
           description: project.description || '',
-          budget: project.budget ?? project.totalPaid ?? 0,
-          completedDate: project.completedDate || '',
+          completedAt: project.completedAt || '',
           rating: project.rating ?? 0,
-          review: project.review || 'No review provided.',
+          comment: project.comment || 'No comment provided.',
           category: project.category || 'Project',
         })),
+        title: profile.title || baseProfile.title,
+        completedProjectsCount: profile.completedProjectsCount ?? 0,
       };
     }
     case 'client': {
@@ -313,7 +320,6 @@ const getRoleDisplayName = (role: string) =>
 const PublicProfile = () => {
   const { userId } = useParams<{ userId: string }>();
   const [searchParams] = useSearchParams();
-  const { user: currentUser } = useAuth();
   const [profileSummary, setProfileSummary] = useState<PublicProfileSummary | null>(null);
   const [profileUser, setProfileUser] = useState<PublicUserData | null>(null);
   const [activeRole, setActiveRole] = useState<string>('');
@@ -324,7 +330,6 @@ const PublicProfile = () => {
 
   useEffect(() => {
     let isCurrent = true;
-
     const loadSummary = async () => {
       const id = String(userId ?? '').trim();
       if (!id) {
@@ -394,48 +399,29 @@ const PublicProfile = () => {
   }, [profileSummary, activeRole]);
 
   useEffect(() => {
+    if(activeRole=='employer')
+      setActiveTab('companies');
+    else
     setActiveTab('overview');
   }, [activeRole]);
 
-  if (isLoading && !profileUser) {
-    return (
-      <div className="min-h-screen bg-[#0f1225]">
-        <Navbar />
-        <div className="pt-32 pb-16 text-center">
-          <div className="w-20 h-20 flex items-center justify-center mx-auto mb-6 bg-white/5 rounded-full">
-            <i className="ri-loader-4-line text-4xl text-gray-500 animate-spin"></i>
-          </div>
-          <h2 className="text-2xl font-bold text-white mb-2">Loading profile</h2>
-          <p className="text-gray-400">Fetching the latest public profile details.</p>
-        </div>
-        <Footer />
-      </div>
-    );
-  }
 
   if (!profileUser) {
-    return (
-      <div className="min-h-screen bg-[#0f1225]">
-        <Navbar />
-        <div className="pt-32 pb-16 text-center">
-          <div className="w-20 h-20 flex items-center justify-center mx-auto mb-6 bg-white/5 rounded-full">
-            <i className="ri-user-search-line text-4xl text-gray-500"></i>
+      return (
+        <div className="min-h-screen bg-[#0f1225]">
+          <Navbar />
+          <div className="pt-32 pb-16 text-center">
+            <div className="w-20 h-20 flex items-center justify-center mx-auto mb-6 bg-white/5 rounded-full">
+              <i className="ri-loader-4-line text-4xl text-gray-500 animate-spin"></i>
+            </div>
+            <h2 className="text-2xl font-bold text-white mb-2">Loading profile</h2>
+            <p className="text-gray-400">Fetching the latest public profile details.</p>
           </div>
-          <h2 className="text-2xl font-bold text-white mb-2">User Not Found</h2>
-          <p className="text-gray-400 mb-6">The profile you&apos;re looking for doesn&apos;t exist.</p>
-          <Link
-            to="/search"
-            className="px-6 py-3 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors cursor-pointer whitespace-nowrap"
-          >
-            Back to Search
-          </Link>
+          <Footer />
         </div>
-        <Footer />
-      </div>
-    );
+      );
   }
 
-  const accent = getRoleAccent(activeRole);
   const gradient = getRoleGradient(activeRole);
   const canShowRating = activeRole === 'client' || activeRole === 'freelancer';
 
@@ -455,7 +441,7 @@ const PublicProfile = () => {
       case 'client':
         return ['overview'];
       case 'employer':
-        return ['overview', 'companies'];
+        return ['companies'];
       case 'applicant':
         return ['overview', 'cv'];
       case 'learner':
@@ -480,6 +466,31 @@ const PublicProfile = () => {
   };
 
   const tabs = getTabsForRole(activeRole);
+
+  const renderLoadingGrid = (count = 3) => (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="bg-white/5 border border-white/10 rounded-2xl p-6 animate-pulse">
+          <div className="h-40 bg-white/10 rounded-lg mb-4"></div>
+          <div className="h-4 bg-white/10 rounded mb-2 w-3/4"></div>
+          <div className="h-4 bg-white/10 rounded w-1/2"></div>
+        </div>
+      ))}
+    </div>
+  );
+
+  const renderLoadingList = (count = 3) => (
+    <div className="space-y-4">
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="bg-white/5 border border-white/10 rounded-2xl p-6 animate-pulse">
+          <div className="h-8 bg-white/10 rounded mb-4 w-1/3"></div>
+          <div className="h-4 bg-white/10 rounded mb-2"></div>
+          <div className="h-4 bg-white/10 rounded mb-2 w-5/6"></div>
+          <div className="h-4 bg-white/10 rounded w-1/2"></div>
+        </div>
+      ))}
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-[#0f1225]">
@@ -608,13 +619,29 @@ const PublicProfile = () => {
             </div>
           )}
 
+          {/* Loading state when switching roles */}
+          {isLoading && (
+            <div className="flex justify-center py-12">
+              <div className="w-16 h-16 flex items-center justify-center rounded-full bg-white/5 border border-white/10">
+                <i className="ri-loader-4-line text-3xl text-gray-400 animate-spin"></i>
+              </div>
+            </div>
+          )}
+
           {/* Overview Tab */}
-          {activeTab === 'overview' && (
+          {activeRole != 'employer' && activeTab === 'overview' && !isLoading && (
             <div className="space-y-6">
-              {profileUser.bio && (
+              {profileUser.bio && activeRole !== 'employer' && (
                 <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
                   <h2 className="text-xl font-bold text-white mb-3">About</h2>
                   <p className="text-gray-300 leading-relaxed">{profileUser.bio}</p>
+                </div>
+              )}
+
+              {activeRole == 'freelancer' && profileUser.title && (
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+                  <h2 className="text-xl font-bold text-white mb-3">Title</h2>
+                  <p className="text-gray-300 leading-relaxed">{profileUser.title}</p>
                 </div>
               )}
 
@@ -659,6 +686,24 @@ const PublicProfile = () => {
                     <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
                       <h2 className="text-xl font-bold text-white mb-3">Education</h2>
                       <p className="text-gray-300">{profileUser.education}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* freelancer-specific: Experienc && AvailabilityAvailability */}
+              {(activeRole === 'freelancer') && profileUser.experience && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {profileUser.experience && (
+                    <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+                      <h2 className="text-xl font-bold text-white mb-3">Experience</h2>
+                      <p className="text-gray-300">{profileUser.experience}</p>
+                    </div>
+                  )}
+                  {profileUser.isAvailable !== undefined && (
+                    <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+                      <h2 className="text-xl font-bold text-white mb-3">Availability</h2>
+                      <p className="text-gray-300">{profileUser.isAvailable ? 'Available' : 'Not Available'}</p>
                     </div>
                   )}
                 </div>
@@ -730,8 +775,50 @@ const PublicProfile = () => {
             </div>
           )}
 
+          {/* Employer Overview Tab */}
+          {activeRole === 'employer' && activeTab === 'overview' && !isLoading && (
+            <div className="space-y-6">
+              {profileUser.bio && (
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+                  <h2 className="text-xl font-bold text-white mb-3">About</h2>
+                  <p className="text-gray-300 leading-relaxed">{profileUser.bio}</p>
+                </div>
+              )}
+
+              {/* Skills */}
+              {Array.isArray(profileUser.skills) && profileUser.skills.length > 0 && (
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+                  <h2 className="text-xl font-bold text-white mb-4">Skills</h2>
+                  <div className="flex flex-wrap gap-2">
+                    {profileUser.skills.map((skill, index) => {
+                      let skillName: string;
+                      if (typeof skill === 'string') {
+                        skillName = skill;
+                      } else if (typeof skill === 'object' && skill !== null) {
+                        skillName = (skill as Record<string, any>).name || (skill as Record<string, any>).title || String(skill);
+                      } else {
+                        skillName = String(skill);
+                      }
+                      return (
+                        <span
+                          key={`skill-${index}-${skillName}`}
+                          className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-gray-300 text-sm"
+                        >
+                          {skillName}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Portfolio Tab (Freelancer) */}
-          {activeTab === 'portfolio' && Array.isArray(profileUser.portfolio) && profileUser.portfolio.length > 0 && (
+          {activeTab === 'portfolio' && (
+            <>
+              {isLoading && renderLoadingGrid(2)}
+              {!isLoading && Array.isArray(profileUser.portfolio) && profileUser.portfolio.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                 {profileUser.portfolio.map((item) => (
                   item && item.id ? (
@@ -772,56 +859,22 @@ const PublicProfile = () => {
                   ) : null
                 ))}
               </div>
-          )}
-
-          {/* Documents Tab (Freelancer) */}
-          {activeTab === 'documents' && activeRole === 'freelancer' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-              {(profileUser.documents ?? []).map((document) => (
-                document && document.id && document.documentUrl ? (
-                  <div
-                    key={document.id}
-                    className="bg-white/5 border border-white/10 rounded-2xl p-5 hover:border-emerald-500/40 transition-all"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex items-start gap-4 min-w-0">
-                        <div className="w-12 h-12 flex-shrink-0 flex items-center justify-center rounded-xl bg-emerald-500/20 border border-emerald-500/30">
-                          <i className="ri-file-text-line text-2xl text-emerald-400"></i>
-                        </div>
-                        <div className="min-w-0">
-                          <h3 className="text-white font-semibold truncate">{document.title || 'Untitled'}</h3>
-                          <p className="text-gray-400 text-sm truncate">{document.fileName || 'Document'}</p>
-                          {document.uploadedAt && (
-                            <p className="text-gray-500 text-xs mt-1">
-                              {new Date(document.uploadedAt).toLocaleDateString()}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      <a
-                        href={document.documentUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-lg bg-white/10 hover:bg-emerald-500/30 border border-white/10 hover:border-emerald-500/40 text-gray-300 hover:text-emerald-300 transition-all cursor-pointer"
-                        title="Open document"
-                      >
-                        <i className="ri-external-link-line text-sm"></i>
-                      </a>
-                    </div>
-                  </div>
-                ) : null
-              ))}
-              {(profileUser.documents ?? []).length === 0 && (
-                <div className="md:col-span-2 text-center py-12 bg-white/5 border border-white/10 rounded-2xl">
-                  <i className="ri-file-search-line text-5xl text-gray-500 mb-4"></i>
-                  <p className="text-gray-400">No documents yet</p>
+              )}
+              {!isLoading && (!Array.isArray(profileUser.portfolio) || profileUser.portfolio.length === 0) && (
+                <div className="text-center py-12 bg-white/5 border border-white/10 rounded-2xl">
+                  <i className="ri-image-line text-5xl text-gray-500 mb-4"></i>
+                  <p className="text-gray-400">No portfolio items yet</p>
                 </div>
               )}
-            </div>
+            </>
           )}
 
+
           {/* Completed Projects Tab (Freelancer) */}
-          {activeTab === 'completed' && Array.isArray(profileUser.completedWork) && profileUser.completedWork.length > 0 && (
+          {activeTab === 'completed' && (
+            <>
+              {isLoading && renderLoadingList(2)}
+              {!isLoading && Array.isArray(profileUser.completedWork) && profileUser.completedWork.length > 0 && (
             <div className="space-y-4">
               {profileUser.completedWork.map(project => (
                 project && project.id ? (
@@ -837,7 +890,7 @@ const PublicProfile = () => {
                           </span>
                           <span className="text-gray-400 text-sm">
                             <i className="ri-calendar-line mr-1"></i>
-                            {project.completedDate ? new Date(project.completedDate).toLocaleDateString('en-US', {
+                            {project.completedAt ? new Date(project.completedAt).toLocaleDateString('en-US', {
                               year: 'numeric',
                               month: 'short',
                               day: 'numeric'
@@ -847,28 +900,24 @@ const PublicProfile = () => {
                         <h3 className="text-xl font-bold text-white mb-2">{project.title || 'Untitled'}</h3>
                         <p className="text-gray-400 mb-4">{project.description || ''}</p>
                         <div className="flex items-center gap-4">
-                          <span className="text-white font-semibold">
-                            <i className="ri-money-dollar-circle-line text-green-400 mr-1"></i>
-                            ${(project.budget || 0).toLocaleString()}
-                          </span>
                           <div className="flex items-center gap-1">{renderStars(project.rating || 0)}</div>
                         </div>
                       </div>
                       <div className="lg:w-72 bg-white/5 rounded-xl p-4 border border-white/10">
                         <div className="flex items-center gap-3 mb-3">
                           <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-purple-500/30 to-pink-500/30 flex items-center justify-center">
-                            {project.clientAvatar ? (
-                              <img src={project.clientAvatar} alt={project.client} className="w-full h-full object-cover" />
+                            {project.clientImageUrl ? (
+                              <img src={project.clientImageUrl} alt={project.clientName} className="w-full h-full object-cover" />
                             ) : (
                               <i className="ri-user-line text-2xl text-white/70"></i>
                             )}
                           </div>
                           <div>
-                            <h4 className="text-white font-semibold text-sm">{project.client || 'Client'}</h4>
+                            <h4 className="text-white font-semibold text-sm">{project.clientName || 'Client'}</h4>
                             <p className="text-gray-400 text-xs">Client</p>
                           </div>
                         </div>
-                      <p className="text-gray-300 text-sm italic">&quot;{project.review}&quot;</p>
+                      <p className="text-gray-300 text-sm italic">&quot;{project.comment}&quot;</p>
                     </div>
                   </div>
                 </div>
@@ -881,10 +930,59 @@ const PublicProfile = () => {
                 </div>
               )}
             </div>
+              )}
+            </>
           )}
 
-          {/* Companies Tab (Employer) */}
-          {activeTab === 'companies' && profileUser.companies && (
+          {/* Documents Tab (Freelancer) */}
+          {activeTab === 'documents' && (
+            <>
+              {isLoading && renderLoadingGrid(2)}
+              {!isLoading && Array.isArray(profileUser.documents) && profileUser.documents.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+              {profileUser.documents.map(document => (
+                document && document.id ? (
+                  <div key={document.id} className="bg-white/5 backdrop-blur-sm rounded-2xl overflow-hidden border border-white/10 hover:border-cyan-500/30 transition-all">
+                    <div className="w-full h-40 sm:h-48 bg-gradient-to-br from-cyan-500/10 to-blue-500/10 border-b border-white/10 flex flex-col items-center justify-center gap-3 relative">
+                      <div className="w-16 h-16 flex items-center justify-center rounded-2xl bg-cyan-500/20 border border-cyan-500/30">
+                        <i className="ri-file-text-line text-4xl text-cyan-400"></i>
+                      </div>
+                      <div className="text-center px-4">
+                        <p className="text-white text-sm font-medium truncate max-w-xs">{document.title || document.fileName || 'Document'}</p>
+                      </div>
+                      {document.documentUrl && (
+                        <a
+                          href={document.documentUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 hover:bg-cyan-500/30 border border-white/10 hover:border-cyan-500/40 text-gray-300 hover:text-cyan-300 transition-all cursor-pointer"
+                          title="Download Document"
+                        >
+                          <i className="ri-external-link-line text-sm"></i>
+                        </a>
+                      )}
+                    </div>
+                    <div className="p-4 sm:p-5 lg:p-6">
+                      <h3 className="text-lg sm:text-xl font-bold text-white mb-2">{document.title || document.fileName}</h3>
+                      <p className="text-xs sm:text-sm text-gray-400">{document.uploadedAt ? new Date(document.uploadedAt).toLocaleDateString() : 'Date not available'}</p>
+                    </div>
+                  </div>
+                ) : null
+              ))}
+            </div>
+              )}
+              {!isLoading && (!Array.isArray(profileUser.documents) || profileUser.documents.length === 0) && (
+                <div className="text-center py-12 bg-white/5 border border-white/10 rounded-2xl">
+                  <i className="ri-file-line text-5xl text-gray-500 mb-4"></i>
+                  <p className="text-gray-400">No documents uploaded</p>
+                </div>
+              )}
+            </>
+          )}
+          {activeTab === 'companies' && (
+            <>
+              {isLoading && renderLoadingGrid(3)}
+              {!isLoading && profileUser.companies && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {profileUser.companies.map(company => (
                 <div
@@ -911,12 +1009,17 @@ const PublicProfile = () => {
                 </div>
               )}
             </div>
+              )}
+            </>
           )}
 
           {/* CV Tab (Applicant) */}
-          {activeTab === 'cv' && profileUser.cv?.isPublic && activeRole === 'applicant' && (
+          {activeTab === 'cv' && (
+            <>
+              {isLoading && <div className="bg-white/5 border border-white/10 rounded-2xl p-6 animate-pulse"><div className="h-20 bg-white/10 rounded mb-4"></div><div className="h-4 bg-white/10 rounded w-1/2"></div></div>}
+              {!isLoading && profileUser.cv?.isPublic && activeRole === 'applicant' && (
             <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-              {profileUser.cv?.cvUrl ? (
+              {profileUser.cv?.cvUrl && (
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex items-center gap-4">
                     <div className="w-14 h-14 flex items-center justify-center rounded-xl bg-pink-500/20 border border-pink-500/30">
@@ -940,16 +1043,13 @@ const PublicProfile = () => {
                     View CV
                   </a>
                 </div>
-              ) : (
-                <div className="text-center py-12">
-                  <i className="ri-file-search-line text-5xl text-gray-500 mb-4"></i>
-                  <p className="text-gray-400">No public CV available</p>
-                </div>
               )}
             </div>
+              )}
+            </>
           )}
 
-          {activeTab === 'cv' && (!profileUser.cv || !profileUser.cv.isPublic) && (
+          {activeTab === 'cv' && !isLoading && (!profileUser.cv || !profileUser.cv.isPublic) && activeRole === 'applicant' && (
             <div className="text-center py-12 bg-white/5 border border-white/10 rounded-2xl">
               <i className="ri-file-search-line text-5xl text-gray-500 mb-4"></i>
               <p className="text-gray-400">No public CV available</p>
@@ -957,7 +1057,10 @@ const PublicProfile = () => {
           )}
 
           {/* Roadmaps Tab (Learner) */}
-          {activeTab === 'roadmaps' && profileUser.roadmaps && (
+          {activeTab === 'roadmaps' && (
+            <>
+              {isLoading && renderLoadingList(3)}
+              {!isLoading && profileUser.roadmaps && (
             <div className="space-y-4">
               {profileUser.roadmaps.map(roadmap => (
                 <div key={roadmap.id} className="bg-white/5 border border-white/10 rounded-2xl p-6">
@@ -993,10 +1096,15 @@ const PublicProfile = () => {
                 </div>
               )}
             </div>
+              )}
+            </>
           )}
 
           {/* Course Projects Tab (Learner) */}
-          {activeTab === 'projects' && profileUser.courseProjects && (
+          {activeTab === 'projects' && (
+            <>
+              {isLoading && renderLoadingList(3)}
+              {!isLoading && profileUser.courseProjects && (
             <div className="space-y-4">
               {profileUser.courseProjects.map(project => (
                 <div key={project.id} className="bg-white/5 border border-white/10 rounded-2xl p-6">
@@ -1044,6 +1152,8 @@ const PublicProfile = () => {
                 </div>
               )}
             </div>
+              )}
+            </>
           )}
         </div>
       </main>

@@ -27,6 +27,7 @@ interface Project {
     rating: number;
     reviewCount: number;
     verified: boolean;
+    appUserId: string;
     clientId: string;
   };
   budget: {
@@ -301,11 +302,12 @@ const FreelanceMarketplace = () => {
           title: it.title,
           description: it.description,
           client: {
-            name: `Client ${it.clientId}`,
-            avatar: 'https://via.placeholder.com/200',
-            rating: 0,
-            reviewCount: 0,
+            name: it.clientName || `Client ${it.clientId}`,
+            avatar: it.clientImageUrl ? 'https://nextcoder.runasp.net/' + it.clientImageUrl : `https://ui-avatars.com/api/?name=${encodeURIComponent(it.clientName || 'C')}&background=7c3aed&color=fff&size=128`,
+            rating: it.clientRate ?? 0,
+            reviewCount: it.clientTotalProjects ?? 0,
             verified: false,
+            appUserId: it.clientAppUserId || '',
             clientId: String(it.clientId),
           },
           budget: { min: it.budget, max: it.budget, type: 'fixed' as const },
@@ -627,7 +629,50 @@ const FreelanceMarketplace = () => {
                 </button>
               </div>
 
-              {featuredProjects.length > 0 && (
+              {loadingProjects && (
+                <div className="space-y-4">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className={`rounded-xl border p-4 sm:p-5 animate-pulse ${isLightMode ? 'bg-white border-gray-200' : 'bg-white/5 border-white/10'}`}>
+                      <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+                        {/* Avatar skeleton */}
+                        <div className={`w-12 h-12 sm:w-16 sm:h-16 rounded-xl flex-shrink-0 mx-auto sm:mx-0 ${isLightMode ? 'bg-gray-200' : 'bg-white/10'}`} />
+                        <div className="flex-1 space-y-3">
+                          {/* Title + budget row */}
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="space-y-2 flex-1">
+                              <div className={`h-4 rounded w-2/3 ${isLightMode ? 'bg-gray-200' : 'bg-white/10'}`} />
+                              <div className={`h-3 rounded w-1/3 ${isLightMode ? 'bg-gray-100' : 'bg-white/5'}`} />
+                            </div>
+                            <div className={`h-6 rounded w-20 ${isLightMode ? 'bg-gray-200' : 'bg-white/10'}`} />
+                          </div>
+                          {/* Meta row */}
+                          <div className="flex gap-3">
+                            {Array.from({ length: 4 }).map((_, j) => (
+                              <div key={j} className={`h-3 rounded w-16 ${isLightMode ? 'bg-gray-100' : 'bg-white/5'}`} />
+                            ))}
+                          </div>
+                          {/* Description */}
+                          <div className="space-y-1.5">
+                            <div className={`h-3 rounded w-full ${isLightMode ? 'bg-gray-100' : 'bg-white/5'}`} />
+                            <div className={`h-3 rounded w-5/6 ${isLightMode ? 'bg-gray-100' : 'bg-white/5'}`} />
+                          </div>
+                          {/* Skills + button row */}
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="flex gap-1.5">
+                              {Array.from({ length: 3 }).map((_, k) => (
+                                <div key={k} className={`h-5 rounded w-14 ${isLightMode ? 'bg-gray-100' : 'bg-white/5'}`} />
+                              ))}
+                            </div>
+                            <div className={`h-8 rounded-lg w-24 flex-shrink-0 ${isLightMode ? 'bg-gray-200' : 'bg-white/10'}`} />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {!loadingProjects && featuredProjects.length > 0 && (
                 <div className="mb-8">
                   <div className="flex items-center gap-2 mb-4">
                     <i className="ri-star-line text-yellow-400 text-lg sm:text-xl"></i>
@@ -641,7 +686,7 @@ const FreelanceMarketplace = () => {
                 </div>
               )}
 
-              {regularProjects.length > 0 && (
+              {!loadingProjects && regularProjects.length > 0 && (
                 <div>
                   {featuredProjects.length > 0 && <h2 className={`text-lg sm:text-xl font-bold mb-4 ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{t('marketplace.allProjects')}</h2>}
                   <div className="space-y-4">
@@ -694,7 +739,7 @@ const FreelanceMarketplace = () => {
                 </div>
               )}
 
-              {filteredProjects.length === 0 && (
+              {!loadingProjects && filteredProjects.length === 0 && (
                 <div className={`text-center py-12 sm:py-16 rounded-xl border ${isLightMode ? 'bg-white border-gray-200' : 'bg-white/5 border-white/10'}`}>
                   <div className={`w-12 h-12 sm:w-16 sm:h-16 flex items-center justify-center rounded-full mx-auto mb-4 ${isLightMode ? 'bg-gray-100' : 'bg-white/5'}`}>
                     <i className={`ri-search-line text-2xl sm:text-3xl ${isLightMode ? 'text-gray-400' : 'text-gray-400'}`}></i>
@@ -732,7 +777,7 @@ const ProjectCard = ({ project, selectedSkills, formatBudget, onReportClient, is
     )}
     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-4">
       <div className="flex-shrink-0 mx-auto sm:mx-0 relative">
-        <Link to={`/user/${project.client.clientId}`} className="block w-12 h-12 sm:w-16 sm:h-16 rounded-xl overflow-hidden hover:ring-2 hover:ring-purple-500 transition-all cursor-pointer">
+        <Link to={`/user/${project.client.appUserId}`} className="block w-12 h-12 sm:w-16 sm:h-16 rounded-xl overflow-hidden hover:ring-2 hover:ring-purple-500 transition-all cursor-pointer">
           <img src={project.client.avatar} alt={project.client.name} className="w-full h-full object-cover" />
         </Link>
         <button onClick={() => onReportClient(project.client.name, project.client.avatar)} className={`absolute -top-1 -right-1 w-6 h-6 flex items-center justify-center border rounded-full text-gray-400 hover:text-red-400 hover:border-red-500/50 transition-all cursor-pointer opacity-0 group-hover:opacity-100 ${isLightMode ? 'bg-white border-gray-200' : 'bg-[#1a1f37] border-white/10'}`}>
@@ -745,13 +790,12 @@ const ProjectCard = ({ project, selectedSkills, formatBudget, onReportClient, is
             <h3 className={`text-base sm:text-lg font-bold group-hover:text-purple-500 transition-colors mb-1 ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{project.title}</h3>
             <div className={`flex flex-wrap items-center justify-center sm:justify-start gap-2 sm:gap-3 text-xs sm:text-sm ${isLightMode ? 'text-gray-500' : 'text-gray-400'}`}>
               <div className="flex items-center gap-1">
-                <Link to={`/user/${project.client.clientId}`} className={`font-medium truncate max-w-[120px] sm:max-w-none hover:underline hover:text-purple-500 transition-colors ${isLightMode ? 'text-gray-700' : 'text-white'}`}>{project.client.name}</Link>
+                <Link to={`/user/${project.client.appUserId}`} className={`font-medium truncate max-w-[120px] sm:max-w-none hover:underline hover:text-purple-500 transition-colors ${isLightMode ? 'text-gray-700' : 'text-white'}`}>{project.client.name}</Link>
                 {project.client.verified && <i className="ri-verified-badge-fill text-blue-400"></i>}
               </div>
               <div className="flex items-center gap-1">
                 <i className="ri-star-fill text-yellow-400"></i>
                 <span>{project.client.rating}</span>
-                <span className={isLightMode ? 'text-gray-400' : 'text-gray-500'}>({project.client.reviewCount})</span>
               </div>
             </div>
           </div>

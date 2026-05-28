@@ -40,6 +40,11 @@ export interface CreatedProject {
   durationTypeName: string;
   status: string;
   clientId: number;
+  clientAppUserId: string;
+  clientImageUrl?: string | null;
+  clientName: string;
+  clientRate: number;
+  clientTotalProjects: number;
   createdAt: string;
   skills: string[];
   requirements: string[];

@@ -79,18 +79,18 @@ export interface FreelancerDocument {
 }
 
 export interface completedProject {
-  id: string;
+  projectId: string;
   title: string | null;
-  client: string | null;
-  clientAvatar: string | null;
   description: string | null;
-  budget: number | null;
-  totalPaid: number | null;
-  completedDate: string | null;
-  rating: number | null;
-  review: string | null;
   category: string | null;
   status: string | null;
+  budget: number | null;
+  totalPaid: number | null;
+  completedAt: string | null;
+  clientName: string | null;
+  clientImageUrl: string | null;
+  rating?: number | null;
+  comment?: string | null;
 }
 
 export interface FreelancerPublicProfile {
@@ -295,17 +295,17 @@ export async function getFreelancerPublicProfile(freelancerId: string): Promise<
   })) as unknown as FreelancerDocument[];
 
   returnData.completedProjects = ((returnData.completedProjects as Record<string, unknown>[]) ?? []).map((project) => ({
-    id: valueAsString(project.id ?? project.Id),
+    projectId: valueAsString(project.projectId ?? project.ProjectId ?? project.id ?? project.Id),
     title: valueAsString(project.title ?? project.Title) || null,
-    client: valueAsString(project.client ?? project.Client ?? project.clientName ?? project.ClientName) || null,
-    clientAvatar: buildAbsoluteUrl(project.clientAvatar ?? project.ClientAvatar ?? project.clientImageUrl ?? buildAbsoluteUrl(project.ClientImageUrl)),
+    clientName: valueAsString(project.clientName ?? project.ClientName ?? project.client ?? project.Client) || null,
+    clientImageUrl: buildAbsoluteUrl(project.clientImageUrl ?? project.ClientImageUrl ?? project.clientAvatar ?? project.ClientAvatar),
     description: valueAsString(project.description ?? project.Description) || null,
+    category: valueAsString(project.category ?? project.Category) || null,
     budget: valueAsNumber(project.budget ?? project.Budget),
     totalPaid: valueAsNumber(project.totalPaid ?? project.TotalPaid),
-    completedDate: valueAsString(project.completedDate ?? project.CompletedDate) || null,
+    completedAt: valueAsString(project.completedAt ?? project.CompletedAt ?? project.completedDate ?? project.CompletedDate) || null,
     rating: valueAsNumber(project.rating ?? project.Rating),
-    review: valueAsString(project.review ?? project.Review) || null,
-    category: valueAsString(project.category ?? project.Category) || null,
+    comment: valueAsString(project.comment ?? project.Comment ?? project.review ?? project.Review) || null,
     status: valueAsString(project.status ?? project.Status) || null,
   })) as unknown as completedProject[];
 
