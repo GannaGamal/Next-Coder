@@ -61,6 +61,18 @@ export interface FreelancerActiveProject {
   comments: unknown[] | null;
 }
 
+export interface FreelancerCompletedProject {
+  projectId: number;
+  title: string | null;
+  status: string | null;
+  totalPaid: number | null;
+  clientName: string | null;
+  clientRatingGivenByFreelancer: number | null;
+  freelancerRatingFromClient: number | null;
+  comments: unknown[] | null;
+  completedAt: string | null;
+}
+
 export type ReportType =
   | 'MissedDeadline'
   | 'PoorQuality'
@@ -154,6 +166,20 @@ export async function getFreelancerActiveProjects(): Promise<FreelancerActivePro
 }
 
 /**
+ * GET /api/FreelancerDashboard/projects/completed
+ * Returns all completed freelancer projects.
+ */
+export async function getFreelancerCompletedProjects(): Promise<FreelancerCompletedProject[]> {
+  const res = await fetch(`${API_BASE}/FreelancerDashboard/projects/completed`, {
+    method: 'GET',
+    headers: authHeaders(),
+  });
+
+  const body = await handleResponse<FreelancerCompletedProject[]>(res);
+  return Array.isArray(body.data) ? body.data : [];
+}
+
+/**
  * POST /api/FreelancerDashboard/milestones/submit
  * Submits milestone deliverables.
  */
@@ -171,6 +197,50 @@ export async function submitFreelancerMilestone(params: {
     method: 'POST',
     headers: authMultipartHeaders(),
     body: form,
+  });
+
+  const body = await handleResponse<unknown>(res);
+  return body.message || 'Success';
+}
+
+/**
+ * POST /api/FreelancerDashboard/projects/comments
+ * Adds a new comment to an active project.
+ */
+export async function postFreelancerProjectComment(params: {
+  projectId: number;
+  content: string;
+}): Promise<string> {
+  const res = await fetch(`${API_BASE}/FreelancerDashboard/projects/comments`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({
+      projectId: params.projectId,
+      content: params.content,
+    }),
+  });
+
+  const body = await handleResponse<unknown>(res);
+  return body.message || 'Success';
+}
+
+/**
+ * POST /api/FreelancerDashboard/rate-client
+ * Submits a freelancer's rating for a client.
+ */
+export async function rateClient(params: {
+  projectId: number;
+  rating: number;
+  comment: string;
+}): Promise<string> {
+  const res = await fetch(`${API_BASE}/FreelancerDashboard/rate-client`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({
+      projectId: params.projectId,
+      rating: params.rating,
+      comment: params.comment,
+    }),
   });
 
   const body = await handleResponse<unknown>(res);

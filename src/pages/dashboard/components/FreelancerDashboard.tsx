@@ -7,7 +7,10 @@ import {
   getFreelancerActiveProjects,
   getFreelancerApplicationDetails,
   getFreelancerApplications,
+  getFreelancerCompletedProjects,
   getFreelancerDashboardSummary,
+  postFreelancerProjectComment,
+  rateClient,
   submitFreelancerMilestone,
   withdrawFreelancerApplication,
   type FreelancerActiveMilestone,
@@ -44,36 +47,16 @@ interface ActiveProject extends FreelancerActiveProject {
 }
 
 interface CompletedProject {
-  id: string;
+  projectId: number;
   title: string;
-  description: string;
-  client: string;
-  clientAvatar: string;
-  budget: number;
-  status: 'applied' | 'accepted' | 'in-progress' | 'completed' | 'rejected';
-  appliedDate: string;
-  milestones: Array<{
-    id: string;
-    title: string;
-    deliverables: string;
-    amount: number;
-    duration: string;
-    deadline: string;
-    status: 'pending' | 'approved' | 'rejected' | 'submitted' | 'late' | 'finished';
-    submittedDate?: string;
-    approvedDate?: string;
-    finishedDate?: string;
-    rejectionComment?: string;
-    comments: MilestoneComment[];
-  }>;
+  status: string;
   totalPaid: number;
+  clientName: string;
+  clientAvatar: string;
+  clientRatingGivenByFreelancer: number | null;
+  freelancerRatingFromClient: number | null;
   comments: ProjectComment[];
-  clientRating?: number;
-  myRating?: number;
-  category?: string;
-  skills?: string[];
-  deadline?: string;
-  clientEmail?: string;
+  completedAt: string | null;
 }
 
 type AppliedProject = FreelancerApplication & {
@@ -117,6 +100,8 @@ const FreelancerDashboard = () => {
   const [actionProposalId, setActionProposalId] = useState<number | null>(null);
   const [appliedReloadKey, setAppliedReloadKey] = useState(0);
   const [activeReloadKey, setActiveReloadKey] = useState(0);
+  const [isLoadingCompleted, setIsLoadingCompleted] = useState(true);
+  const [completedError, setCompletedError] = useState<string | null>(null);
   const [editingMilestone, setEditingMilestone] = useState<ActiveMilestone | null>(null);
   const [submittingMilestone, setSubmittingMilestone] = useState<ActiveMilestone | null>(null);
   const [submitNote, setSubmitNote] = useState('');
@@ -125,8 +110,12 @@ const FreelancerDashboard = () => {
   const [isSubmittingDeliverables, setIsSubmittingDeliverables] = useState(false);
   const [rating, setRating] = useState(0);
   const [ratingComment, setRatingComment] = useState('');
+  const [ratingError, setRatingError] = useState<string | null>(null);
+  const [isSubmittingRating, setIsSubmittingRating] = useState(false);
   const [newComment, setNewComment] = useState('');
   const [milestoneComment, setMilestoneComment] = useState('');
+  const [isSubmittingProjectComment, setIsSubmittingProjectComment] = useState(false);
+  const [projectCommentError, setProjectCommentError] = useState<string | null>(null);
   const [expandedMilestone, setExpandedMilestone] = useState<number | null>(null);
   const [isLoadingSummary, setIsLoadingSummary] = useState(true);
   const [stats, setStats] = useState<DashboardStats>({
@@ -162,52 +151,7 @@ const FreelancerDashboard = () => {
     }
   };
 
-  const [completedProjects, setCompletedProjects] = useState<CompletedProject[]>([
-    {
-      id: '5',
-      title: 'Logo Design for Restaurant',
-      description: 'Created a modern logo for a restaurant brand',
-      client: 'Tasty Bites',
-      clientAvatar: 'https://readdy.ai/api/search-image?query=restaurant%20logo%20modern%20elegant%20food%20design%20simple%20clean%20background%20professional&width=200&height=200&seq=client5&orientation=squarish',
-      budget: 800,
-      status: 'completed',
-      appliedDate: '2023-12-20',
-      milestones: [
-        {
-          id: 'm8',
-          title: 'Initial Concepts',
-          deliverables: '3 initial logo concepts with color variations',
-          amount: 300,
-          duration: '3 days',
-          deadline: '2023-12-23',
-          status: 'finished',
-          submittedDate: '2023-12-22',
-          approvedDate: '2023-12-22',
-          finishedDate: '2023-12-23',
-          comments: [],
-        },
-        {
-          id: 'm9',
-          title: 'Revisions & Final Design',
-          deliverables: 'Final logo files in all formats (SVG, PNG, PDF)',
-          amount: 500,
-          duration: '2 days',
-          deadline: '2023-12-27',
-          status: 'finished',
-          submittedDate: '2023-12-26',
-          approvedDate: '2023-12-26',
-          finishedDate: '2023-12-27',
-          comments: [],
-        },
-      ],
-      totalPaid: 800,
-      comments: [
-        { id: 'c3', author: 'Tasty Bites', text: 'Absolutely love the final design!', date: '2023-12-27' },
-      ],
-      clientRating: 5,
-      myRating: 5,
-    },
-  ]);
+  const [completedProjects, setCompletedProjects] = useState<CompletedProject[]>([]);
 
   useEffect(() => {
     let isMounted = true;
@@ -353,6 +297,61 @@ const FreelancerDashboard = () => {
   }, [activeReloadKey]);
 
   useEffect(() => {
+    let isMounted = true;
+
+    const loadCompletedProjects = async () => {
+      setIsLoadingCompleted(true);
+      setCompletedError(null);
+
+      try {
+        const data = await getFreelancerCompletedProjects();
+        if (!isMounted) return;
+
+        const mapped: CompletedProject[] = (Array.isArray(data) ? data : []).map((project) => {
+          const rawComments = Array.isArray(project.comments) ? project.comments : [];
+          const normalizedComments: ProjectComment[] = rawComments.map((comment, index) => {
+            const payload = comment as Partial<{ id: string | number; author: string; senderName: string; text: string; content: string; date: string; createdAt: string }>;
+            return {
+              id: String(payload.id ?? `c-${project.projectId}-${index}`),
+              author: payload.author ?? payload.senderName ?? project.clientName ?? '',
+              text: payload.text ?? payload.content ?? '',
+              date: payload.date ?? payload.createdAt ?? '',
+            };
+          });
+
+          return {
+            projectId: project.projectId,
+            title: project.title ?? '',
+            status: project.status ?? 'Completed',
+            totalPaid: typeof project.totalPaid === 'number' && Number.isFinite(project.totalPaid) ? project.totalPaid : 0,
+            clientName: project.clientName ?? '',
+            clientAvatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(project.clientName || 'Client')}&background=0D8ABC&color=fff&rounded=true`,
+            clientRatingGivenByFreelancer: project.clientRatingGivenByFreelancer ?? null,
+            freelancerRatingFromClient: project.freelancerRatingFromClient ?? null,
+            comments: normalizedComments,
+            completedAt: project.completedAt ?? null,
+          };
+        });
+
+        setCompletedProjects(mapped);
+      } catch (error) {
+        if (!isMounted) return;
+
+        setCompletedError(error instanceof Error ? error.message : 'We could not load completed projects right now. Please try again.');
+        setCompletedProjects([]);
+      } finally {
+        if (isMounted) setIsLoadingCompleted(false);
+      }
+    };
+
+    void loadCompletedProjects();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!appliedActionMessage) return;
 
     const timeoutId = window.setTimeout(() => {
@@ -436,6 +435,12 @@ const FreelancerDashboard = () => {
 
   const normalizeMilestoneStatus = (status: string | null | undefined) =>
     status?.toString().trim().replace(/[\s_-]/g, '').toLowerCase() || 'pending';
+
+  const getMilestoneStatusKey = (milestone: ActiveMilestone) => {
+    const normalized = normalizeMilestoneStatus(milestone.status);
+    if (normalized === 'inprogress' && milestone.clientComment) return 'rejected';
+    return normalized;
+  };
 
   const getMilestoneStatusConfig = (status: string | null | undefined) => {
     const key = normalizeMilestoneStatus(status);
@@ -626,29 +631,58 @@ const FreelancerDashboard = () => {
     setMilestoneComment('');
   };
 
-  const handleSubmitRating = () => {
-    if (!selectedProject || rating === 0) return;
-    setCompletedProjects(prev =>
-      prev.map(p =>
-        p.id === selectedProject.id ? { ...p, clientRating: rating } : p
-      )
-    );
-    setShowRatingModal(false);
-    setRating(0);
-    setRatingComment('');
+  const handleSubmitRating = async () => {
+    if (!selectedProject || rating === 0 || isSubmittingRating) return;
+
+    setRatingError(null);
+    setIsSubmittingRating(true);
+
+    try {
+      await rateClient({
+        projectId: selectedProject.projectId,
+        rating,
+        comment: ratingComment.trim(),
+      });
+      setCompletedProjects(prev =>
+        prev.map(p =>
+          p.projectId === selectedProject.projectId
+            ? { ...p, clientRatingGivenByFreelancer: rating }
+            : p
+        )
+      );
+      setShowRatingModal(false);
+      setRating(0);
+      setRatingComment('');
+    } catch (error) {
+      setRatingError(error instanceof Error ? error.message : 'Failed to submit rating');
+    } finally {
+      setIsSubmittingRating(false);
+    }
   };
 
-  const handleAddComment = (projectId: number) => {
-    if (!newComment.trim()) return;
-    const today = new Date().toISOString().split('T')[0];
-    setActiveProjects(prev =>
-      prev.map(p =>
-        p.projectId === projectId
-          ? { ...p, comments: [...p.comments, { id: `c-${Date.now()}`, author: 'You', text: newComment, date: today }] }
-          : p
-      )
-    );
-    setNewComment('');
+  const handleAddComment = async (projectId: number) => {
+    const content = newComment.trim();
+    if (!content) return;
+
+    setProjectCommentError(null);
+    setIsSubmittingProjectComment(true);
+
+    try {
+      await postFreelancerProjectComment({ projectId, content });
+      const today = new Date().toISOString().split('T')[0];
+      setActiveProjects(prev =>
+        prev.map(p =>
+          p.projectId === projectId
+            ? { ...p, comments: [...p.comments, { id: `c-${Date.now()}`, author: 'You', text: content, date: today }] }
+            : p
+        )
+      );
+      setNewComment('');
+    } catch (error) {
+      setProjectCommentError(error instanceof Error ? error.message : 'Failed to post comment');
+    } finally {
+      setIsSubmittingProjectComment(false);
+    }
   };
 
   const handleOpenReport = (name: string, avatar: string, projectId: number) => {
@@ -922,8 +956,8 @@ const FreelancerDashboard = () => {
                   <h4 className="text-lg font-bold text-white mb-4">{t('freelancerDashboard.milestones')}</h4>
                   <div className="space-y-3">
                     {milestones.map((milestone) => {
-                      const statusKey = normalizeMilestoneStatus(milestone.status);
-                      const cfg = getMilestoneStatusConfig(milestone.status);
+                      const statusKey = getMilestoneStatusKey(milestone);
+                      const cfg = getMilestoneStatusConfig(statusKey);
                       const isExpanded = expandedMilestone === milestone.id;
                       return (
                         <div key={milestone.id} className="bg-white/5 rounded-xl border border-white/10 overflow-hidden">
@@ -959,7 +993,7 @@ const FreelancerDashboard = () => {
                                   <i className="ri-edit-line mr-1"></i>{t('freelancerDashboard.edit')}
                                 </button>
                               )}
-                              {statusKey === 'inprogress' && (
+                              {(statusKey === 'inprogress' || statusKey === 'rejected') && (
                                 <button
                                   onClick={(e) => { e.stopPropagation(); handleOpenSubmitDeliverables(milestone, project); }}
                                   className="px-3 py-1.5 bg-teal-500 text-white text-xs font-semibold rounded-lg hover:bg-teal-600 transition-colors whitespace-nowrap cursor-pointer"
@@ -1112,10 +1146,17 @@ const FreelancerDashboard = () => {
                           : 'bg-white/5 border-white/10 text-white placeholder-gray-500'
                       }`}
                     />
-                    <button onClick={() => handleAddComment(project.projectId)} className="px-6 py-3 bg-teal-500 text-white font-semibold rounded-lg hover:bg-teal-600 transition-colors whitespace-nowrap cursor-pointer">
-                      {t('common.send')}
+                    <button
+                      onClick={() => handleAddComment(project.projectId)}
+                      disabled={isSubmittingProjectComment}
+                      className="px-6 py-3 bg-teal-500 text-white font-semibold rounded-lg hover:bg-teal-600 transition-colors whitespace-nowrap cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isSubmittingProjectComment ? <i className="ri-loader-4-line animate-spin"></i> : t('common.send')}
                     </button>
                   </div>
+                  {projectCommentError && (
+                    <p className="text-red-400 text-xs mt-2">{projectCommentError}</p>
+                  )}
                 </div>
               </div>
             );
@@ -1133,25 +1174,42 @@ const FreelancerDashboard = () => {
       {/* Completed Projects Tab */}
       {activeTab === 'completed' && (
         <div className="space-y-6">
-          {completedProjects.map((project) => (
-            <div key={project.id} className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
+          {isLoadingCompleted && (
+            <div className="flex items-center justify-center py-12">
+              <i className="ri-loader-4-line animate-spin text-3xl text-teal-400"></i>
+            </div>
+          )}
+          {completedError && !isLoadingCompleted && (
+            <div className="text-center py-12">
+              <i className="ri-error-warning-line text-5xl text-red-400 mb-4 block"></i>
+              <p className="text-red-400">{completedError}</p>
+            </div>
+          )}
+          {!isLoadingCompleted && !completedError && completedProjects.length === 0 && (
+            <div className="text-center py-12">
+              <i className="ri-folder-open-line text-6xl text-white/20 mb-4"></i>
+              <p className="text-white/60">{t('freelancerDashboard.noApplied')}</p>
+            </div>
+          )}
+          {!isLoadingCompleted && !completedError && completedProjects.map((project) => (
+            <div key={project.projectId} className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
               <div className="flex justify-between items-start mb-6">
                 <div className="flex items-center gap-4">
-                  <img src={project.clientAvatar} alt={project.client} className="w-12 h-12 rounded-lg object-cover" />
+                  <img src={project.clientAvatar} alt={project.clientName} className="w-12 h-12 rounded-lg object-cover" />
                   <div>
                     <h3 className="text-xl font-bold text-white mb-1">{project.title}</h3>
-                    <p className="text-white/60 text-sm">{t('freelancerDashboard.client')} {project.client}</p>
+                    <p className="text-white/60 text-sm">{t('freelancerDashboard.client')} {project.clientName}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <button
-                    onClick={() => handleOpenReport(project.client, project.clientAvatar, Number(project.id))}
+                    onClick={() => handleOpenReport(project.clientName, project.clientAvatar, project.projectId)}
                     className="px-4 py-2 bg-red-500/10 text-red-400 font-semibold rounded-lg hover:bg-red-500/20 transition-colors whitespace-nowrap cursor-pointer text-sm"
                   >
                     <i className="ri-flag-line mr-1"></i>{t('freelancerDashboard.report')}
                   </button>
                   <span className="px-4 py-2 bg-green-500/20 text-green-400 font-semibold rounded-lg whitespace-nowrap">
-                    {t('freelancerDashboard.completed')}
+                    {project.status || t('freelancerDashboard.completed')}
                   </span>
                 </div>
               </div>
@@ -1162,8 +1220,8 @@ const FreelancerDashboard = () => {
                   <p className="text-green-400 font-bold text-xl">${project.totalPaid}</p>
                 </div>
                 <div className="bg-white/5 rounded-lg p-4">
-                  <span className="text-white/60 text-sm">{t('freelancerDashboard.milestonesCompleted')}</span>
-                  <p className="text-white font-bold text-xl">{project.milestones.length}</p>
+                  <span className="text-white/60 text-sm">{t('freelancerDashboard.completed')}</span>
+                  <p className="text-white font-bold text-xl">{formatDate(project.completedAt)}</p>
                 </div>
               </div>
 
@@ -1171,15 +1229,21 @@ const FreelancerDashboard = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                 <div className="bg-white/5 rounded-lg p-4">
                   <span className="text-white/60 text-sm mb-2 block">{t('freelancerDashboard.myRatingForClient')}</span>
-                  {project.clientRating ? (
+                  {project.clientRatingGivenByFreelancer != null ? (
                     <div className="flex items-center gap-2">
                       {[...Array(5)].map((_, i) => (
-                        <i key={i} className={`ri-star-fill text-xl ${i < project.clientRating! ? 'text-yellow-400' : 'text-white/20'}`}></i>
+                        <i key={i} className={`ri-star-fill text-xl ${i < project.clientRatingGivenByFreelancer! ? 'text-yellow-400' : 'text-white/20'}`}></i>
                       ))}
                     </div>
                   ) : (
                     <button
-                      onClick={() => { setSelectedProject(project); setShowRatingModal(true); }}
+                      onClick={() => {
+                        setSelectedProject(project);
+                        setRating(0);
+                        setRatingComment('');
+                        setRatingError(null);
+                        setShowRatingModal(true);
+                      }}
                       className="px-4 py-2 bg-teal-500 text-white font-semibold rounded-lg hover:bg-teal-600 transition-colors whitespace-nowrap cursor-pointer"
                     >
                       {t('freelancerDashboard.rateClient')}
@@ -1188,34 +1252,36 @@ const FreelancerDashboard = () => {
                 </div>
                 <div className="bg-white/5 rounded-lg p-4">
                   <span className="text-white/60 text-sm mb-2 block">{t('freelancerDashboard.ratingFromClient')}</span>
-                  {project.myRating ? (
+                  {project.freelancerRatingFromClient != null ? (
                     <div className="flex items-center gap-2">
                       {[...Array(5)].map((_, i) => (
-                        <i key={i} className={`ri-star-fill text-xl ${i < project.myRating! ? 'text-yellow-400' : 'text-white/20'}`}></i>
+                        <i key={i} className={`ri-star-fill text-xl ${i < project.freelancerRatingFromClient! ? 'text-yellow-400' : 'text-white/20'}`}></i>
                       ))}
                     </div>
                   ) : (
-                    <span className="text-white/40 text-sm">{t('common.awaitingRating')}</span>
+                    <span className="text-white/40 text-sm">Not rated yet</span>
                   )}
                 </div>
               </div>
 
-              {project.comments.length > 0 && (
-                <div>
-                  <h4 className="text-lg font-bold text-white mb-3">{t('freelancerDashboard.projectComments')}</h4>
+              <div>
+                <h4 className="text-lg font-bold text-white mb-3">{t('freelancerDashboard.projectComments')}</h4>
+                {project.comments.length > 0 ? (
                   <div className="space-y-3">
                     {project.comments.map((comment) => (
                       <div key={comment.id} className="bg-white/5 rounded-lg p-4">
                         <div className="flex justify-between items-start mb-2">
-                          <span className="text-white font-semibold">{comment.author}</span>
-                          <span className="text-white/60 text-sm">{comment.date}</span>
+                          <span className="text-white font-semibold">{getTextValue(comment.author)}</span>
+                          <span className="text-white/60 text-sm">{getTextValue(comment.date)}</span>
                         </div>
-                        <p className="text-white/80">{comment.text}</p>
+                        <p className="text-white/80">{getTextValue(comment.text)}</p>
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <p className="text-white/40 text-sm">No comments yet</p>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -1608,7 +1674,7 @@ const FreelancerDashboard = () => {
             </button>
             <h3 className={`text-2xl font-bold mb-6 text-center ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{t('freelancerDashboard.rateClientTitle')}</h3>
             <div className="text-center mb-6">
-              <p className={`mb-4 ${isLightMode ? 'text-gray-500' : 'text-white/60'}`}>{t('freelancerDashboard.rateClientQuestion')} {selectedProject.client}?</p>
+              <p className={`mb-4 ${isLightMode ? 'text-gray-500' : 'text-white/60'}`}>{t('freelancerDashboard.rateClientQuestion')} {selectedProject.clientName}?</p>
               <div className="flex justify-center gap-2 mb-6">
                 {[1, 2, 3, 4, 5].map((star) => (
                   <button key={star} onClick={() => setRating(star)} className="cursor-pointer">
@@ -1630,16 +1696,22 @@ const FreelancerDashboard = () => {
                 }`}
               ></textarea>
             </div>
+            {ratingError && (
+              <div className="flex items-start gap-3 p-3 bg-red-500/10 border border-red-500/30 rounded-lg mb-4">
+                <i className="ri-alert-line text-red-400 text-lg flex-shrink-0 mt-0.5"></i>
+                <p className="text-red-500 text-xs">{ratingError}</p>
+              </div>
+            )}
             <div className="flex gap-3">
               <button onClick={() => setShowRatingModal(false)} className={`flex-1 px-5 py-3 font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${isLightMode ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' : 'bg-white/5 text-white hover:bg-white/10'}`}>
                 {t('common.cancel')}
               </button>
               <button
                 onClick={handleSubmitRating}
-                disabled={rating === 0}
+                disabled={rating === 0 || isSubmittingRating}
                 className="flex-1 px-5 py-3 bg-teal-500 text-white font-semibold rounded-lg hover:bg-teal-600 transition-colors whitespace-nowrap cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {t('freelancerDashboard.submitRating')}
+                {isSubmittingRating ? t('common.loading') : t('freelancerDashboard.submitRating')}
               </button>
             </div>
           </div>
