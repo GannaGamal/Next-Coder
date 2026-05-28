@@ -78,6 +78,9 @@ const BrowsePaths = () => {
     setLoading(true);
     setError(null);
     setTracks([]);
+    if (searchQuery.trim()) {
+      setPageNumber(1); // reset to first page on new search
+    }
     try {
       const result = await fetchRoadmapTracksWithPagination(pageNumber, pageSize, searchQuery);
       if(searchQuery.trim()) {
