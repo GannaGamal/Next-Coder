@@ -66,11 +66,11 @@ const FreelanceMarketplace = () => {
   // Form states for posting project
   const [projectTitle, setProjectTitle] = useState('');
   const [projectDescription, setProjectDescription] = useState('');
-  const [projectCategory, setProjectCategory] = useState<string>('WebDevelopment');
-  const [projectExperience, setProjectExperience] = useState<string>('Entry');
+  const [projectCategory, setProjectCategory] = useState<string>('');
+  const [projectExperience, setProjectExperience] = useState<string>('');
   const [projectBudget, setProjectBudget] = useState('');
   const [projectDuration, setProjectDuration] = useState('');
-  const [projectDurationType, setProjectDurationType] = useState<string>('Days');
+  const [projectDurationType, setProjectDurationType] = useState<string>('');
   const [projectSkills, setProjectSkills] = useState<string[]>([]);
   const [isSubmittingProject, setIsSubmittingProject] = useState(false);
   const [projectError, setProjectError] = useState<string | null>(null);
@@ -87,15 +87,15 @@ const FreelanceMarketplace = () => {
   useEffect(() => {
     getProjectCategories().then(data => {
       setApiCategories(data);
-      if (data.length > 0) setProjectCategory(data[0].name as string);
+      if (data.length > 0) setProjectCategory(data[0].value as string);
     }).catch(() => {});
     getDurationTypes().then(data => {
       setApiDurationTypes(data);
-      if (data.length > 0) setProjectDurationType(data[0].name as string);
+      if (data.length > 0) setProjectDurationType(data[0].value as string);
     }).catch(() => {});
     getExperienceLevels().then(data => {
       setApiExperienceLevels(data);
-      if (data.length > 0) setProjectExperience(data[0].name as string);
+      if (data.length > 0) setProjectExperience(data[0].value as string);
     }).catch(() => {});
   }, []);
 
@@ -163,20 +163,20 @@ const FreelanceMarketplace = () => {
       };
 
       await createFreelanceProject(payload);
-      
+
       // Reset form
       setProjectTitle('');
       setProjectDescription('');
-      setProjectCategory('WebDevelopment');
-      setProjectExperience('Entry');
+      setProjectCategory(apiCategories.length > 0 ? apiCategories[0].value as string : '');
+      setProjectExperience(apiExperienceLevels.length > 0 ? apiExperienceLevels[0].value as string : '');
       setProjectBudget('');
       setProjectDuration('');
-      setProjectDurationType('Days');
+      setProjectDurationType(apiDurationTypes.length > 0 ? apiDurationTypes[0].value as string : '');
       setProjectSkills([]);
       setSkillInput('');
       setRequirements(['']);
       setDeliverables(['']);
-      
+
       setProjectSuccess(true);
       setTimeout(() => {
         setShowPostModal(false);
@@ -210,7 +210,6 @@ const FreelanceMarketplace = () => {
     }
   };
 
-  // Derived from API
   const allSkills = [
     'JavaScript', 'React', 'Python', 'Java', 'Node.js', 'TypeScript',
     'UI/UX Design', 'Graphic Design', 'Content Writing', 'SEO',
@@ -218,16 +217,10 @@ const FreelanceMarketplace = () => {
     'Social Media', 'Data Analysis', 'Machine Learning', 'AWS',
   ];
 
-  const categories = apiCategories.length > 0
-    ? apiCategories.map(c => c.name)
-    : ['Web Development', 'Mobile Development', 'Design', 'Writing', 'Marketing', 'Data Science', 'Other'];
-
-  // Build select options from API lookups
-  const categoryOptions = apiCategories.map(c => ({ value: c.value, label: c.name }))
-
-  const durationTypeOptions = apiDurationTypes.map(d => ({ value: d.value, label: d.name }))
-    
-  const experienceLevelOptions = apiExperienceLevels.map(e => ({ value: e.value, label: e.name }))
+  // Build select options from API lookups — use .value for the option value
+  const categoryOptions = apiCategories.map(c => ({ value: c.value as string, label: c.name }));
+  const durationTypeOptions = apiDurationTypes.map(d => ({ value: d.value as string, label: d.name }));
+  const experienceLevelOptions = apiExperienceLevels.map(e => ({ value: e.value as string, label: e.name }));
 
   // Projects loaded from API
   const [projectsData, setProjectsData] = useState<Project[]>([]);
@@ -252,35 +245,21 @@ const FreelanceMarketplace = () => {
     setCategoryFilter('all');
   };
 
-  const filteredProjects = projects.filter((project) => {
-    const lowerSearch = searchQuery.toLowerCase().trim();
-    const matchesSearch =
-      !lowerSearch ||
-      project.title.toLowerCase().includes(lowerSearch) ||
-      project.description.toLowerCase().includes(lowerSearch) ||
-      project.skills.some((skill) => skill.toLowerCase().includes(lowerSearch));
-
-    const matchesSkill =
-      selectedSkills.length === 0 ||
-      project.skills.includes(selectedSkills[0]);
-
-    const matchesCategory =
-      categoryFilter === 'all' || project.category === categoryFilter;
-
-    const matchesExperience =
-      experienceFilter === 'all' || project.experienceLevel === experienceFilter;
-
-    return matchesSearch && matchesSkill && matchesCategory && matchesExperience;
-  });
+  // Reset to page 1 whenever any filter/search/sort changes
+  useEffect(() => {
+    setPageNumber(1);
+  }, [searchQuery, categoryFilter, experienceFilter, selectedSkills, sortBy]);
 
   // Fetch projects from API when filters/sort/search/page change
   useEffect(() => {
     let mounted = true;
     const fetchProjects = async () => {
       setLoadingProjects(true);
+      setProjectsData([]);
       try {
         const params: any = {
           Search: searchQuery || undefined,
+          // Send the API value directly (numeric/enum), not the display name
           Category: categoryFilter !== 'all' ? categoryFilter : undefined,
           ExperienceLevel: experienceFilter !== 'all' ? experienceFilter : undefined,
           Skill: selectedSkills.length > 0 ? selectedSkills[0] : undefined,
@@ -290,20 +269,20 @@ const FreelanceMarketplace = () => {
         };
         const res = await getProjects(params);
         if (!mounted) return;
-        
-        // Store pagination metadata
+
         setHasNext(res.hasNext);
         setHasPrev(res.hasPrev);
         setTotalPages(res.totalPages);
-        
-        // Map API items to Project shape used in the component
+
         const mapped = res.items.map((it) => ({
           id: String(it.id),
           title: it.title,
           description: it.description,
           client: {
             name: it.clientName || `Client ${it.clientId}`,
-            avatar: it.clientImageUrl ? 'https://nextcoder.runasp.net/' + it.clientImageUrl : `https://ui-avatars.com/api/?name=${encodeURIComponent(it.clientName || 'C')}&background=7c3aed&color=fff&size=128`,
+            avatar: it.clientImageUrl
+              ? 'https://nextcoder.runasp.net/' + it.clientImageUrl
+              : `https://ui-avatars.com/api/?name=${encodeURIComponent(it.clientName || 'C')}&background=7c3aed&color=fff&size=128`,
             rating: it.clientRate ?? 0,
             reviewCount: it.clientTotalProjects ?? 0,
             verified: false,
@@ -317,12 +296,11 @@ const FreelanceMarketplace = () => {
           postedDate: new Date(it.createdAt).toLocaleDateString(),
           category: it.categoryName,
           experienceLevel: (it.experienceLevelName as Project['experienceLevel']) || 'Intermediate',
-          projectType: it.budget ? 'Fixed Price' as const : 'Fixed Price' as const,
+          projectType: 'Fixed Price' as const,
         }));
 
         setProjectsData(mapped);
       } catch (err) {
-        // leave sample data as fallback
         console.error('Failed to load projects', err);
       } finally {
         if (mounted) setLoadingProjects(false);
@@ -332,10 +310,6 @@ const FreelanceMarketplace = () => {
     fetchProjects();
     return () => { mounted = false; };
   }, [searchQuery, categoryFilter, experienceFilter, selectedSkills, sortBy, pageNumber, pageSize]);
-
-  // Server returns projects already filtered/sorted. Use them directly.
-  const featuredProjects = filteredProjects.filter((p) => p.featured);
-  const regularProjects = filteredProjects.filter((p) => !p.featured);
 
   const activeFiltersCount = [
     selectedSkills.length > 0,
@@ -347,28 +321,16 @@ const FreelanceMarketplace = () => {
     return `$${budget.min.toLocaleString()}`;
   };
 
-  const addRequirement = () => {
-    setRequirements([...requirements, '']);
-  };
-
-  const removeRequirement = (index: number) => {
-    setRequirements(requirements.filter((_, i) => i !== index));
-  };
-
+  const addRequirement = () => setRequirements([...requirements, '']);
+  const removeRequirement = (index: number) => setRequirements(requirements.filter((_, i) => i !== index));
   const updateRequirement = (index: number, value: string) => {
     const updated = [...requirements];
     updated[index] = value;
     setRequirements(updated);
   };
 
-  const addDeliverable = () => {
-    setDeliverables([...deliverables, '']);
-  };
-
-  const removeDeliverable = (index: number) => {
-    setDeliverables(deliverables.filter((_, i) => i !== index));
-  };
-
+  const addDeliverable = () => setDeliverables([...deliverables, '']);
+  const removeDeliverable = (index: number) => setDeliverables(deliverables.filter((_, i) => i !== index));
   const updateDeliverable = (index: number, value: string) => {
     const updated = [...deliverables];
     updated[index] = value;
@@ -381,25 +343,33 @@ const FreelanceMarketplace = () => {
   };
 
   const handleNextPage = () => {
-    if (hasNext) {
-      setPageNumber(prev => prev + 1);
-    }
+    if (hasNext) setPageNumber(prev => prev + 1);
   };
 
   const handlePreviousPage = () => {
-    if (hasPrev) {
-      setPageNumber(prev => prev - 1);
-    }
+    if (hasPrev) setPageNumber(prev => prev - 1);
   };
 
   return (
     <div className={`min-h-screen ${isLightMode ? 'bg-gray-50' : 'bg-[#1a1f37]'}`}>
       <Navbar />
-      {/* Complaint Modal */}
       {selectedClient && (
-        <ComplaintModal isOpen={showComplaintModal} onClose={() => { setShowComplaintModal(false); setSelectedClient(null); }} targetName={selectedClient.name} targetAvatar={selectedClient.avatar} targetType="client" />
+        <ComplaintModal
+          isOpen={showComplaintModal}
+          onClose={() => { setShowComplaintModal(false); setSelectedClient(null); }}
+          targetName={selectedClient.name}
+          targetAvatar={selectedClient.avatar}
+          targetType="client"
+        />
       )}
-      <RoleGateModal isOpen={showRoleGateModal} onClose={() => setShowRoleGateModal(false)} requiredRole="client" roleLabel="Client" actionLabel={t('marketplace.postProject')} onRoleAdded={() => setShowPostModal(true)} />
+      <RoleGateModal
+        isOpen={showRoleGateModal}
+        onClose={() => setShowRoleGateModal(false)}
+        requiredRole="client"
+        roleLabel="Client"
+        actionLabel={t('marketplace.postProject')}
+        onRoleAdded={() => setShowPostModal(true)}
+      />
 
       <div className="pt-28 pb-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
@@ -421,7 +391,10 @@ const FreelanceMarketplace = () => {
                   <p className={`text-xs sm:text-sm ${isLightMode ? 'text-gray-500' : 'text-gray-300'}`}>{t('marketplace.haveProjectSubtitle')}</p>
                 </div>
               </div>
-              <button onClick={handlePostProject} className="w-full md:w-auto px-4 sm:px-6 py-2.5 sm:py-3 bg-purple-500 text-white text-sm font-semibold rounded-lg hover:bg-purple-600 transition-colors whitespace-nowrap cursor-pointer flex items-center justify-center gap-2">
+              <button
+                onClick={handlePostProject}
+                className="w-full md:w-auto px-4 sm:px-6 py-2.5 sm:py-3 bg-purple-500 text-white text-sm font-semibold rounded-lg hover:bg-purple-600 transition-colors whitespace-nowrap cursor-pointer flex items-center justify-center gap-2"
+              >
                 <i className="ri-add-line"></i>{t('marketplace.postProject')}
               </button>
             </div>
@@ -432,7 +405,10 @@ const FreelanceMarketplace = () => {
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
               <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowPostModal(false)}></div>
               <div className={`relative rounded-2xl border p-6 sm:p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto ${isLightMode ? 'bg-white border-gray-200' : 'bg-[#1e2442] border-white/10'}`}>
-                <button onClick={() => setShowPostModal(false)} className={`absolute top-4 right-4 w-8 h-8 flex items-center justify-center cursor-pointer ${isLightMode ? 'text-gray-400 hover:text-gray-800' : 'text-gray-400 hover:text-white'}`}>
+                <button
+                  onClick={() => setShowPostModal(false)}
+                  className={`absolute top-4 right-4 w-8 h-8 flex items-center justify-center cursor-pointer ${isLightMode ? 'text-gray-400 hover:text-gray-800' : 'text-gray-400 hover:text-white'}`}
+                >
                   <i className="ri-close-line text-xl"></i>
                 </button>
                 <div className="text-center mb-6">
@@ -457,22 +433,50 @@ const FreelanceMarketplace = () => {
                   )}
                   <div>
                     <label className={`block font-medium mb-2 ${isLightMode ? 'text-gray-700' : 'text-white'}`}>{t('marketplace.projectTitle')}</label>
-                    <input type="text" value={projectTitle} onChange={(e) => setProjectTitle(e.target.value)} placeholder={t('marketplace.projectTitlePlaceholder')} className={`w-full border rounded-lg px-4 py-3 focus:outline-none focus:border-purple-500 ${isLightMode ? 'bg-gray-100 border-gray-200 text-gray-900 placeholder-gray-400' : 'bg-white/5 border-white/10 text-white placeholder-gray-500'}`} />
+                    <input
+                      type="text"
+                      value={projectTitle}
+                      onChange={(e) => setProjectTitle(e.target.value)}
+                      placeholder={t('marketplace.projectTitlePlaceholder')}
+                      className={`w-full border rounded-lg px-4 py-3 focus:outline-none focus:border-purple-500 ${isLightMode ? 'bg-gray-100 border-gray-200 text-gray-900 placeholder-gray-400' : 'bg-white/5 border-white/10 text-white placeholder-gray-500'}`}
+                    />
                   </div>
                   <div>
                     <label className={`block font-medium mb-2 ${isLightMode ? 'text-gray-700' : 'text-white'}`}>{t('marketplace.description')}</label>
-                    <textarea rows={4} value={projectDescription} onChange={(e) => setProjectDescription(e.target.value)} placeholder={t('marketplace.descriptionPlaceholder')} className={`w-full border rounded-lg px-4 py-3 focus:outline-none focus:border-purple-500 resize-none ${isLightMode ? 'bg-gray-100 border-gray-200 text-gray-900 placeholder-gray-400' : 'bg-white/5 border-white/10 text-white placeholder-gray-500'}`}></textarea>
+                    <textarea
+                      rows={4}
+                      value={projectDescription}
+                      onChange={(e) => setProjectDescription(e.target.value)}
+                      placeholder={t('marketplace.descriptionPlaceholder')}
+                      className={`w-full border rounded-lg px-4 py-3 focus:outline-none focus:border-purple-500 resize-none ${isLightMode ? 'bg-gray-100 border-gray-200 text-gray-900 placeholder-gray-400' : 'bg-white/5 border-white/10 text-white placeholder-gray-500'}`}
+                    ></textarea>
                   </div>
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <label className={`block font-medium ${isLightMode ? 'text-gray-700' : 'text-white'}`}>{t('marketplace.requirements')}</label>
-                      <button type="button" onClick={addRequirement} className="flex items-center gap-1 text-purple-500 hover:text-purple-400 text-sm cursor-pointer whitespace-nowrap"><i className="ri-add-line"></i>{t('marketplace.addRequirement')}</button>
+                      <button type="button" onClick={addRequirement} className="flex items-center gap-1 text-purple-500 hover:text-purple-400 text-sm cursor-pointer whitespace-nowrap">
+                        <i className="ri-add-line"></i>{t('marketplace.addRequirement')}
+                      </button>
                     </div>
                     <div className="space-y-2">
                       {requirements.map((req, index) => (
                         <div key={index} className="flex gap-2">
-                          <input type="text" value={req} onChange={(e) => updateRequirement(index, e.target.value)} placeholder={`Requirement ${index + 1}`} className={`flex-1 border rounded-lg px-4 py-2.5 focus:outline-none focus:border-purple-500 ${isLightMode ? 'bg-gray-100 border-gray-200 text-gray-900 placeholder-gray-400' : 'bg-white/5 border-white/10 text-white placeholder-gray-500'}`} />
-                          {requirements.length > 1 && <button type="button" onClick={() => removeRequirement(index)} className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"><i className="ri-delete-bin-line"></i></button>}
+                          <input
+                            type="text"
+                            value={req}
+                            onChange={(e) => updateRequirement(index, e.target.value)}
+                            placeholder={`Requirement ${index + 1}`}
+                            className={`flex-1 border rounded-lg px-4 py-2.5 focus:outline-none focus:border-purple-500 ${isLightMode ? 'bg-gray-100 border-gray-200 text-gray-900 placeholder-gray-400' : 'bg-white/5 border-white/10 text-white placeholder-gray-500'}`}
+                          />
+                          {requirements.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeRequirement(index)}
+                              className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
+                            >
+                              <i className="ri-delete-bin-line"></i>
+                            </button>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -480,13 +484,29 @@ const FreelanceMarketplace = () => {
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <label className={`block font-medium ${isLightMode ? 'text-gray-700' : 'text-white'}`}>{t('marketplace.deliverables')}</label>
-                      <button type="button" onClick={addDeliverable} className="flex items-center gap-1 text-purple-500 hover:text-purple-400 text-sm cursor-pointer whitespace-nowrap"><i className="ri-add-line"></i>{t('marketplace.addDeliverable')}</button>
+                      <button type="button" onClick={addDeliverable} className="flex items-center gap-1 text-purple-500 hover:text-purple-400 text-sm cursor-pointer whitespace-nowrap">
+                        <i className="ri-add-line"></i>{t('marketplace.addDeliverable')}
+                      </button>
                     </div>
                     <div className="space-y-2">
                       {deliverables.map((del, index) => (
                         <div key={index} className="flex gap-2">
-                          <input type="text" value={del} onChange={(e) => updateDeliverable(index, e.target.value)} placeholder={`Deliverable ${index + 1}`} className={`flex-1 border rounded-lg px-4 py-2.5 focus:outline-none focus:border-purple-500 ${isLightMode ? 'bg-gray-100 border-gray-200 text-gray-900 placeholder-gray-400' : 'bg-white/5 border-white/10 text-white placeholder-gray-500'}`} />
-                          {deliverables.length > 1 && <button type="button" onClick={() => removeDeliverable(index)} className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"><i className="ri-delete-bin-line"></i></button>}
+                          <input
+                            type="text"
+                            value={del}
+                            onChange={(e) => updateDeliverable(index, e.target.value)}
+                            placeholder={`Deliverable ${index + 1}`}
+                            className={`flex-1 border rounded-lg px-4 py-2.5 focus:outline-none focus:border-purple-500 ${isLightMode ? 'bg-gray-100 border-gray-200 text-gray-900 placeholder-gray-400' : 'bg-white/5 border-white/10 text-white placeholder-gray-500'}`}
+                          />
+                          {deliverables.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeDeliverable(index)}
+                              className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
+                            >
+                              <i className="ri-delete-bin-line"></i>
+                            </button>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -494,23 +514,52 @@ const FreelanceMarketplace = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className={`block font-medium mb-2 ${isLightMode ? 'text-gray-700' : 'text-white'}`}>{t('marketplace.category')}</label>
-                      <CustomSelect value={projectCategory} onChange={(val) => setProjectCategory(val as string)} options={categoryOptions} placeholder={t('marketplace.allCategories')} />
+                      <CustomSelect
+                        value={projectCategory}
+                        onChange={(val) => setProjectCategory(val as string)}
+                        options={categoryOptions}
+                        placeholder={t('marketplace.allCategories')}
+                      />
                     </div>
                     <div>
                       <label className={`block font-medium mb-2 ${isLightMode ? 'text-gray-700' : 'text-white'}`}>{t('marketplace.experienceLevel')}</label>
-                      <CustomSelect value={projectExperience} onChange={(val) => setProjectExperience(val as string)} options={experienceLevelOptions} placeholder="Select level" />
+                      <CustomSelect
+                        value={projectExperience}
+                        onChange={(val) => setProjectExperience(val as string)}
+                        options={experienceLevelOptions}
+                        placeholder="Select level"
+                      />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className={`block font-medium mb-2 ${isLightMode ? 'text-gray-700' : 'text-white'}`}>{t('marketplace.budget')}</label>
-                      <input type="number" value={projectBudget} onChange={(e) => setProjectBudget(e.target.value)} placeholder="1000" min="0" className={`w-full border rounded-lg px-4 py-3 focus:outline-none focus:border-purple-500 ${isLightMode ? 'bg-gray-100 border-gray-200 text-gray-900 placeholder-gray-400' : 'bg-white/5 border-white/10 text-white placeholder-gray-500'}`} />
+                      <input
+                        type="number"
+                        value={projectBudget}
+                        onChange={(e) => setProjectBudget(e.target.value)}
+                        placeholder="1000"
+                        min="0"
+                        className={`w-full border rounded-lg px-4 py-3 focus:outline-none focus:border-purple-500 ${isLightMode ? 'bg-gray-100 border-gray-200 text-gray-900 placeholder-gray-400' : 'bg-white/5 border-white/10 text-white placeholder-gray-500'}`}
+                      />
                     </div>
                     <div>
                       <label className={`block font-medium mb-2 ${isLightMode ? 'text-gray-700' : 'text-white'}`}>{t('marketplace.duration')}</label>
                       <div className="flex gap-2">
-                        <input type="number" value={projectDuration} onChange={(e) => setProjectDuration(e.target.value)} placeholder="2" min="0" className={`flex-1 border rounded-lg px-4 py-3 focus:outline-none focus:border-purple-500 ${isLightMode ? 'bg-gray-100 border-gray-200 text-gray-900 placeholder-gray-400' : 'bg-white/5 border-white/10 text-white placeholder-gray-500'}`} />
-                        <CustomSelect value={projectDurationType} onChange={(val) => setProjectDurationType(val as string)} options={durationTypeOptions} placeholder="Type" />
+                        <input
+                          type="number"
+                          value={projectDuration}
+                          onChange={(e) => setProjectDuration(e.target.value)}
+                          placeholder="2"
+                          min="0"
+                          className={`flex-1 border rounded-lg px-4 py-3 focus:outline-none focus:border-purple-500 ${isLightMode ? 'bg-gray-100 border-gray-200 text-gray-900 placeholder-gray-400' : 'bg-white/5 border-white/10 text-white placeholder-gray-500'}`}
+                        />
+                        <CustomSelect
+                          value={projectDurationType}
+                          onChange={(val) => setProjectDurationType(val as string)}
+                          options={durationTypeOptions}
+                          placeholder="Type"
+                        />
                       </div>
                     </div>
                   </div>
@@ -538,7 +587,14 @@ const FreelanceMarketplace = () => {
                     {/* Suggestion chips */}
                     <div className="flex flex-wrap gap-2 mb-3">
                       {allSkills.filter(s => !projectSkills.includes(s)).map((skill) => (
-                        <button key={skill} type="button" onClick={() => toggleProjectSkill(skill)} className={`px-3 py-1.5 text-sm rounded-lg transition-colors cursor-pointer whitespace-nowrap ${isLightMode ? 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-purple-500 hover:text-white hover:border-purple-500' : 'bg-white/5 text-gray-400 hover:bg-purple-500 hover:text-white'}`}>{skill}</button>
+                        <button
+                          key={skill}
+                          type="button"
+                          onClick={() => toggleProjectSkill(skill)}
+                          className={`px-3 py-1.5 text-sm rounded-lg transition-colors cursor-pointer whitespace-nowrap ${isLightMode ? 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-purple-500 hover:text-white hover:border-purple-500' : 'bg-white/5 text-gray-400 hover:bg-purple-500 hover:text-white'}`}
+                        >
+                          {skill}
+                        </button>
                       ))}
                     </div>
                     {/* Selected skills */}
@@ -556,8 +612,20 @@ const FreelanceMarketplace = () => {
                     )}
                   </div>
                   <div className="flex gap-3 pt-4">
-                    <button type="button" onClick={() => setShowPostModal(false)} className={`flex-1 px-5 py-3 font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${isLightMode ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' : 'bg-white/5 text-white hover:bg-white/10'}`}>{t('common.cancel')}</button>
-                    <button type="submit" disabled={isSubmittingProject} className="flex-1 px-5 py-3 bg-purple-500 text-white font-semibold rounded-lg hover:bg-purple-600 transition-colors whitespace-nowrap cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">{isSubmittingProject ? <><i className="ri-loader-4-line animate-spin"></i>Posting...</> : t('marketplace.postProject')}</button>
+                    <button
+                      type="button"
+                      onClick={() => setShowPostModal(false)}
+                      className={`flex-1 px-5 py-3 font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${isLightMode ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' : 'bg-white/5 text-white hover:bg-white/10'}`}
+                    >
+                      {t('common.cancel')}
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSubmittingProject}
+                      className="flex-1 px-5 py-3 bg-purple-500 text-white font-semibold rounded-lg hover:bg-purple-600 transition-colors whitespace-nowrap cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {isSubmittingProject ? <><i className="ri-loader-4-line animate-spin"></i>Posting...</> : t('marketplace.postProject')}
+                    </button>
                   </div>
                 </form>
               </div>
@@ -574,15 +642,37 @@ const FreelanceMarketplace = () => {
                     {t('marketplace.filters')}
                     {activeFiltersCount > 0 && <span className="px-2 py-0.5 bg-purple-500 text-white text-xs rounded-full">{activeFiltersCount}</span>}
                   </h2>
-                  {activeFiltersCount > 0 && <button onClick={clearAllFilters} className="text-xs text-purple-500 hover:text-purple-400 cursor-pointer whitespace-nowrap">{t('common.clearAll')}</button>}
+                  {activeFiltersCount > 0 && (
+                    <button onClick={clearAllFilters} className="text-xs text-purple-500 hover:text-purple-400 cursor-pointer whitespace-nowrap">
+                      {t('common.clearAll')}
+                    </button>
+                  )}
                 </div>
                 <div className="mb-5">
                   <label className={`block text-sm font-medium mb-2 ${isLightMode ? 'text-gray-700' : 'text-white'}`}>{t('marketplace.category')}</label>
-                  <CustomSelect value={categoryFilter} onChange={setCategoryFilter} options={[{ value: 'all', label: t('marketplace.allCategories') }, ...categories.map(cat => ({ value: cat, label: cat }))]} placeholder={t('marketplace.allCategories')} />
+                  {/* Use API value for filter options so the correct value is sent to the API */}
+                  <CustomSelect
+                    value={categoryFilter}
+                    onChange={setCategoryFilter}
+                    options={[
+                      { value: 'all', label: t('marketplace.allCategories') },
+                      ...apiCategories.map(c => ({ value: c.value as string, label: c.name })),
+                    ]}
+                    placeholder={t('marketplace.allCategories')}
+                  />
                 </div>
                 <div className="mb-5">
                   <label className={`block text-sm font-medium mb-2 ${isLightMode ? 'text-gray-700' : 'text-white'}`}>{t('marketplace.experienceLevel')}</label>
-                  <CustomSelect value={experienceFilter} onChange={setExperienceFilter} options={[{ value: 'all', label: t('marketplace.allLevels') }, { value: 'Entry', label: t('marketplace.entry') }, { value: 'Intermediate', label: t('marketplace.intermediate') }, { value: 'Expert', label: t('marketplace.expert') }]} placeholder={t('marketplace.allLevels')} />
+                  {/* Use API value for experience level options */}
+                  <CustomSelect
+                    value={experienceFilter}
+                    onChange={setExperienceFilter}
+                    options={[
+                      { value: 'all', label: t('marketplace.allLevels') },
+                      ...apiExperienceLevels.map(e => ({ value: e.value as string, label: e.name })),
+                    ]}
+                    placeholder={t('marketplace.allLevels')}
+                  />
                 </div>
                 <div>
                   <label className={`block text-sm font-medium mb-2 ${isLightMode ? 'text-gray-700' : 'text-white'}`}>
@@ -590,7 +680,13 @@ const FreelanceMarketplace = () => {
                   </label>
                   <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto pr-1">
                     {allSkills.map((skill) => (
-                      <button key={skill} onClick={() => toggleSkill(skill)} className={`px-2 py-1 rounded text-xs font-medium transition-all whitespace-nowrap cursor-pointer ${selectedSkills.includes(skill) ? 'bg-purple-500 text-white' : isLightMode ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'}`}>{skill}</button>
+                      <button
+                        key={skill}
+                        onClick={() => toggleSkill(skill)}
+                        className={`px-2 py-1 rounded text-xs font-medium transition-all whitespace-nowrap cursor-pointer ${selectedSkills.includes(skill) ? 'bg-purple-500 text-white' : isLightMode ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'}`}
+                      >
+                        {skill}
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -601,19 +697,36 @@ const FreelanceMarketplace = () => {
             <div className="flex-1 min-w-0">
               <div className={`backdrop-blur-sm rounded-xl border p-3 sm:p-4 mb-6 ${isLightMode ? 'bg-white border-gray-200' : 'bg-white/5 border-white/10'}`}>
                 <div className="flex flex-col gap-3 sm:gap-4">
-                  <button onClick={() => setShowFilters(!showFilters)} className={`lg:hidden flex items-center justify-center gap-2 px-4 py-2 border rounded-lg text-sm cursor-pointer whitespace-nowrap ${isLightMode ? 'bg-gray-100 border-gray-200 text-gray-700' : 'bg-white/5 border-white/10 text-white'}`}>
+                  <button
+                    onClick={() => setShowFilters(!showFilters)}
+                    className={`lg:hidden flex items-center justify-center gap-2 px-4 py-2 border rounded-lg text-sm cursor-pointer whitespace-nowrap ${isLightMode ? 'bg-gray-100 border-gray-200 text-gray-700' : 'bg-white/5 border-white/10 text-white'}`}
+                  >
                     <i className="ri-filter-3-line"></i>
                     {showFilters ? t('common.hideFilters') : t('common.showFilters')}
                     {activeFiltersCount > 0 && <span className="px-1.5 py-0.5 bg-purple-500 text-white text-xs rounded-full">{activeFiltersCount}</span>}
                   </button>
                   <div className="flex-1 relative">
                     <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm sm:text-base"></i>
-                    <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder={t('marketplace.searchPlaceholder')} className={`w-full border rounded-lg pl-9 sm:pl-10 pr-4 py-2 sm:py-2.5 focus:outline-none focus:border-purple-500 text-sm ${isLightMode ? 'bg-gray-100 border-gray-200 text-gray-900 placeholder-gray-400' : 'bg-white/5 border-white/10 text-white placeholder-gray-500'}`} />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder={t('marketplace.searchPlaceholder')}
+                      className={`w-full border rounded-lg pl-9 sm:pl-10 pr-4 py-2 sm:py-2.5 focus:outline-none focus:border-purple-500 text-sm ${isLightMode ? 'bg-gray-100 border-gray-200 text-gray-900 placeholder-gray-400' : 'bg-white/5 border-white/10 text-white placeholder-gray-500'}`}
+                    />
                   </div>
                   <div className="flex items-center gap-2 sm:gap-3">
                     <span className={`text-xs sm:text-sm whitespace-nowrap ${isLightMode ? 'text-gray-500' : 'text-gray-400'}`}>{t('marketplace.sortBy')}</span>
                     <div className="relative flex-1 sm:flex-initial sm:min-w-[160px]">
-                      <CustomSelect value={sortBy} onChange={setSortBy} options={[{ value: 'HighestBudget', label: t('marketplace.highestBudget') }, { value: 'FewerProposals', label: t('marketplace.fewestProposals') }]} placeholder="Sort by" />
+                      <CustomSelect
+                        value={sortBy}
+                        onChange={setSortBy}
+                        options={[
+                          { value: 'HighestBudget', label: t('marketplace.highestBudget') },
+                          { value: 'FewerProposals', label: t('marketplace.fewestProposals') },
+                        ]}
+                        placeholder="Sort by"
+                      />
                     </div>
                   </div>
                 </div>
@@ -621,9 +734,12 @@ const FreelanceMarketplace = () => {
 
               <div className="flex items-center justify-between mb-4">
                 <p className={`text-xs sm:text-sm ${isLightMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                  {t('marketplace.showing')} <span className={`font-semibold ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{filteredProjects.length}</span> {t('marketplace.projectsCount')}
+                  {t('marketplace.showing')} <span className={`font-semibold ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{projects.length}</span> {t('marketplace.projectsCount')}
                 </p>
-                <button onClick={() => setShowFilters(!showFilters)} className={`hidden lg:flex items-center gap-2 text-sm cursor-pointer whitespace-nowrap ${isLightMode ? 'text-gray-400 hover:text-gray-700' : 'text-gray-400 hover:text-white'}`}>
+                <button
+                  onClick={() => setShowFilters(!showFilters)}
+                  className={`hidden lg:flex items-center gap-2 text-sm cursor-pointer whitespace-nowrap ${isLightMode ? 'text-gray-400 hover:text-gray-700' : 'text-gray-400 hover:text-white'}`}
+                >
                   <i className={`ri-layout-${showFilters ? 'right' : 'left'}-2-line`}></i>
                   {showFilters ? t('marketplace.hideFilters') : t('marketplace.showFilters')}
                 </button>
@@ -634,10 +750,8 @@ const FreelanceMarketplace = () => {
                   {Array.from({ length: 4 }).map((_, i) => (
                     <div key={i} className={`rounded-xl border p-4 sm:p-5 animate-pulse ${isLightMode ? 'bg-white border-gray-200' : 'bg-white/5 border-white/10'}`}>
                       <div className="flex flex-col sm:flex-row sm:items-start gap-4">
-                        {/* Avatar skeleton */}
                         <div className={`w-12 h-12 sm:w-16 sm:h-16 rounded-xl flex-shrink-0 mx-auto sm:mx-0 ${isLightMode ? 'bg-gray-200' : 'bg-white/10'}`} />
                         <div className="flex-1 space-y-3">
-                          {/* Title + budget row */}
                           <div className="flex items-start justify-between gap-4">
                             <div className="space-y-2 flex-1">
                               <div className={`h-4 rounded w-2/3 ${isLightMode ? 'bg-gray-200' : 'bg-white/10'}`} />
@@ -645,18 +759,15 @@ const FreelanceMarketplace = () => {
                             </div>
                             <div className={`h-6 rounded w-20 ${isLightMode ? 'bg-gray-200' : 'bg-white/10'}`} />
                           </div>
-                          {/* Meta row */}
                           <div className="flex gap-3">
                             {Array.from({ length: 4 }).map((_, j) => (
                               <div key={j} className={`h-3 rounded w-16 ${isLightMode ? 'bg-gray-100' : 'bg-white/5'}`} />
                             ))}
                           </div>
-                          {/* Description */}
                           <div className="space-y-1.5">
                             <div className={`h-3 rounded w-full ${isLightMode ? 'bg-gray-100' : 'bg-white/5'}`} />
                             <div className={`h-3 rounded w-5/6 ${isLightMode ? 'bg-gray-100' : 'bg-white/5'}`} />
                           </div>
-                          {/* Skills + button row */}
                           <div className="flex items-center justify-between gap-4">
                             <div className="flex gap-1.5">
                               {Array.from({ length: 3 }).map((_, k) => (
@@ -672,32 +783,23 @@ const FreelanceMarketplace = () => {
                 </div>
               )}
 
-              {!loadingProjects && featuredProjects.length > 0 && (
-                <div className="mb-8">
-                  <div className="flex items-center gap-2 mb-4">
-                    <i className="ri-star-line text-yellow-400 text-lg sm:text-xl"></i>
-                    <h2 className={`text-lg sm:text-xl font-bold ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{t('marketplace.featuredProjects')}</h2>
-                  </div>
-                  <div className="space-y-4">
-                    {featuredProjects.map((project) => (
-                      <ProjectCard key={project.id} project={project} selectedSkills={selectedSkills} formatBudget={formatBudget} onReportClient={handleOpenComplaint} isLightMode={isLightMode} t={t} />
-                    ))}
-                  </div>
+              {!loadingProjects && projects.length > 0 && (
+                <div className="space-y-4 mb-8">
+                  {projects.map((project) => (
+                    <ProjectCard
+                      key={project.id}
+                      project={project}
+                      selectedSkills={selectedSkills}
+                      formatBudget={formatBudget}
+                      onReportClient={handleOpenComplaint}
+                      isLightMode={isLightMode}
+                      t={t}
+                    />
+                  ))}
                 </div>
               )}
 
-              {!loadingProjects && regularProjects.length > 0 && (
-                <div>
-                  {featuredProjects.length > 0 && <h2 className={`text-lg sm:text-xl font-bold mb-4 ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{t('marketplace.allProjects')}</h2>}
-                  <div className="space-y-4">
-                    {regularProjects.map((project) => (
-                      <ProjectCard key={project.id} project={project} selectedSkills={selectedSkills} formatBudget={formatBudget} onReportClient={handleOpenComplaint} isLightMode={isLightMode} t={t} />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {(featuredProjects.length > 0 || regularProjects.length > 0) && (
+              {projects.length > 0 && (
                 <div className="mt-8 flex items-center justify-center gap-2 sm:gap-4">
                   <button
                     onClick={handlePreviousPage}
@@ -713,11 +815,10 @@ const FreelanceMarketplace = () => {
                     }`}
                   >
                     <i className="ri-arrow-left-s-line"></i>
-                    <span className="hidden sm:inline"></span>
                   </button>
 
                   <div className={`px-3 sm:px-4 py-2 rounded-lg font-semibold text-sm sm:text-base ${isLightMode ? 'bg-gray-100 text-gray-900' : 'bg-white/5 text-white'}`}>
-                    {pageNumber} {'/'} {totalPages}
+                    {pageNumber} / {totalPages}
                   </div>
 
                   <button
@@ -733,20 +834,24 @@ const FreelanceMarketplace = () => {
                           : 'bg-white/5 text-gray-500 cursor-not-allowed'
                     }`}
                   >
-                    <span className="hidden sm:inline"></span>
                     <i className="ri-arrow-right-s-line"></i>
                   </button>
                 </div>
               )}
 
-              {!loadingProjects && filteredProjects.length === 0 && (
+              {!loadingProjects && projects.length === 0 && (
                 <div className={`text-center py-12 sm:py-16 rounded-xl border ${isLightMode ? 'bg-white border-gray-200' : 'bg-white/5 border-white/10'}`}>
                   <div className={`w-12 h-12 sm:w-16 sm:h-16 flex items-center justify-center rounded-full mx-auto mb-4 ${isLightMode ? 'bg-gray-100' : 'bg-white/5'}`}>
                     <i className={`ri-search-line text-2xl sm:text-3xl ${isLightMode ? 'text-gray-400' : 'text-gray-400'}`}></i>
                   </div>
                   <h3 className={`text-base sm:text-lg font-bold mb-2 ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{t('marketplace.noProjectsFound')}</h3>
                   <p className={`text-xs sm:text-sm mb-4 px-4 ${isLightMode ? 'text-gray-500' : 'text-gray-400'}`}>{t('marketplace.noProjectsSubtitle')}</p>
-                  <button onClick={clearAllFilters} className="px-4 py-2 bg-purple-500 text-white text-sm font-semibold rounded-lg hover:bg-purple-600 transition-colors cursor-pointer whitespace-nowrap">{t('marketplace.clearAllFilters')}</button>
+                  <button
+                    onClick={clearAllFilters}
+                    className="px-4 py-2 bg-purple-500 text-white text-sm font-semibold rounded-lg hover:bg-purple-600 transition-colors cursor-pointer whitespace-nowrap"
+                  >
+                    {t('marketplace.clearAllFilters')}
+                  </button>
                 </div>
               )}
             </div>
@@ -769,18 +874,15 @@ interface ProjectCardProps {
 
 const ProjectCard = ({ project, selectedSkills, formatBudget, onReportClient, isLightMode, t }: ProjectCardProps) => (
   <div className={`backdrop-blur-sm rounded-xl border p-4 sm:p-5 transition-all group ${project.featured ? isLightMode ? 'bg-yellow-50 border-yellow-300 hover:border-yellow-400' : 'border-yellow-500/50 bg-gradient-to-r from-yellow-500/5 to-transparent' : isLightMode ? 'bg-white border-gray-200 hover:border-purple-400' : 'bg-white/5 border-white/10 hover:border-purple-500/50'}`}>
-    {project.featured && (
-      <div className="flex items-center gap-2 mb-3">
-        <i className="ri-star-fill text-yellow-400 text-sm sm:text-base"></i>
-        <span className="text-yellow-500 text-xs font-semibold uppercase tracking-wide">{t('marketplace.featuredProject')}</span>
-      </div>
-    )}
     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-4">
       <div className="flex-shrink-0 mx-auto sm:mx-0 relative">
         <Link to={`/user/${project.client.appUserId}`} className="block w-12 h-12 sm:w-16 sm:h-16 rounded-xl overflow-hidden hover:ring-2 hover:ring-purple-500 transition-all cursor-pointer">
           <img src={project.client.avatar} alt={project.client.name} className="w-full h-full object-cover" />
         </Link>
-        <button onClick={() => onReportClient(project.client.name, project.client.avatar)} className={`absolute -top-1 -right-1 w-6 h-6 flex items-center justify-center border rounded-full text-gray-400 hover:text-red-400 hover:border-red-500/50 transition-all cursor-pointer opacity-0 group-hover:opacity-100 ${isLightMode ? 'bg-white border-gray-200' : 'bg-[#1a1f37] border-white/10'}`}>
+        <button
+          onClick={() => onReportClient(project.client.name, project.client.avatar)}
+          className={`absolute -top-1 -right-1 w-6 h-6 flex items-center justify-center border rounded-full text-gray-400 hover:text-red-400 hover:border-red-500/50 transition-all cursor-pointer opacity-0 group-hover:opacity-100 ${isLightMode ? 'bg-white border-gray-200' : 'bg-[#1a1f37] border-white/10'}`}
+        >
           <i className="ri-flag-line text-xs"></i>
         </button>
       </div>
@@ -790,7 +892,12 @@ const ProjectCard = ({ project, selectedSkills, formatBudget, onReportClient, is
             <h3 className={`text-base sm:text-lg font-bold group-hover:text-purple-500 transition-colors mb-1 ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{project.title}</h3>
             <div className={`flex flex-wrap items-center justify-center sm:justify-start gap-2 sm:gap-3 text-xs sm:text-sm ${isLightMode ? 'text-gray-500' : 'text-gray-400'}`}>
               <div className="flex items-center gap-1">
-                <Link to={`/user/${project.client.appUserId}`} className={`font-medium truncate max-w-[120px] sm:max-w-none hover:underline hover:text-purple-500 transition-colors ${isLightMode ? 'text-gray-700' : 'text-white'}`}>{project.client.name}</Link>
+                <Link
+                  to={`/user/${project.client.appUserId}`}
+                  className={`font-medium truncate max-w-[120px] sm:max-w-none hover:underline hover:text-purple-500 transition-colors ${isLightMode ? 'text-gray-700' : 'text-white'}`}
+                >
+                  {project.client.name}
+                </Link>
                 {project.client.verified && <i className="ri-verified-badge-fill text-blue-400"></i>}
               </div>
               <div className="flex items-center gap-1">
@@ -802,7 +909,9 @@ const ProjectCard = ({ project, selectedSkills, formatBudget, onReportClient, is
           <div className="flex items-center justify-center sm:justify-end gap-3 flex-shrink-0">
             <div className="text-center sm:text-right">
               <div className="text-lg sm:text-xl font-bold text-purple-500">{formatBudget(project.budget)}</div>
-              <div className={`text-xs ${isLightMode ? 'text-gray-400' : 'text-gray-500'}`}>{project.budget.type === 'fixed' ? t('marketplace.fixedPrice') : t('marketplace.hourlyRate')}</div>
+              <div className={`text-xs ${isLightMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                {project.budget.type === 'fixed' ? t('marketplace.fixedPrice') : t('marketplace.hourlyRate')}
+              </div>
             </div>
           </div>
         </div>
@@ -817,10 +926,18 @@ const ProjectCard = ({ project, selectedSkills, formatBudget, onReportClient, is
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
           <div className="flex flex-wrap justify-center sm:justify-start gap-1.5 flex-1">
             {project.skills.map((skill) => (
-              <span key={skill} className={`px-2 py-0.5 rounded text-xs ${selectedSkills.includes(skill) ? 'bg-purple-500/30 border border-purple-500/50 text-purple-500' : isLightMode ? 'bg-gray-100 border border-gray-200 text-gray-500' : 'bg-white/5 border border-white/10 text-gray-400'}`}>{skill}</span>
+              <span
+                key={skill}
+                className={`px-2 py-0.5 rounded text-xs ${selectedSkills.includes(skill) ? 'bg-purple-500/30 border border-purple-500/50 text-purple-500' : isLightMode ? 'bg-gray-100 border border-gray-200 text-gray-500' : 'bg-white/5 border border-white/10 text-gray-400'}`}
+              >
+                {skill}
+              </span>
             ))}
           </div>
-          <Link to={`/marketplace/${project.id}`} className="w-full sm:w-auto px-4 sm:px-5 py-2 bg-purple-500 text-white text-sm font-semibold rounded-lg hover:bg-purple-600 transition-colors whitespace-nowrap cursor-pointer flex-shrink-0 text-center">
+          <Link
+            to={`/marketplace/${project.id}`}
+            className="w-full sm:w-auto px-4 sm:px-5 py-2 bg-purple-500 text-white text-sm font-semibold rounded-lg hover:bg-purple-600 transition-colors whitespace-nowrap cursor-pointer flex-shrink-0 text-center"
+          >
             {t('marketplace.viewDetails')}
           </Link>
         </div>
