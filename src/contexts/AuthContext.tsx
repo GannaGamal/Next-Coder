@@ -13,7 +13,7 @@ interface AuthContextType {
   user: User | null;
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   loginDirectly: (user: User) => void;
-  logout: () => void;
+  logout: () => Promise<void>;
   register: (email: string, password: string, name: string, roles: UserRole[]) => Promise<void>;
   updateUser: (updates: Partial<User>) => void;
   addRole: (role: UserRole) => void;
@@ -123,6 +123,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     clearRefreshTimer();
     localStorage.removeItem('user');
     localStorage.removeItem('authToken');
+    localStorage.removeItem('refreshToken');
     setUser(null);
   };
 
@@ -196,6 +197,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
 
     if (data.token) localStorage.setItem('authToken', data.token);
+    if (data.refreshToken) localStorage.setItem('refreshToken', data.refreshToken);
 
     const normalizeRole = (r: string): UserRole => {
       const lower = r.toLowerCase().trim();
@@ -219,6 +221,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       clientId: data.clientId,
       freeLancerId: data.freeLancerId,
       refreshTokenExpiration: data.refreshTokenExpiration,
+      refreshToken: data.refreshToken ?? null,
     };
 
     localStorage.setItem('user', JSON.stringify(loggedInUser));
@@ -234,6 +237,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const loginDirectly = (newUser: User) => {
     localStorage.setItem('user', JSON.stringify(newUser));
+    if (newUser.refreshToken) {
+      localStorage.setItem('refreshToken', newUser.refreshToken);
+    }
     setUser(newUser);
     if (newUser.refreshTokenExpiration) {
       scheduleTokenRefresh(newUser.refreshTokenExpiration);
@@ -242,11 +248,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // ── Logout ─────────────────────────────────────────────────────────────────
 
-  const logout = () => {
-    const token = localStorage.getItem('authToken');
-    if (token) {
-      // Fire-and-forget — revoke on server, but don't block local logout
-      revokeToken(token);
+  const logout = async () => {
+    const accessToken = localStorage.getItem('authToken');
+    const refreshToken = localStorage.getItem('refreshToken') ?? user?.refreshToken ?? '';
+    if (accessToken && refreshToken) {
+      // RevokeToken DTO uses `token` for the refresh token value.
+      await revokeToken(accessToken, refreshToken);
     }
     doLogout();
   };

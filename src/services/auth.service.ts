@@ -15,6 +15,7 @@ export interface AuthResponse {
   email: string;
   roles: string[];
   token: string;
+  refreshToken?: string | null;
   fullName: string;
   imageUrl?: string; // User's profile image URL from the server
   userId: string;
@@ -238,7 +239,6 @@ export const refreshToken = async (): Promise<Partial<AuthResponse>> => {
     headers: {
       Authorization: `Bearer ${token}`,
     },
-    credentials: 'include', // send HTTP-only refresh token cookie if used
   };
 
   // Swagger documents GET; keep POST fallback for backend variants.
@@ -280,17 +280,19 @@ export const refreshToken = async (): Promise<Partial<AuthResponse>> => {
  * Invalidates the given token on the server (call on logout).
  * Silently ignores network errors — logout should always succeed locally.
  */
-export const revokeToken = async (token: string): Promise<void> => {
-  const authToken = localStorage.getItem('authToken') ?? '';
+export const revokeToken = async (accessToken: string, refreshToken: string): Promise<void> => {
+  if (!accessToken || !refreshToken) {
+    return;
+  }
+
   try {
     await fetch(`${API_BASE}/Auth/revokeToken`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${authToken}`,
+        Authorization: `Bearer ${accessToken}`,
       },
-      credentials: 'include',
-      body: JSON.stringify({ token }),
+      body: JSON.stringify({ token: refreshToken }),
     });
   } catch {
     // Silently ignore — logout must always succeed on the client

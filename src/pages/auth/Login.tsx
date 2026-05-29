@@ -139,6 +139,7 @@ const Login = () => {
 
       // Persist token if present
       if (data.token) localStorage.setItem('authToken', data.token);
+      if (data.refreshToken) localStorage.setItem('refreshToken', data.refreshToken);
 
       setVerifySuccess(true);
       if (cooldownRef.current) clearInterval(cooldownRef.current);

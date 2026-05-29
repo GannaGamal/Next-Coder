@@ -14,6 +14,7 @@ export interface User {
   clientId?: string | null;
   freeLancerId?: string | null;
   refreshTokenExpiration?: string | null;
+  refreshToken?: string | null;
 }
 
 export interface FreelancerProfile {

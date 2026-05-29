@@ -363,6 +363,9 @@ const Register = () => {
       if (apiUser.token) {
         localStorage.setItem('authToken', apiUser.token);
       }
+      if (apiUser.refreshToken) {
+        localStorage.setItem('refreshToken', apiUser.refreshToken);
+      }
 
       await login(formData.email.trim(), formData.password, false);
 
