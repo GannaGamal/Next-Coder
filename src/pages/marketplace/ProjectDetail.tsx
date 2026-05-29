@@ -9,8 +9,8 @@ import {
   getProjectDetails,
   submitProposal,
   getDurationTypes,
-  ProjectDetail as ProjectDetailType,
-  DurationType,
+  type ProjectDetail,
+  type DurationType,
   type LookupItem,
 } from '../../services/freelance-project.service';
 import CustomSelect from '../../components/base/CustomSelect';
@@ -213,11 +213,6 @@ const ProjectDetail = () => {
 
     // Guard against malformed budget data
     const budget = project?.budget?.amount ?? 0;
-
-    if (total > budget) {
-      alert(`Total budget cannot exceed $${budget.toLocaleString()}`);
-      return;
-    }
 
     if (
       milestones.some(
@@ -638,7 +633,7 @@ const ProjectDetail = () => {
                             {t('marketplace.totalBudget')}
                           </div>
                           <div className={`text-xs ${isLightMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                            {t('marketplace.projectBudget')}: ${project.budget.amount.toLocaleString()}
+                            {t('marketplace.projectBudget')}: ${project?.budget.amount.toLocaleString()}
                           </div>
                         </div>
                         <div className="text-2xl font-bold text-purple-400">

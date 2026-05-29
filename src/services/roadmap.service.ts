@@ -63,6 +63,73 @@ export interface PaginatedRoadmapResponse {
   meta: PaginationMeta;
 }
 
+// ─── Recommendation ───────────────────────────────────────────────────────────
+
+export interface RecommendationPayload {
+  python: number;
+  java: number;
+  cpp: number;
+  javaScript: number;
+  cSharp: number;
+  php: number;
+  ruby: number;
+  swift: number;
+  go: number;
+  rust: number;
+  softwareDevelopmentExperience: number;
+  databaseManagement: number;
+  networkingSkills: number;
+  webDevelopmentExperience: number;
+  communicationSkills: number;
+  problemSolvingAbilities: number;
+  teamworkCollaboration: number;
+  timeManagement: number;
+  adaptability: number;
+  preferences: 'Coding' | 'Design' | 'Management' | 'Research';
+  internshipExperience: boolean;
+  certificationsAndTraining: boolean;
+  leadershipExperience: boolean;
+}
+
+export interface RecommendationResult {
+  displayName: string;
+  trackName: string;
+  confidence: number;
+}
+
+export interface RecommendationResponse {
+  success: boolean;
+  recommendations: RecommendationResult[];
+}
+
+/**
+ * Submits user skill/experience data and returns ranked track recommendations.
+ * POST https://nextcoder.runasp.net/api/recommendation
+ */
+export const fetchTrackRecommendations = async (
+  payload: RecommendationPayload
+): Promise<RecommendationResult[]> => {
+  const token = localStorage.getItem('authToken');
+  const response = await fetch('https://nextcoder.runasp.net/api/recommendation', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 
+    'Authorization': `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+
+  const data: RecommendationResponse = await response.json();
+
+  if (!data.success || !Array.isArray(data.recommendations)) {
+    throw new Error('Invalid recommendation response format');
+  }
+
+  return data.recommendations;
+};
+
 // ─── In-memory cache (heavy payload — fetch once per session) ─────────────────
 
 let cachedTracks: RoadmapTrack[] | null = null;
