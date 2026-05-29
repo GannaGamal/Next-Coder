@@ -50,7 +50,11 @@ const TrackCardSkeleton = () => (
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-const BrowsePaths = () => {
+interface BrowsePathsProps {
+  onRequireRole?: () => void;
+}
+
+const BrowsePaths = ({ onRequireRole }: BrowsePathsProps) => {
   const [tracks, setTracks]                             = useState<RoadmapTrack[]>([]);
   const [loading, setLoading]                           = useState(true);
   const [error, setError]                               = useState<string | null>(null);
@@ -112,11 +116,11 @@ const BrowsePaths = () => {
   useEffect(() => { loadTracks(); }, [loadTracks]);
 
   // Load user's current enrollments to mark already-enrolled tracks
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   useEffect(() => {
+    if (!isAuthenticated || !user?.roles.includes('learner')) return;
     let active = true;
     const loadUserEnrollments = async () => {
-      if (!isAuthenticated) return;
       try {
         const data = await getUserEnrollments();
         if (!active) return;
@@ -130,7 +134,7 @@ const BrowsePaths = () => {
 
     loadUserEnrollments();
     return () => { active = false; };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user]);
 
   const handleRetry = () => { clearRoadmapCache(); loadTracks(); };
 
@@ -150,6 +154,10 @@ const BrowsePaths = () => {
   // ── Enroll ─────────────────────────────────────────────────────────────────
   const handleEnroll = useCallback(async (e: React.MouseEvent, trackName: string) => {
     e.stopPropagation(); // don't open modal
+    if (!isAuthenticated || !user?.roles.includes('learner')) {
+      onRequireRole?.();
+      return;
+    }
     if (enrollingSet.has(trackName) || enrolledSet.has(trackName)) return;
 
     setEnrollingSet(prev => new Set(prev).add(trackName));
@@ -175,7 +183,7 @@ const BrowsePaths = () => {
     } finally {
       setEnrollingSet(prev => { const s = new Set(prev); s.delete(trackName); return s; });
     }
-  }, [enrollingSet, enrolledSet]);
+  }, [enrollingSet, enrolledSet, isAuthenticated, user, onRequireRole]);
 
 
   // ── Render ─────────────────────────────────────────────────────────────────

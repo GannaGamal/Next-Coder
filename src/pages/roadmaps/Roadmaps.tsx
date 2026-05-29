@@ -168,6 +168,7 @@ const Roadmaps = () => {
   const { isAuthenticated, user } = useAuth();
 
   const [showRoleGateModal, setShowRoleGateModal] = useState(false);
+  const [roleGateIntent, setRoleGateIntent] = useState<'my-courses' | 'recommendation' | 'enroll'>('my-courses');
   const [activeTab, setActiveTab] = useState<'browse' | 'my-courses'>('browse');
 
   // ── Enrollments ──────────────────────────────────────────────────────────────
@@ -208,8 +209,9 @@ const Roadmaps = () => {
     }
   };
 
-  const checkLearnerRole = () => {
+  const checkLearnerRole = (intent: 'my-courses' | 'recommendation' | 'enroll' = 'my-courses') => {
     if (!isAuthenticated || !user?.roles.includes('learner')) {
+      setRoleGateIntent(intent);
       setShowRoleGateModal(true);
       return false;
     }
@@ -217,7 +219,7 @@ const Roadmaps = () => {
   };
 
   const handleMyCoursesClick = () => {
-    if (!checkLearnerRole()) return;
+    if (!checkLearnerRole('my-courses')) return;
     setActiveTab('my-courses');
   };
 
@@ -241,7 +243,14 @@ const Roadmaps = () => {
         requiredRole="learner"
         roleLabel="Learner"
         actionLabel="Start Learning"
-        onRoleAdded={() => { setShowRoleGateModal(false); setActiveTab('my-courses'); }}
+        onRoleAdded={() => {
+          setShowRoleGateModal(false);
+          if (roleGateIntent === 'recommendation') {
+            navigate('/roadmaps/recommendation');
+          } else {
+            setActiveTab('my-courses');
+          }
+        }}
       />
 
       {/* Hero */}
@@ -258,7 +267,7 @@ const Roadmaps = () => {
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <div
-                onClick={() => navigate('/roadmaps/recommendation')}
+                onClick={() => { if (checkLearnerRole('recommendation')) navigate('/roadmaps/recommendation'); }}
                 className="inline-flex items-center gap-4 bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-2xl px-6 py-4 cursor-pointer hover:border-purple-500/60 hover:from-purple-500/30 hover:to-pink-500/30 transition-all group"
               >
                 <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -336,7 +345,7 @@ const Roadmaps = () => {
       <section className="pb-20 px-4">
         <div className="max-w-7xl mx-auto">
           {activeTab === 'browse' ? (
-            <BrowsePaths />
+            <BrowsePaths onRequireRole={() => { setRoleGateIntent('enroll'); setShowRoleGateModal(true); }} />
           ) : (
             <>
               {/* Loading */}
