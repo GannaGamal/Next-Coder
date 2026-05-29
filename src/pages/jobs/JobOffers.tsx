@@ -23,6 +23,8 @@ interface Job {
   salary: string;
   minSalary?: number;
   maxSalary?: number;
+  minAge?: number;
+  maxAge?: number;
   experience: string;
   skills: string[];
   postedDate: string;
@@ -79,6 +81,8 @@ const JobOffers = () => {
   const [jobType, setJobType] = useState('Full-time');
   const [jobSalaryMin, setJobSalaryMin] = useState('');
   const [jobSalaryMax, setJobSalaryMax] = useState('');
+  const [jobMinAge, setJobMinAge] = useState('');
+  const [jobMaxAge, setJobMaxAge] = useState('');
   const [jobExperience, setJobExperience] = useState('Entry');
   const [jobDescription, setJobDescription] = useState('');
   const [jobSubmitted, setJobSubmitted] = useState(false);
@@ -120,9 +124,32 @@ const JobOffers = () => {
         experienceLevel: jobExperience,
         minSalary: jobSalaryMin ? Number(jobSalaryMin) : undefined,
         maxSalary: jobSalaryMax ? Number(jobSalaryMax) : undefined,
+        minAge: jobMinAge ? Number(jobMinAge) : undefined,
+        maxAge: jobMaxAge ? Number(jobMaxAge) : undefined,
         description: jobDescription.trim(),
         skillIds: mappedSkillIds,
       };
+
+      const minAgeValue = jobMinAge ? Number(jobMinAge) : undefined;
+      const maxAgeValue = jobMaxAge ? Number(jobMaxAge) : undefined;
+
+      if (typeof minAgeValue === 'number' && (!Number.isInteger(minAgeValue) || minAgeValue < 5 || minAgeValue > 100)) {
+        setJobSubmitError('Minimum age must be an integer between 5 and 100.');
+        setIsPostingJob(false);
+        return;
+      }
+
+      if (typeof maxAgeValue === 'number' && (!Number.isInteger(maxAgeValue) || maxAgeValue < 5 || maxAgeValue > 100)) {
+        setJobSubmitError('Maximum age must be an integer between 5 and 100.');
+        setIsPostingJob(false);
+        return;
+      }
+
+      if (typeof minAgeValue === 'number' && typeof maxAgeValue === 'number' && minAgeValue > maxAgeValue) {
+        setJobSubmitError('Minimum age cannot be greater than maximum age.');
+        setIsPostingJob(false);
+        return;
+      }
 
       await createJobPost(payload);
       setJobsRefreshKey((prev) => prev + 1);
@@ -136,6 +163,8 @@ const JobOffers = () => {
         setJobLocation('');
         setJobSalaryMin('');
         setJobSalaryMax('');
+        setJobMinAge('');
+        setJobMaxAge('');
         setJobDescription('');
         setJobFormSkills([]);
         setJobType('Full-time');
@@ -177,6 +206,8 @@ const JobOffers = () => {
       salary: min || max ? `$${min.toLocaleString()} - $${max.toLocaleString()}` : 'Not specified',
       minSalary: typeof item.minSalary === 'number' ? item.minSalary : undefined,
       maxSalary: typeof item.maxSalary === 'number' ? item.maxSalary : undefined,
+      minAge: typeof item.minAge === 'number' ? item.minAge : undefined,
+      maxAge: typeof item.maxAge === 'number' ? item.maxAge : undefined,
       experience: item.experienceLevel || 'Not specified',
       skills: item.skills,
       postedDate: toRelativeDate(item.createdAt),
@@ -523,6 +554,35 @@ const JobOffers = () => {
                     </div>
                   </div>
 
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className={`block font-medium mb-2 text-sm ${labelCls}`}>Min Age</label>
+                      <input
+                        type="number"
+                        min={5}
+                        max={100}
+                        step={1}
+                        value={jobMinAge}
+                        onChange={e => setJobMinAge(e.target.value)}
+                        placeholder="18"
+                        className={`w-full border rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-teal-500 ${inputCls}`}
+                      />
+                    </div>
+                    <div>
+                      <label className={`block font-medium mb-2 text-sm ${labelCls}`}>Max Age</label>
+                      <input
+                        type="number"
+                        min={5}
+                        max={100}
+                        step={1}
+                        value={jobMaxAge}
+                        onChange={e => setJobMaxAge(e.target.value)}
+                        placeholder="40"
+                        className={`w-full border rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-teal-500 ${inputCls}`}
+                      />
+                    </div>
+                  </div>
+
                   <div>
                     <label className={`block font-medium mb-2 text-sm ${labelCls}`}>{t('jobs.jobDescription')} *</label>
                     <textarea required rows={4} value={jobDescription} onChange={e => setJobDescription(e.target.value)} placeholder={t('jobs.jobDescPlaceholder')} maxLength={500} className={`w-full border rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-teal-500 resize-none ${inputCls}`} />
@@ -758,6 +818,12 @@ const JobOffers = () => {
                             <div className={`flex flex-wrap items-center justify-center sm:justify-start gap-2 sm:gap-4 text-xs sm:text-sm mb-3 ${subTextCls}`}>
                               <span className="flex items-center gap-1"><i className="ri-map-pin-line"></i>{job.location}</span>
                               <span className="flex items-center gap-1"><i className="ri-money-dollar-circle-line"></i>{job.salary}</span>
+                              {typeof job.minAge === 'number' && (
+                                <span className="flex items-center gap-1"><i className="ri-user-3-line"></i>Min Age: {job.minAge}</span>
+                              )}
+                              {typeof job.maxAge === 'number' && (
+                                <span className="flex items-center gap-1"><i className="ri-user-3-line"></i>Max Age: {job.maxAge}</span>
+                              )}
                               <span className="flex items-center gap-1"><i className="ri-briefcase-line"></i>{job.experience}</span>
                               <span className="flex items-center gap-1"><i className="ri-time-line"></i>{job.postedDate}</span>
                               <span className="flex items-center gap-1"><i className="ri-user-line"></i>{job.applicants} {t('jobs.applicants')}</span>
@@ -815,6 +881,12 @@ const JobOffers = () => {
                         <div className={`flex flex-wrap items-center justify-center sm:justify-start gap-2 sm:gap-4 text-xs sm:text-sm mb-3 ${subTextCls}`}>
                           <span className="flex items-center gap-1"><i className="ri-map-pin-line"></i>{job.location}</span>
                           <span className="flex items-center gap-1"><i className="ri-money-dollar-circle-line"></i>{job.salary}</span>
+                          {typeof job.minAge === 'number' && (
+                            <span className="flex items-center gap-1"><i className="ri-user-3-line"></i>Min Age: {job.minAge}</span>
+                          )}
+                          {typeof job.maxAge === 'number' && (
+                            <span className="flex items-center gap-1"><i className="ri-user-3-line"></i>Max Age: {job.maxAge}</span>
+                          )}
                           <span className="flex items-center gap-1"><i className="ri-briefcase-line"></i>{job.experience}</span>
                           <span className="flex items-center gap-1"><i className="ri-time-line"></i>{job.postedDate}</span>
                           <span className="flex items-center gap-1"><i className="ri-user-line"></i>{job.applicants} {t('jobs.applicants')}</span>

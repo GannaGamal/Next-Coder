@@ -25,6 +25,11 @@ export interface JobApplicationDashboardResult {
 export interface CreateJobApplicationPayload {
   jobPostId: number;
   yearsOfExperience: number;
+  Age: number;
+  Address?: string;
+  SkillsExtracted?: string;
+  EducationDetailsExtracted?: string;
+  HighestEducation?: string;
   availableStartDate?: string;
   minExpectedSalary?: number;
   maxExpectedSalary?: number;
@@ -188,6 +193,11 @@ export const createJobApplication = async (payload: CreateJobApplicationPayload)
   const query = new URLSearchParams();
   query.set('JobPostId', String(payload.jobPostId));
   query.set('YearsofExperience', String(payload.yearsOfExperience));
+  query.set('Age', String(payload.Age));
+  if (payload.Address?.trim()) query.set('Address', payload.Address.trim());
+  if (payload.SkillsExtracted?.trim()) query.set('SkillsExtracted', payload.SkillsExtracted.trim());
+  if (payload.EducationDetailsExtracted?.trim()) query.set('EducationDetailsExtracted', payload.EducationDetailsExtracted.trim());
+  if (payload.HighestEducation?.trim()) query.set('HighestEducation', payload.HighestEducation.trim());
   if (payload.availableStartDate) query.set('AvailableStartDate', payload.availableStartDate);
   if (typeof payload.minExpectedSalary === 'number') query.set('MinExpectedSalary', String(payload.minExpectedSalary));
   if (typeof payload.maxExpectedSalary === 'number') query.set('MaxExpectedSalary', String(payload.maxExpectedSalary));

@@ -21,6 +21,8 @@ export interface JobPostItem {
   employerId?: string;
   jobSeekersCount?: number;
   companyLogoUrl?: string | null;
+  minAge?: number;
+  maxAge?: number;
 }
 
 export interface GetJobPostsParams {
@@ -48,6 +50,8 @@ export interface CreateJobPostPayload {
   experienceLevel: string;
   minSalary?: number;
   maxSalary?: number;
+  minAge?: number;
+  maxAge?: number;
   description: string;
   skillIds: number[];
 }
@@ -59,6 +63,8 @@ export interface EmployerDashboardJobPostItem {
   location: string;
   minSalary?: number;
   maxSalary?: number;
+  minAge?: number;
+  maxAge?: number;
   postedDate?: string;
   status?: string;
   jobSeekersCount?: number;
@@ -245,6 +251,8 @@ export const getJobPosts = async (params: GetJobPostsParams = {}): Promise<GetJo
     const raw = item as Record<string, unknown>;
     const minSalary = Number(raw.minSalary ?? raw.MinSalary);
     const maxSalary = Number(raw.maxSalary ?? raw.MaxSalary);
+    const minAge = Number(raw.minAge ?? raw.MinAge);
+    const maxAge = Number(raw.maxAge ?? raw.MaxAge);
 
     return {
       id: Number(raw.id ?? raw.Id ?? 0),
@@ -253,6 +261,8 @@ export const getJobPosts = async (params: GetJobPostsParams = {}): Promise<GetJo
       location: String(raw.location ?? raw.Location ?? ''),
       minSalary: Number.isFinite(minSalary) ? minSalary : undefined,
       maxSalary: Number.isFinite(maxSalary) ? maxSalary : undefined,
+      minAge: Number.isFinite(minAge) ? minAge : undefined,
+      maxAge: Number.isFinite(maxAge) ? maxAge : undefined,
       jobType: String(raw.jobType ?? raw.JobType ?? ''),
       experienceLevel: String(raw.experienceLevel ?? raw.ExperienceLevel ?? ''),
       description: String(raw.description ?? raw.Description ?? ''),
@@ -296,6 +306,8 @@ export const getEmployerDashboard = async (): Promise<EmployerDashboardResult> =
       const raw = item as Record<string, unknown>;
       const minSalary = Number(raw.minSalary ?? raw.MinSalary);
       const maxSalary = Number(raw.maxSalary ?? raw.MaxSalary);
+      const minAge = Number(raw.minAge ?? raw.MinAge);
+      const maxAge = Number(raw.maxAge ?? raw.MaxAge);
 
       return {
         id: Number(raw.id ?? raw.Id ?? 0),
@@ -304,6 +316,8 @@ export const getEmployerDashboard = async (): Promise<EmployerDashboardResult> =
         location: String(raw.location ?? raw.Location ?? ''),
         minSalary: Number.isFinite(minSalary) ? minSalary : undefined,
         maxSalary: Number.isFinite(maxSalary) ? maxSalary : undefined,
+        minAge: Number.isFinite(minAge) ? minAge : undefined,
+        maxAge: Number.isFinite(maxAge) ? maxAge : undefined,
         postedDate: raw.postedDate ? String(raw.postedDate) : raw.PostedDate ? String(raw.PostedDate) : undefined,
         status: raw.status ? String(raw.status) : raw.Status ? String(raw.Status) : undefined,
         jobSeekersCount: Number(raw.jobSeekersCount ?? raw.JobSeekersCount ?? 0),

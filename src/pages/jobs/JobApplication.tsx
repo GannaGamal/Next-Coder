@@ -1,6 +1,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import CustomSelect from '../../components/base/CustomSelect';
 import Navbar from '../../components/feature/Navbar';
 import Footer from '../../components/feature/Footer';
 import { useAuth } from '../../contexts/AuthContext';
@@ -16,10 +17,20 @@ interface JobSummary {
   location: string;
   type: string;
   salary: string;
+  minAge?: number;
+  maxAge?: number;
   experience: string;
   applicants: number;
   companyLogoUrl?: string | null;
 }
+
+const highestEducationOptions = [
+  { value: 'High School', label: 'High School' },
+  { value: 'Diploma', label: 'Diploma' },
+  { value: 'Bachelors', label: 'Bachelors' },
+  { value: 'Masters', label: 'Masters' },
+  { value: 'PhD', label: 'PhD' },
+];
 
 const JobApplication = () => {
   const { user } = useAuth();
@@ -44,6 +55,11 @@ const JobApplication = () => {
     yearsExperience: '',
     minExpectedSalary: '',
     maxExpectedSalary: '',
+    age: '',
+    address: '',
+    skillsExtracted: '',
+    educationDetailsExtracted: '',
+    highestEducation: '',
   });
 
   const dashboardPath = getDashboardPathForUser(user, 'applicant');
@@ -87,6 +103,8 @@ const JobApplication = () => {
       location: item.location || 'Remote',
       type: item.jobType || 'Not specified',
       salary,
+      minAge: typeof item.minAge === 'number' ? item.minAge : undefined,
+      maxAge: typeof item.maxAge === 'number' ? item.maxAge : undefined,
       experience: item.experienceLevel || 'Not specified',
       applicants: item.jobSeekersCount ?? 0,
       companyLogoUrl: item.companyLogoUrl,
@@ -210,6 +228,12 @@ const JobApplication = () => {
       return;
     }
 
+    const age = Number(formData.age);
+    if (!Number.isFinite(age) || !Number.isInteger(age) || age <= 5) {
+      setSubmitError('Age must be a whole number greater than 5.');
+      return;
+    }
+
     const minExpectedSalary = formData.minExpectedSalary ? Number(formData.minExpectedSalary) : undefined;
     const maxExpectedSalary = formData.maxExpectedSalary ? Number(formData.maxExpectedSalary) : undefined;
 
@@ -237,6 +261,11 @@ const JobApplication = () => {
       await createJobApplication({
         jobPostId: numericJobId,
         yearsOfExperience,
+        Age: age,
+        Address: formData.address.trim() || undefined,
+        SkillsExtracted: formData.skillsExtracted.trim() || undefined,
+        EducationDetailsExtracted: formData.educationDetailsExtracted.trim() || undefined,
+        HighestEducation: formData.highestEducation || undefined,
         availableStartDate: formData.availableDate ? new Date(formData.availableDate).toISOString() : undefined,
         minExpectedSalary,
         maxExpectedSalary,
@@ -382,6 +411,18 @@ const JobApplication = () => {
                       <i className="ri-money-dollar-circle-line"></i>
                       {job.salary}
                     </span>
+                    {typeof job.minAge === 'number' && (
+                      <span className="flex items-center gap-1">
+                        <i className="ri-user-3-line"></i>
+                        Min Age: {job.minAge}
+                      </span>
+                    )}
+                    {typeof job.maxAge === 'number' && (
+                      <span className="flex items-center gap-1">
+                        <i className="ri-user-3-line"></i>
+                        Max Age: {job.maxAge}
+                      </span>
+                    )}
                     <span className="flex items-center gap-1">
                       <i className="ri-briefcase-line"></i>
                       {job.experience}
@@ -505,6 +546,23 @@ const JobApplication = () => {
                 </div>
                 <div>
                   <label className="block text-white text-sm font-medium mb-2">
+                    Age <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min={6}
+                    step={1}
+                    name="age"
+                    value={formData.age}
+                    onChange={handleInputChange}
+                    required
+                    placeholder="e.g., 25"
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                  />
+                  <p className="text-gray-500 text-xs mt-2">Age must be greater than 5.</p>
+                </div>
+                <div>
+                  <label className="block text-white text-sm font-medium mb-2">
                     Minimum Expected Salary
                   </label>
                   <input
@@ -529,6 +587,32 @@ const JobApplication = () => {
                     className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
                   />
                 </div>
+                <div>
+                  <label className="block text-white text-sm font-medium mb-2">
+                    Highest Education
+                  </label>
+                  <CustomSelect
+                    value={formData.highestEducation}
+                    onChange={(value) => setFormData((prev) => ({ ...prev, highestEducation: value }))}
+                    options={highestEducationOptions}
+                    placeholder="Select highest education"
+                    className="w-full"
+                    icon="ri-graduation-cap-line"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-white text-sm font-medium mb-2">
+                    Address
+                  </label>
+                  <input
+                    type="text"
+                    name="address"
+                    value={formData.address}
+                    onChange={handleInputChange}
+                    placeholder="Enter your address"
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                  />
+                </div>
                 <div className="sm:col-span-2">
                   <label className="block text-white text-sm font-medium mb-2">
                     Available Start Date
@@ -541,6 +625,32 @@ const JobApplication = () => {
                     min={todayLocalIso}
                     className="w-full bg-[#1a1f37] border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-purple-500 cursor-pointer"
                   />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-white text-sm font-medium mb-2">
+                    Skills Extracted
+                  </label>
+                  <textarea
+                    name="skillsExtracted"
+                    value={formData.skillsExtracted}
+                    onChange={handleInputChange}
+                    placeholder="Enter extracted skills"
+                    rows={4}
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 resize-none"
+                  ></textarea>
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-white text-sm font-medium mb-2">
+                    Education Details Extracted
+                  </label>
+                  <textarea
+                    name="educationDetailsExtracted"
+                    value={formData.educationDetailsExtracted}
+                    onChange={handleInputChange}
+                    placeholder="Enter extracted education details"
+                    rows={4}
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 resize-none"
+                  ></textarea>
                 </div>
               </div>
             </div>
