@@ -45,9 +45,13 @@ interface PublicUserData {
   portfolio?: {  id: string;
   title?: string | null;
   portfolioUrl: string;
+  coverImageUrl?: string | null;
+  jobTitleName?: string | null;
   categoryId: number;
   categoryName?: string | null;
   description?: string | null;
+  bio?: string | null;
+  freelancerProfileId?: string | null;
   uploadedAt: string; }[];
   documents?: { id: string; title: string; fileName: string; documentUrl: string; uploadedAt?: string | null; contentType?: string | null }[];
   completedWork?: { id: string; title: string; clientName: string; clientImageUrl: string; description: string; completedAt: string; rating: number; comment?: string | null; category: string }[];
@@ -104,6 +108,72 @@ const buildBaseProfile = (summary: PublicProfileSummary): PublicUserData => ({
   roadmaps: [],
   courseProjects: [],
   companies: [],
+});
+
+const buildFreelancerProfile = (
+  profile: Awaited<ReturnType<typeof getFreelancerPublicProfile>>,
+): PublicUserData => ({
+  id: profile.appUserId || profile.id,
+  name: profile.fullName,
+  avatar: profile.imageUrl || '',
+  roles: ['freelancer'],
+  skills: profile.skills ?? [],
+  rating: profile.averageRating ?? 0,
+  totalRatings: profile.totalReviews ?? 0,
+  completedProjects: profile.completedProjectsCount ?? 0,
+  location: profile.country || 'Not specified',
+  hourlyRate: profile.hourlyRate,
+  title: profile.title || '',
+  bio: profile.bio || '',
+  learningGoals: null,
+  email: profile.email || '',
+  phone: profile.phoneNumber || null,
+  linkedin: profile.websiteUrl || profile.gitHubUrl || null,
+  website: profile.websiteUrl || null,
+  gitHubUrl: profile.gitHubUrl || null,
+  experience: profile.yearsOfExperience ? `${profile.yearsOfExperience} years` : undefined,
+  education: undefined,
+  interests: [],
+  goals: null,
+  experienceLevel: null,
+  totalSpent: undefined,
+  activeProjects: undefined,
+  isAvailable: profile.isAvailable ?? true,
+  companies: [],
+  portfolio: (profile.portfolios ?? []).map((item) => ({
+    id: item.id,
+    title: item.title || 'Untitled',
+    portfolioUrl: item.coverImageUrl || item.portfolioUrl,
+    coverImageUrl: item.coverImageUrl || item.portfolioUrl,
+    jobTitleName: item.jobTitleName || item.categoryName || 'Uncategorized',
+    categoryId: item.categoryId,
+    categoryName: item.categoryName || null,
+    description: item.bio || item.description || '',
+    bio: item.bio || item.description || '',
+    freelancerProfileId: item.freelancerProfileId || profile.id,
+    uploadedAt: item.uploadedAt,
+  })),
+  documents: (profile.documents ?? []).map((document, index) => ({
+    id: document.id || String(index),
+    title: document.title || document.fileName || `Document ${index + 1}`,
+    fileName: document.fileName || document.title || `Document ${index + 1}`,
+    documentUrl: document.documentUrl || document.fileUrl || '',
+    uploadedAt: document.uploadedAt || null,
+    contentType: document.contentType || null,
+  })).filter((document) => document.documentUrl),
+  completedWork: (profile.completedProjects ?? []).map((project) => ({
+    id: project.projectId,
+    title: project.title || 'Untitled project',
+    clientName: project.clientName || 'Client',
+    clientImageUrl: project.clientImageUrl || '',
+    description: project.description || '',
+    completedAt: project.completedAt || '',
+    rating: project.rating ?? 0,
+    comment: project.comment || 'No comment provided.',
+    category: project.category || 'Project',
+  })),
+  roadmaps: [],
+  courseProjects: [],
 });
 
 const mergeRoleProfile = async (
@@ -318,7 +388,7 @@ const getRoleDisplayName = (role: string) =>
   ROLE_LABELS[role] ?? (role.charAt(0).toUpperCase() + role.slice(1));
 
 const PublicProfile = () => {
-  const { userId } = useParams<{ userId: string }>();
+  const { userId, freelancerId } = useParams<{ userId?: string; freelancerId?: string }>();
   const [searchParams] = useSearchParams();
   const [profileSummary, setProfileSummary] = useState<PublicProfileSummary | null>(null);
   const [profileUser, setProfileUser] = useState<PublicUserData | null>(null);
@@ -330,6 +400,37 @@ const PublicProfile = () => {
 
   useEffect(() => {
     let isCurrent = true;
+
+    const loadFreelancerProfile = async () => {
+      const id = String(freelancerId ?? '').trim();
+      if (!id) return false;
+
+      try {
+        setIsLoading(true);
+        const profile = await getFreelancerPublicProfile(id);
+        if (!isCurrent) return true;
+        setProfileSummary(null);
+        setProfileUser(buildFreelancerProfile(profile));
+        setActiveRole('freelancer');
+        return true;
+      } catch {
+        if (!isCurrent) return true;
+        setProfileSummary(null);
+        setProfileUser(null);
+        setActiveRole('');
+        return true;
+      } finally {
+        if (isCurrent) setIsLoading(false);
+      }
+    };
+
+    if (freelancerId) {
+      loadFreelancerProfile();
+      return () => {
+        isCurrent = false;
+      };
+    }
+
     const loadSummary = async () => {
       const id = String(userId ?? '').trim();
       if (!id) {
@@ -368,10 +469,16 @@ const PublicProfile = () => {
     return () => {
       isCurrent = false;
     };
-  }, [userId, searchParams]);
+  }, [userId, freelancerId, searchParams]);
 
   useEffect(() => {
     let isCurrent = true;
+
+    if (freelancerId) {
+      return () => {
+        isCurrent = false;
+      };
+    }
 
     const loadRoleProfile = async () => {
       if (!profileSummary || !activeRole) {
@@ -396,7 +503,7 @@ const PublicProfile = () => {
     return () => {
       isCurrent = false;
     };
-  }, [profileSummary, activeRole]);
+  }, [profileSummary, activeRole, freelancerId]);
 
   useEffect(() => {
     if(activeRole=='employer')
@@ -823,21 +930,27 @@ const PublicProfile = () => {
                 {profileUser.portfolio.map((item) => (
                   item && item.id ? (
                     <div key={item.id} className="bg-white/5 backdrop-blur-sm rounded-2xl overflow-hidden border border-white/10 hover:border-purple-500/50 transition-all">
-                      {/* PDF Preview Area */}
-                      <div className="w-full h-40 sm:h-48 bg-gradient-to-br from-purple-500/10 to-pink-500/10 border-b border-white/10 flex flex-col items-center justify-center gap-3 relative">
-                        <div className="w-16 h-16 flex items-center justify-center rounded-2xl bg-purple-500/20 border border-purple-500/30">
-                          <i className="ri-file-pdf-line text-4xl text-purple-400"></i>
-                        </div>
-                        <div className="text-center px-4">
-                          <p className="text-white text-sm font-medium truncate max-w-xs">{item.title || 'Untitled'}</p>
-                        </div>
-                        {item.portfolioUrl && (
+                      <div className="w-full h-40 sm:h-48 bg-gradient-to-br from-purple-500/10 to-pink-500/10 border-b border-white/10 overflow-hidden relative">
+                        {item.coverImageUrl || item.portfolioUrl ? (
+                          <img
+                            src={item.coverImageUrl || item.portfolioUrl}
+                            alt={item.title || 'Portfolio item'}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <div className="w-16 h-16 flex items-center justify-center rounded-2xl bg-purple-500/20 border border-purple-500/30">
+                              <i className="ri-image-line text-4xl text-purple-400"></i>
+                            </div>
+                          </div>
+                        )}
+                        {(item.portfolioUrl || item.coverImageUrl) && (
                           <a
-                            href={item.portfolioUrl}
+                            href={item.portfolioUrl || item.coverImageUrl || '#'}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 hover:bg-purple-500/30 border border-white/10 hover:border-purple-500/40 text-gray-300 hover:text-purple-300 transition-all cursor-pointer"
-                            title="Download PDF"
+                            title="Open portfolio image"
                           >
                              <i className="ri-external-link-line text-sm"></i>
                           </a>
@@ -848,12 +961,12 @@ const PublicProfile = () => {
                     <div className="p-4 sm:p-5 lg:p-6">
                       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0 mb-3">
                         <span className="px-3 py-1 bg-purple-500/20 border border-purple-500/30 rounded-lg text-purple-300 text-xs sm:text-sm font-medium">
-                          {item.categoryName || 'Uncategorized'}
+                          {item.jobTitleName || item.categoryName || 'Uncategorized'}
                         </span>
                         <span className="text-gray-400 text-xs sm:text-sm">{item.uploadedAt}</span>
                       </div>
                       <h3 className="text-lg sm:text-xl font-bold text-white mb-2">{item.title}</h3>
-                      <p className="text-sm sm:text-base text-gray-400">{item.description}</p>
+                      <p className="text-sm sm:text-base text-gray-400">{item.bio || item.description}</p>
                     </div>
                   </div>
                   ) : null

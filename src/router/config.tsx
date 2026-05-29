@@ -17,7 +17,6 @@ const LearnerProfile = lazy(() => import("../pages/profile/LearnerProfile"));
 const PublicCVs = lazy(() => import("../pages/cvs/PublicCVs"));
 const CVDetail = lazy(() => import("../pages/cvs/CVDetail"));
 const Portfolios = lazy(() => import("../pages/portfolios/Portfolios"));
-const PortfolioDetail = lazy(() => import("../pages/portfolios/PortfolioDetail"));
 const JobOffers = lazy(() => import("../pages/jobs/JobOffers"));
 const JobApplication = lazy(() => import("../pages/jobs/JobApplication"));
 const FreelanceMarketplace = lazy(() => import("../pages/marketplace/FreelanceMarketplace"));
@@ -90,6 +89,10 @@ const routes: RouteObject[] = [
     element: withAuth(<LearnerProfile />),
   },
   {
+    path: "/freelancer/profile/:freelancerId",
+    element: <PublicProfile />,
+  },
+  {
     path: "/cvs",
     element: <PublicCVs />,
   },
@@ -100,10 +103,6 @@ const routes: RouteObject[] = [
   {
     path: "/portfolios",
     element: <Portfolios />,
-  },
-  {
-    path: "/portfolio/:portfolioId",
-    element: <PortfolioDetail />,
   },
   {
     path: "/jobs",

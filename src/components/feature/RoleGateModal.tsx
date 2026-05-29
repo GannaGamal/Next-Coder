@@ -129,8 +129,8 @@ const RoleGateModal = ({ isOpen, onClose, requiredRole, roleLabel, actionLabel, 
     if (needsUpload) { setStep('upload'); } else { completeRoleAddition(); }
   };
 
-  const completeRoleAddition = () => {
-    addRole(requiredRole);
+  const completeRoleAddition = async () => {
+    await addRole(requiredRole);
     setStep('success');
     setTimeout(() => { resetState(); onClose(); if (onRoleAdded) onRoleAdded(); }, 1500);
   };

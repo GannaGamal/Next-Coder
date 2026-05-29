@@ -62,9 +62,13 @@ export interface Portoflio{
   id: string;
   title: string;
   portfolioUrl: string;
+  coverImageUrl?: string | null;
+  jobTitleName?: string | null;
   categoryId: number;
   categoryName?: string | null;
   description?: string | null;
+  bio?: string | null;
+  freelancerProfileId?: string | null;
   uploadedAt: string;
 }
 
@@ -277,10 +281,16 @@ export async function getFreelancerPublicProfile(freelancerId: string): Promise<
   for (const portfolio of returnData.portfolios as Record<string, unknown>[]) {
     portfolio.id = valueAsString(portfolio.id ?? portfolio.Id);
     portfolio.title = valueAsString(portfolio.title ?? portfolio.Title);
-    portfolio.portfolioUrl = buildAbsoluteUrl(portfolio.portfolioUrl ?? portfolio.PortfolioUrl ?? portfolio.fileUrl ?? portfolio.FileUrl);
+    portfolio.portfolioUrl = buildAbsoluteUrl(
+      portfolio.portfolioUrl ?? portfolio.PortfolioUrl ?? portfolio.fileUrl ?? portfolio.FileUrl ?? portfolio.coverImageUrl ?? portfolio.CoverImageUrl
+    );
+    portfolio.coverImageUrl = buildAbsoluteUrl(portfolio.coverImageUrl ?? portfolio.CoverImageUrl ?? portfolio.portfolioUrl ?? portfolio.PortfolioUrl);
+    portfolio.jobTitleName = valueAsString(portfolio.jobTitleName ?? portfolio.JobTitleName ?? portfolio.categoryName ?? portfolio.CategoryName) || null;
     portfolio.categoryId = valueAsNumber(portfolio.categoryId ?? portfolio.CategoryId);
     portfolio.categoryName = valueAsString(portfolio.categoryName ?? portfolio.CategoryName) || null;
     portfolio.description = valueAsString(portfolio.description ?? portfolio.Description) || null;
+    portfolio.bio = valueAsString(portfolio.bio ?? portfolio.Bio ?? portfolio.description ?? portfolio.Description) || null;
+    portfolio.freelancerProfileId = valueAsString(portfolio.freelancerProfileId ?? portfolio.FreelancerProfileId ?? portfolio.freelancerId ?? portfolio.FreelancerId) || null;
     portfolio.uploadedAt = valueAsString(portfolio.uploadedAt ?? portfolio.UploadedAt);
   }
 

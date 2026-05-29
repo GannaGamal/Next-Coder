@@ -405,7 +405,7 @@ const Navbar = () => {
 
     try {
       await assignNewRole(formData);
-      addRole(role);
+      await addRole(role);
       setShowAddRoleModal(false);
       setShowRoleManager(false);
       setShowRoleModal(false);
