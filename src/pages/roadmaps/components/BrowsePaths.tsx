@@ -382,7 +382,7 @@ const BrowsePaths = ({ onRequireRole }: BrowsePathsProps) => {
                       {/* Header row: icon + name + enrollment pill */}
                       <div className="flex items-start gap-3 mb-3">
                         <div className={`w-10 h-10 flex items-center justify-center ${accent.badge} rounded-xl flex-shrink-0`}>
-                          <i className={`ri-road-map-line text-xl ${accent.icon}`}></i>
+                          <i className={`${track.imageUrl || 'ri-road-map-line'} text-xl ${accent.icon}`}></i>
                         </div>
                         <div className="flex-1 min-w-0">
                           <h3 className="text-white font-bold text-base leading-snug">{track.displayName}</h3>

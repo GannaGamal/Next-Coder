@@ -1,458 +1,470 @@
-
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import CustomSelect from '../../../components/base/CustomSelect';
+import {
+  getAdminContentSummary,
+  getAdminContentList,
+  getAdminContentDetails,
+  deleteAdminContent,
+} from '../../../services/admin.service';
+import type {
+  AdminContentSummary,
+  AdminContentItem,
+  ContentType as ApiContentType,
+} from '../../../services/admin.service';
 
-type ContentType = 'all' | 'portfolio' | 'cv' | 'job' | 'project';
-
-interface PostedContent {
-  id: number;
-  type: 'portfolio' | 'cv' | 'job' | 'project';
-  title: string;
-  author: string;
-  authorEmail: string;
-  category: string;
-  postedDate: string;
-  status: 'active' | 'inactive' | 'pending';
-  views: number;
-  image?: string;
-}
+type FilterType = 'all' | 'portfolio' | 'cv' | 'job' | 'project';
 
 const PostedContentManagement = () => {
-  const [contentFilter, setContentFilter] = useState<ContentType>('all');
+  const [contentFilter, setContentFilter] = useState<FilterType>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedContent, setSelectedContent] = useState<PostedContent | null>(null);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  const [selectedContent, setSelectedContent] = useState<AdminContentItem | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
-  const [contents, setContents] = useState<PostedContent[]>([
-    // Portfolios
-    {
-      id: 1,
-      type: 'portfolio',
-      title: 'Creative UI/UX Design Portfolio',
-      author: 'Sarah Johnson',
-      authorEmail: 'sarah.j@email.com',
-      category: 'UI/UX Design',
-      postedDate: '2024-03-15',
-      status: 'active',
-      views: 1245,
-      image: 'https://readdy.ai/api/search-image?query=modern%20minimalist%20UI%20UX%20design%20portfolio%20showcase%20with%20clean%20interface%20mockups%20and%20creative%20digital%20artwork%20on%20gradient%20background&width=400&height=250&seq=port1&orientation=landscape',
-    },
-    {
-      id: 2,
-      type: 'portfolio',
-      title: 'Full Stack Developer Showcase',
-      author: 'Michael Chen',
-      authorEmail: 'michael.c@email.com',
-      category: 'Web Development',
-      postedDate: '2024-03-12',
-      status: 'active',
-      views: 892,
-      image: 'https://readdy.ai/api/search-image?query=professional%20web%20developer%20portfolio%20with%20code%20snippets%20and%20modern%20website%20designs%20displayed%20on%20multiple%20screens%20dark%20theme&width=400&height=250&seq=port2&orientation=landscape',
-    },
-    {
-      id: 3,
-      type: 'portfolio',
-      title: 'Brand Identity Design Collection',
-      author: 'Emily Davis',
-      authorEmail: 'emily.d@email.com',
-      category: 'Graphic Design',
-      postedDate: '2024-03-10',
-      status: 'active',
-      views: 567,
-      image: 'https://readdy.ai/api/search-image?query=brand%20identity%20design%20portfolio%20with%20logos%20business%20cards%20and%20corporate%20branding%20materials%20on%20clean%20white%20background&width=400&height=250&seq=port3&orientation=landscape',
-    },
-    // CVs
-    {
-      id: 4,
-      type: 'cv',
-      title: 'Senior Software Engineer CV',
-      author: 'David Wilson',
-      authorEmail: 'david.w@email.com',
-      category: 'Software Engineering',
-      postedDate: '2024-03-14',
-      status: 'active',
-      views: 432,
-      image: 'https://readdy.ai/api/search-image?query=professional%20resume%20CV%20document%20with%20clean%20modern%20layout%20showing%20work%20experience%20and%20skills%20on%20desk%20with%20laptop&width=400&height=250&seq=cv1&orientation=landscape',
-    },
-    {
-      id: 5,
-      type: 'cv',
-      title: 'Marketing Manager Resume',
-      author: 'Jessica Brown',
-      authorEmail: 'jessica.b@email.com',
-      category: 'Marketing',
-      postedDate: '2024-03-13',
-      status: 'active',
-      views: 321,
-      image: 'https://readdy.ai/api/search-image?query=creative%20marketing%20professional%20resume%20with%20infographic%20elements%20and%20colorful%20design%20on%20modern%20workspace&width=400&height=250&seq=cv2&orientation=landscape',
-    },
-    {
-      id: 6,
-      type: 'cv',
-      title: 'Data Scientist Profile',
-      author: 'Alex Thompson',
-      authorEmail: 'alex.t@email.com',
-      category: 'Data Science',
-      postedDate: '2024-03-11',
-      status: 'pending',
-      views: 189,
-      image: 'https://readdy.ai/api/search-image?query=data%20scientist%20resume%20with%20charts%20graphs%20and%20analytics%20visualizations%20professional%20document%20layout&width=400&height=250&seq=cv3&orientation=landscape',
-    },
-    // Jobs
-    {
-      id: 7,
-      type: 'job',
-      title: 'Senior React Developer',
-      author: 'TechCorp Inc.',
-      authorEmail: 'hr@techcorp.com',
-      category: 'Web Development',
-      postedDate: '2024-03-16',
-      status: 'active',
-      views: 2156,
-      image: 'https://readdy.ai/api/search-image?query=modern%20tech%20company%20office%20with%20developers%20working%20on%20computers%20collaborative%20workspace%20bright%20interior&width=400&height=250&seq=job1&orientation=landscape',
-    },
-    {
-      id: 8,
-      type: 'job',
-      title: 'Product Designer',
-      author: 'DesignHub Agency',
-      authorEmail: 'careers@designhub.com',
-      category: 'Design',
-      postedDate: '2024-03-15',
-      status: 'active',
-      views: 1543,
-      image: 'https://readdy.ai/api/search-image?query=creative%20design%20agency%20office%20with%20designers%20working%20on%20projects%20modern%20colorful%20workspace&width=400&height=250&seq=job2&orientation=landscape',
-    },
-    {
-      id: 9,
-      type: 'job',
-      title: 'DevOps Engineer',
-      author: 'CloudSystems Ltd.',
-      authorEmail: 'jobs@cloudsystems.com',
-      category: 'DevOps',
-      postedDate: '2024-03-14',
-      status: 'inactive',
-      views: 876,
-      image: 'https://readdy.ai/api/search-image?query=server%20room%20with%20cloud%20infrastructure%20and%20network%20equipment%20modern%20data%20center%20blue%20lighting&width=400&height=250&seq=job3&orientation=landscape',
-    },
-    // Projects
-    {
-      id: 10,
-      type: 'project',
-      title: 'E-commerce Platform Development',
-      author: 'StartupX',
-      authorEmail: 'projects@startupx.com',
-      category: 'Web Development',
-      postedDate: '2024-03-17',
-      status: 'active',
-      views: 1876,
-      image: 'https://readdy.ai/api/search-image?query=ecommerce%20website%20development%20project%20with%20shopping%20cart%20interface%20and%20product%20catalog%20on%20multiple%20devices&width=400&height=250&seq=proj1&orientation=landscape',
-    },
-    {
-      id: 11,
-      type: 'project',
-      title: 'Mobile App UI Redesign',
-      author: 'AppVentures',
-      authorEmail: 'hello@appventures.com',
-      category: 'Mobile Development',
-      postedDate: '2024-03-16',
-      status: 'active',
-      views: 1234,
-      image: 'https://readdy.ai/api/search-image?query=mobile%20app%20UI%20design%20project%20with%20smartphone%20mockups%20showing%20modern%20interface%20screens%20on%20gradient%20background&width=400&height=250&seq=proj2&orientation=landscape',
-    },
-    {
-      id: 12,
-      type: 'project',
-      title: 'AI Chatbot Integration',
-      author: 'InnovateTech',
-      authorEmail: 'contact@innovatetech.com',
-      category: 'AI/ML',
-      postedDate: '2024-03-15',
-      status: 'pending',
-      views: 654,
-      image: 'https://readdy.ai/api/search-image?query=AI%20chatbot%20interface%20with%20conversation%20bubbles%20and%20artificial%20intelligence%20visualization%20futuristic%20design&width=400&height=250&seq=proj3&orientation=landscape',
-    },
-  ]);
+  const [contentSummary, setContentSummary] = useState<AdminContentSummary | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+
+  const [contents, setContents] = useState<AdminContentItem[]>([]);
+  const [listLoading, setListLoading] = useState(true);
+  const [listError, setListError] = useState<string | null>(null);
+  const [pageNumber, setPageNumber] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const PAGE_SIZE = 10;
+  const [refreshKey, setRefreshKey] = useState(0);
+  const prevFilterRef = useRef({ search: '', filter: 'all' as FilterType });
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 400);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Load summary
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      setSummaryLoading(true);
+      setSummaryError(null);
+      try {
+        const data = await getAdminContentSummary();
+        if (active) setContentSummary(data);
+      } catch (err) {
+        if (active) setSummaryError(err instanceof Error ? err.message : 'Failed to load content summary.');
+      } finally {
+        if (active) setSummaryLoading(false);
+      }
+    };
+    load();
+    return () => { active = false; };
+  }, []);
+
+  // Load content list
+  useEffect(() => {
+    let active = true;
+
+    const prev = prevFilterRef.current;
+    const filtersChanged = prev.search !== debouncedSearch || prev.filter !== contentFilter;
+    const effectivePage = filtersChanged ? 1 : pageNumber;
+
+    if (filtersChanged) {
+      prevFilterRef.current = { search: debouncedSearch, filter: contentFilter };
+      if (pageNumber !== 1) {
+        setPageNumber(1);
+        return; // will re-run with pageNumber=1
+      }
+    }
+
+    setListLoading(true);
+    setListError(null);
+    setContents([]);
+
+    getAdminContentList({
+      Search: debouncedSearch || undefined,
+      Type: contentFilter !== 'all' ? contentFilter : undefined,
+      PageNumber: effectivePage,
+      PageSize: PAGE_SIZE,
+    })
+      .then((data) => {
+        if (!active) return;
+        setContents(data.items);
+        setTotalPages(data.totalPages);
+        setTotalCount(data.totalCount);
+      })
+      .catch((err) => {
+        if (!active) return;
+        setListError(err instanceof Error ? err.message : 'Failed to load content.');
+      })
+      .finally(() => {
+        if (active) setListLoading(false);
+      });
+
+    return () => { active = false; };
+  }, [debouncedSearch, contentFilter, pageNumber, refreshKey]);
 
   const typeOptions = [
-    { value: 'all', label: 'All Content' },
+    { value: 'all',       label: 'All Content' },
     { value: 'portfolio', label: 'Portfolios' },
-    { value: 'cv', label: 'CVs' },
-    { value: 'job', label: 'Jobs' },
-    { value: 'project', label: 'Projects' },
+    { value: 'cv',        label: 'CVs' },
+    { value: 'job',       label: 'Jobs' },
+    { value: 'project',   label: 'Projects' },
   ];
 
-  const filteredContents = contents.filter((content) => {
-    const matchesType = contentFilter === 'all' || content.type === contentFilter;
-    const matchesSearch =
-      searchQuery === '' ||
-      content.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      content.author.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesType && matchesSearch;
-  });
-
-  const handleDelete = (content: PostedContent) => {
-    setSelectedContent(content);
-    setShowDeleteModal(true);
-  };
-
-  const confirmDelete = () => {
-    if (selectedContent) {
-      setContents(contents.filter((c) => c.id !== selectedContent.id));
-      setShowDeleteModal(false);
-      setSelectedContent(null);
+  const handleViewDetails = async (item: AdminContentItem) => {
+    setShowDetailModal(true);
+    setDetailLoading(true);
+    setSelectedContent(item);
+    try {
+      const detail = await getAdminContentDetails(item.type.toLowerCase() as ApiContentType, item.contentId);
+      setSelectedContent(detail);
+    } catch {
+      // keep the list-level data if detail fetch fails
+    } finally {
+      setDetailLoading(false);
     }
   };
 
-  const viewDetails = (content: PostedContent) => {
-    setSelectedContent(content);
-    setShowDetailModal(true);
+  const handleDelete = (item: AdminContentItem) => {
+    setSelectedContent(item);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!selectedContent) return;
+    setDeleteLoading(true);
+    try {
+      await deleteAdminContent(selectedContent.type.toLowerCase() as ApiContentType, selectedContent.contentId);
+      setShowDeleteModal(false);
+      setShowDetailModal(false);
+      setSelectedContent(null);
+      setRefreshKey((k) => k + 1);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to delete content.');
+    } finally {
+      setDeleteLoading(false);
+    }
   };
 
   const getTypeIcon = (type: string) => {
-    switch (type) {
-      case 'portfolio':
-        return 'ri-gallery-line';
-      case 'cv':
-        return 'ri-file-user-line';
-      case 'job':
-        return 'ri-briefcase-line';
-      case 'project':
-        return 'ri-folder-open-line';
-      default:
-        return 'ri-file-line';
+    switch (type.toLowerCase()) {
+      case 'portfolio': return 'ri-gallery-line';
+      case 'cv':        return 'ri-file-user-line';
+      case 'job':       return 'ri-briefcase-line';
+      case 'project':   return 'ri-folder-open-line';
+      default:          return 'ri-file-line';
     }
   };
 
   const getTypeColor = (type: string) => {
-    switch (type) {
-      case 'portfolio':
-        return 'from-pink-500 to-rose-600';
-      case 'cv':
-        return 'from-teal-500 to-cyan-600';
-      case 'job':
-        return 'from-amber-500 to-orange-600';
-      case 'project':
-        return 'from-indigo-500 to-violet-600';
-      default:
-        return 'from-gray-500 to-gray-600';
+    switch (type.toLowerCase()) {
+      case 'portfolio': return 'from-pink-500 to-rose-600';
+      case 'cv':        return 'from-teal-500 to-cyan-600';
+      case 'job':       return 'from-amber-500 to-orange-600';
+      case 'project':   return 'from-indigo-500 to-violet-600';
+      default:          return 'from-gray-500 to-gray-600';
     }
   };
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'active':
-        return 'bg-green-500/20 text-green-400';
-      case 'inactive':
-        return 'bg-gray-500/20 text-gray-400';
-      case 'pending':
-        return 'bg-orange-500/20 text-orange-400';
-      default:
-        return 'bg-gray-500/20 text-gray-400';
+    switch (status.toLowerCase()) {
+      case 'active':    return 'bg-green-500/20 text-green-400';
+      case 'inactive':  return 'bg-gray-500/20 text-gray-400';
+      case 'completed': return 'bg-blue-500/20 text-blue-400';
+      case 'pending':   return 'bg-orange-500/20 text-orange-400';
+      case 'inprogress': return 'bg-yellow-500/20 text-yellow-400';
+      case 'rejected':  return 'bg-red-500/20 text-red-400';
+      default:          return 'bg-gray-500/20 text-gray-400';
     }
   };
 
-  const getContentCounts = () => {
-    return {
-      all: contents.length,
-      portfolio: contents.filter((c) => c.type === 'portfolio').length,
-      cv: contents.filter((c) => c.type === 'cv').length,
-      job: contents.filter((c) => c.type === 'job').length,
-      project: contents.filter((c) => c.type === 'project').length,
-    };
+  const formatDate = (iso: string) => {
+    try { return new Date(iso).toLocaleDateString(); }
+    catch { return iso; }
   };
 
-  const counts = getContentCounts();
+  const summaryStats = contentSummary
+    ? [
+        { id: 1, label: 'Total',      value: contentSummary.total.toLocaleString(),      icon: 'ri-stack-line',       color: 'from-teal-500 to-teal-600' },
+        { id: 2, label: 'Portfolios', value: contentSummary.portfolios.toLocaleString(), icon: 'ri-gallery-line',     color: 'from-pink-500 to-rose-600' },
+        { id: 3, label: 'CVs',        value: contentSummary.cVs.toLocaleString(),        icon: 'ri-file-user-line',   color: 'from-teal-500 to-cyan-600' },
+        { id: 4, label: 'Jobs',       value: contentSummary.jobs.toLocaleString(),       icon: 'ri-briefcase-line',   color: 'from-amber-500 to-orange-600' },
+        { id: 5, label: 'Projects',   value: contentSummary.projects.toLocaleString(),   icon: 'ri-folder-open-line', color: 'from-indigo-500 to-violet-600' },
+      ]
+    : [];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
+
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-        <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-teal-500 to-teal-600 flex items-center justify-center">
-              <i className="ri-stack-line text-xl text-white"></i>
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-white">{counts.all}</p>
-              <p className="text-xs text-white/60">Total</p>
-            </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        {summaryLoading ? (
+          Array.from({ length: 5 }).map((_, i) => (
+            <div key={`summary-skeleton-${i}`} className="h-24 rounded-xl border border-white/10 bg-white/5 animate-pulse" />
+          ))
+        ) : summaryError ? (
+          <div className="col-span-2 sm:col-span-3 lg:col-span-5 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-red-200">
+            <p className="text-sm font-semibold">{summaryError}</p>
           </div>
-        </div>
-        <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-pink-500 to-rose-600 flex items-center justify-center">
-              <i className="ri-gallery-line text-xl text-white"></i>
+        ) : (
+          summaryStats.map((stat) => (
+            <div key={stat.id} className="bg-white/5 backdrop-blur-sm rounded-xl p-3 sm:p-4 border border-white/10">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-gradient-to-br ${stat.color} flex items-center justify-center flex-shrink-0`}>
+                  <i className={`${stat.icon} text-lg sm:text-xl text-white`}></i>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xl sm:text-2xl font-bold text-white leading-none">{stat.value}</p>
+                  <p className="text-xs text-white/60 mt-0.5 truncate">{stat.label}</p>
+                </div>
+              </div>
             </div>
-            <div>
-              <p className="text-2xl font-bold text-white">{counts.portfolio}</p>
-              <p className="text-xs text-white/60">Portfolios</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center">
-              <i className="ri-file-user-line text-xl text-white"></i>
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-white">{counts.cv}</p>
-              <p className="text-xs text-white/60">CVs</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
-              <i className="ri-briefcase-line text-xl text-white"></i>
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-white">{counts.job}</p>
-              <p className="text-xs text-white/60">Jobs</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center">
-              <i className="ri-folder-open-line text-xl text-white"></i>
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-white">{counts.project}</p>
-              <p className="text-xs text-white/60">Projects</p>
-            </div>
-          </div>
-        </div>
+          ))
+        )}
       </div>
 
       {/* Filters */}
-      <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 sm:p-6 border border-white/10">
-        <div className="flex flex-col sm:flex-row gap-4">
+      <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
+        <div className="flex flex-col sm:flex-row gap-3">
           <div className="flex-1">
-            <label className="block text-white/60 text-sm mb-2">Search</label>
+            <label className="block text-white/60 text-xs mb-1.5">Search</label>
             <div className="relative">
-              <i className="ri-search-line absolute left-4 top-1/2 -translate-y-1/2 text-white/40"></i>
+              <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-white/40 text-sm"></i>
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search by title or author..."
-                className="w-full pl-11 pr-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-teal-500 text-sm"
+                className="w-full pl-9 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-teal-500 text-sm"
               />
             </div>
           </div>
-          <div className="w-full sm:w-48">
-            <label className="block text-white/60 text-sm mb-2">Filter by Type</label>
+          <div className="w-full sm:w-44">
+            <label className="block text-white/60 text-xs mb-1.5">Filter by Type</label>
             <CustomSelect
               options={typeOptions}
               value={contentFilter}
-              onChange={(value) => setContentFilter(value as ContentType)}
+              onChange={(value) => setContentFilter(value as FilterType)}
               placeholder="Select type"
             />
           </div>
         </div>
       </div>
 
-      {/* Content Table */}
+      {/* Content — cards on mobile, table on md+ */}
       <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 overflow-hidden">
-        <div className="overflow-x-auto">
+
+        {/* Mobile card list */}
+        <div className="md:hidden">
+          {listLoading ? (
+            Array.from({ length: PAGE_SIZE }).map((_, i) => (
+              <div key={`skeleton-${i}`} className="p-4 border-b border-white/5">
+                <div className="h-14 rounded-lg bg-white/5 animate-pulse" />
+              </div>
+            ))
+          ) : listError ? (
+            <div className="p-8 text-center text-red-400 text-sm">{listError}</div>
+          ) : contents.length === 0 ? (
+            <div className="p-12 text-center">
+              <i className="ri-file-search-line text-5xl text-white/20 mb-3 block"></i>
+              <p className="text-white/40 text-sm">No content found</p>
+            </div>
+          ) : (
+            contents.map((content) => (
+              <div key={`${content.type}-${content.contentId}`} className="p-4 border-b border-white/5 flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${getTypeColor(content.type)} flex items-center justify-center flex-shrink-0`}>
+                  <i className={`${getTypeIcon(content.type)} text-white text-sm`}></i>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white font-semibold text-sm truncate">{content.title}</p>
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                    <span className="text-white/40 text-xs">{content.authorName}</span>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${getStatusBadge(content.status)}`}>
+                      {content.status}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <button
+                    onClick={() => handleViewDetails(content)}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 text-white/60 hover:text-white hover:bg-white/20 transition-all"
+                  >
+                    <i className="ri-eye-line text-sm"></i>
+                  </button>
+                  <button
+                    onClick={() => handleDelete(content)}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all"
+                  >
+                    <i className="ri-delete-bin-line text-sm"></i>
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Desktop table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-white/10">
-                <th className="text-left px-4 sm:px-6 py-4 text-white/60 text-sm font-semibold">Content</th>
-                <th className="text-left px-4 sm:px-6 py-4 text-white/60 text-sm font-semibold hidden md:table-cell">Type</th>
-                <th className="text-left px-4 sm:px-6 py-4 text-white/60 text-sm font-semibold hidden lg:table-cell">Author</th>
-                <th className="text-left px-4 sm:px-6 py-4 text-white/60 text-sm font-semibold hidden sm:table-cell">Status</th>
-                <th className="text-left px-4 sm:px-6 py-4 text-white/60 text-sm font-semibold hidden lg:table-cell">Views</th>
-                <th className="text-left px-4 sm:px-6 py-4 text-white/60 text-sm font-semibold hidden xl:table-cell">Posted</th>
-                <th className="text-right px-4 sm:px-6 py-4 text-white/60 text-sm font-semibold">Actions</th>
+                <th className="text-left px-5 py-4 text-white/60 text-sm font-semibold">Content</th>
+                <th className="text-left px-5 py-4 text-white/60 text-sm font-semibold">Type</th>
+                <th className="text-left px-5 py-4 text-white/60 text-sm font-semibold hidden lg:table-cell">Author</th>
+                <th className="text-left px-5 py-4 text-white/60 text-sm font-semibold">Status</th>
+                <th className="text-left px-5 py-4 text-white/60 text-sm font-semibold hidden xl:table-cell">Posted</th>
+                <th className="text-right px-5 py-4 text-white/60 text-sm font-semibold">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filteredContents.map((content) => (
-                <tr key={content.id} className="border-b border-white/5 hover:bg-white/5 transition-all">
-                  <td className="px-4 sm:px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0">
-                        <img
-                          src={content.image}
-                          alt={content.title}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-white font-semibold text-sm truncate max-w-[200px]">{content.title}</p>
-                        <p className="text-white/40 text-xs md:hidden capitalize">{content.type}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 sm:px-6 py-4 hidden md:table-cell">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${getTypeColor(content.type)} flex items-center justify-center`}>
-                        <i className={`${getTypeIcon(content.type)} text-white text-sm`}></i>
-                      </div>
-                      <span className="text-white/80 text-sm capitalize">{content.type}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 sm:px-6 py-4 hidden lg:table-cell">
-                    <div>
-                      <p className="text-white text-sm">{content.author}</p>
-                      <p className="text-white/40 text-xs">{content.authorEmail}</p>
-                    </div>
-                  </td>
-                  <td className="px-4 sm:px-6 py-4 hidden sm:table-cell">
-                    <span className={`px-3 py-1 rounded-full text-xs font-semibold capitalize ${getStatusBadge(content.status)}`}>
-                      {content.status}
-                    </span>
-                  </td>
-                  <td className="px-4 sm:px-6 py-4 hidden lg:table-cell">
-                    <div className="flex items-center gap-1 text-white/60 text-sm">
-                      <i className="ri-eye-line"></i>
-                      <span>{content.views.toLocaleString()}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 sm:px-6 py-4 hidden xl:table-cell">
-                    <span className="text-white/60 text-sm">{content.postedDate}</span>
-                  </td>
-                  <td className="px-4 sm:px-6 py-4">
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => viewDetails(content)}
-                        className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 text-white/60 hover:text-white hover:bg-white/20 transition-all cursor-pointer"
-                        title="View Details"
-                      >
-                        <i className="ri-eye-line"></i>
-                      </button>
-                      <button
-                        onClick={() => handleDelete(content)}
-                        className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all cursor-pointer"
-                        title="Delete"
-                      >
-                        <i className="ri-delete-bin-line"></i>
-                      </button>
-                    </div>
+              {listLoading ? (
+                Array.from({ length: PAGE_SIZE }).map((_, i) => (
+                  <tr key={`skeleton-${i}`} className="border-b border-white/5">
+                    <td colSpan={6} className="px-5 py-4">
+                      <div className="h-10 rounded-lg bg-white/5 animate-pulse" />
+                    </td>
+                  </tr>
+                ))
+              ) : listError ? (
+                <tr>
+                  <td colSpan={6} className="px-5 py-8 text-center text-red-400 text-sm">{listError}</td>
+                </tr>
+              ) : contents.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="p-12 text-center">
+                    <i className="ri-file-search-line text-5xl text-white/20 mb-3 block"></i>
+                    <p className="text-white/40 text-sm">No content found</p>
                   </td>
                 </tr>
-              ))}
+              ) : (
+                contents.map((content) => (
+                  <tr key={`${content.type}-${content.contentId}`} className="border-b border-white/5 hover:bg-white/5 transition-all">
+                    <td className="px-5 py-4 max-w-[220px]">
+                      <p className="text-white font-semibold text-sm truncate">{content.title}</p>
+                    </td>
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-7 h-7 rounded-lg bg-gradient-to-br ${getTypeColor(content.type)} flex items-center justify-center flex-shrink-0`}>
+                          <i className={`${getTypeIcon(content.type)} text-white text-xs`}></i>
+                        </div>
+                        <span className="text-white/80 text-sm">{content.type}</span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-4 hidden lg:table-cell">
+                      <p className="text-white text-sm">{content.authorName}</p>
+                      <p className="text-white/40 text-xs truncate max-w-[180px]">{content.authorEmail}</p>
+                    </td>
+                    <td className="px-5 py-4">
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${getStatusBadge(content.status)}`}>
+                        {content.status}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4 hidden xl:table-cell">
+                      <span className="text-white/60 text-sm">{formatDate(content.postedAt)}</span>
+                    </td>
+                    <td className="px-5 py-4">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => handleViewDetails(content)}
+                          className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 text-white/60 hover:text-white hover:bg-white/20 transition-all cursor-pointer"
+                          title="View Details"
+                        >
+                          <i className="ri-eye-line"></i>
+                        </button>
+                        <button
+                          onClick={() => handleDelete(content)}
+                          className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all cursor-pointer"
+                          title="Delete"
+                        >
+                          <i className="ri-delete-bin-line"></i>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
 
-        {filteredContents.length === 0 && (
-          <div className="p-12 text-center">
-            <i className="ri-file-search-line text-5xl text-white/20 mb-4 block"></i>
-            <p className="text-white/40">No content found</p>
+        {/* Pagination */}
+        {!listLoading && !listError && totalPages > 1 && (
+          <div className="px-4 py-3 border-t border-white/10 flex items-center justify-between gap-4">
+            <p className="text-white/40 text-xs sm:text-sm">{totalCount.toLocaleString()} items</p>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setPageNumber(1)}
+                disabled={pageNumber === 1}
+                className="w-8 h-8 hidden sm:flex items-center justify-center rounded-lg bg-white/10 text-white/60 hover:text-white hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-xs"
+                title="First page"
+              >
+                <i className="ri-skip-left-line"></i>
+              </button>
+              <button
+                onClick={() => setPageNumber((p) => Math.max(1, p - 1))}
+                disabled={pageNumber === 1}
+                className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 text-white/60 hover:text-white hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              >
+                <i className="ri-arrow-left-s-line"></i>
+              </button>
+              <div className="flex items-center gap-1 px-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter((p) => p === 1 || p === totalPages || Math.abs(p - pageNumber) <= 1)
+                  .reduce<(number | '...')[]>((acc, p, idx, arr) => {
+                    if (idx > 0 && typeof arr[idx - 1] === 'number' && (p as number) - (arr[idx - 1] as number) > 1) {
+                      acc.push('...');
+                    }
+                    acc.push(p);
+                    return acc;
+                  }, [])
+                  .map((p, idx) =>
+                    p === '...' ? (
+                      <span key={`ellipsis-${idx}`} className="w-8 h-8 flex items-center justify-center text-white/40 text-sm">…</span>
+                    ) : (
+                      <button
+                        key={p}
+                        onClick={() => setPageNumber(p as number)}
+                        className={`w-8 h-8 flex items-center justify-center rounded-lg text-sm font-medium transition-all ${
+                          pageNumber === p
+                            ? 'bg-teal-500 text-white'
+                            : 'bg-white/10 text-white/60 hover:text-white hover:bg-white/20'
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    )
+                  )}
+              </div>
+              <button
+                onClick={() => setPageNumber((p) => Math.min(totalPages, p + 1))}
+                disabled={pageNumber === totalPages}
+                className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 text-white/60 hover:text-white hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              >
+                <i className="ri-arrow-right-s-line"></i>
+              </button>
+              <button
+                onClick={() => setPageNumber(totalPages)}
+                disabled={pageNumber === totalPages}
+                className="w-8 h-8 hidden sm:flex items-center justify-center rounded-lg bg-white/10 text-white/60 hover:text-white hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-xs"
+                title="Last page"
+              >
+                <i className="ri-skip-right-line"></i>
+              </button>
+            </div>
           </div>
         )}
       </div>
 
       {/* Detail Modal */}
-      {showDetailModal && selectedContent && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1a1f37] rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto border border-white/10">
-            <div className="p-4 sm:p-6 border-b border-white/10 flex items-center justify-between">
-              <h3 className="text-xl font-bold text-white">Content Details</h3>
+      {showDetailModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-[#1a1f37] rounded-t-2xl sm:rounded-xl w-full sm:max-w-lg max-h-[90vh] overflow-y-auto border border-white/10">
+            <div className="p-4 border-b border-white/10 flex items-center justify-between sticky top-0 bg-[#1a1f37] z-10">
+              <h3 className="text-lg font-bold text-white">Content Details</h3>
               <button
                 onClick={() => setShowDetailModal(false)}
                 className="w-8 h-8 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition-all cursor-pointer"
@@ -461,92 +473,86 @@ const PostedContentManagement = () => {
               </button>
             </div>
 
-            <div className="p-4 sm:p-6 space-y-4">
-              <div className="aspect-video rounded-lg overflow-hidden">
-                <img
-                  src={selectedContent.image}
-                  alt={selectedContent.title}
-                  className="w-full h-full object-cover"
-                />
+            {detailLoading ? (
+              <div className="p-12 flex items-center justify-center">
+                <i className="ri-loader-4-line text-3xl text-white/40 animate-spin"></i>
               </div>
-
-              <div className="flex items-start gap-3">
-                <div className={`w-12 h-12 rounded-lg bg-gradient-to-br ${getTypeColor(selectedContent.type)} flex items-center justify-center flex-shrink-0`}>
-                  <i className={`${getTypeIcon(selectedContent.type)} text-2xl text-white`}></i>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h4 className="text-lg font-bold text-white mb-1">{selectedContent.title}</h4>
-                  <div className="flex items-center gap-2">
-                    <span className="text-white/60 text-sm capitalize">{selectedContent.type}</span>
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${getStatusBadge(selectedContent.status)}`}>
-                      {selectedContent.status}
-                    </span>
+            ) : selectedContent ? (
+              <div className="p-4 space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className={`w-11 h-11 rounded-lg bg-gradient-to-br ${getTypeColor(selectedContent.type)} flex items-center justify-center flex-shrink-0`}>
+                    <i className={`${getTypeIcon(selectedContent.type)} text-xl text-white`}></i>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-base font-bold text-white mb-1 break-words">{selectedContent.title}</h4>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-white/60 text-sm">{selectedContent.type}</span>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${getStatusBadge(selectedContent.status)}`}>
+                        {selectedContent.status}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-white/5 rounded-lg p-3">
-                  <p className="text-white/40 text-xs mb-1">Author</p>
-                  <p className="text-white text-sm font-semibold">{selectedContent.author}</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-white/5 rounded-lg p-3">
+                    <p className="text-white/40 text-xs mb-1">Author</p>
+                    <p className="text-white text-sm font-semibold break-words">{selectedContent.authorName}</p>
+                  </div>
+                  <div className="bg-white/5 rounded-lg p-3">
+                    <p className="text-white/40 text-xs mb-1">Type</p>
+                    <p className="text-white text-sm font-semibold">{selectedContent.type}</p>
+                  </div>
+                  <div className="bg-white/5 rounded-lg p-3 col-span-2">
+                    <p className="text-white/40 text-xs mb-1">Posted Date</p>
+                    <p className="text-white text-sm font-semibold">{formatDate(selectedContent.postedAt)}</p>
+                  </div>
                 </div>
-                <div className="bg-white/5 rounded-lg p-3">
-                  <p className="text-white/40 text-xs mb-1">Category</p>
-                  <p className="text-white text-sm font-semibold">{selectedContent.category}</p>
-                </div>
-                <div className="bg-white/5 rounded-lg p-3">
-                  <p className="text-white/40 text-xs mb-1">Views</p>
-                  <p className="text-white text-sm font-semibold">{selectedContent.views.toLocaleString()}</p>
-                </div>
-                <div className="bg-white/5 rounded-lg p-3">
-                  <p className="text-white/40 text-xs mb-1">Posted Date</p>
-                  <p className="text-white text-sm font-semibold">{selectedContent.postedDate}</p>
-                </div>
-              </div>
 
-              <div className="bg-white/5 rounded-lg p-3">
-                <p className="text-white/40 text-xs mb-1">Author Email</p>
-                <p className="text-white text-sm font-semibold">{selectedContent.authorEmail}</p>
-              </div>
+                <div className="bg-white/5 rounded-lg p-3">
+                  <p className="text-white/40 text-xs mb-1">Author Email</p>
+                  <p className="text-white text-sm font-semibold break-all">{selectedContent.authorEmail}</p>
+                </div>
 
-              <button
-                onClick={() => {
-                  setShowDetailModal(false);
-                  handleDelete(selectedContent);
-                }}
-                className="w-full py-3 bg-red-500/20 text-red-400 border border-red-500/50 rounded-lg font-semibold hover:bg-red-500/30 transition-all cursor-pointer whitespace-nowrap"
-              >
-                <i className="ri-delete-bin-line mr-2"></i>
-                Delete Content
-              </button>
-            </div>
+                <button
+                  onClick={() => { setShowDetailModal(false); handleDelete(selectedContent); }}
+                  className="w-full py-3 bg-red-500/20 text-red-400 border border-red-500/50 rounded-lg font-semibold hover:bg-red-500/30 transition-all cursor-pointer text-sm"
+                >
+                  <i className="ri-delete-bin-line mr-2"></i>
+                  Delete Content
+                </button>
+              </div>
+            ) : null}
           </div>
         </div>
       )}
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && selectedContent && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1a1f37] rounded-xl max-w-md w-full border border-white/10">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-[#1a1f37] rounded-t-2xl sm:rounded-xl w-full sm:max-w-md border border-white/10">
             <div className="p-6 text-center">
-              <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-4">
-                <i className="ri-delete-bin-line text-3xl text-red-400"></i>
+              <div className="w-14 h-14 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-4">
+                <i className="ri-delete-bin-line text-2xl text-red-400"></i>
               </div>
-              <h3 className="text-xl font-bold text-white mb-2">Delete Content?</h3>
+              <h3 className="text-lg font-bold text-white mb-2">Delete Content?</h3>
               <p className="text-white/60 text-sm mb-6">
-                Are you sure you want to delete "<span className="text-white">{selectedContent.title}</span>"? This action cannot be undone.
+                Are you sure you want to delete "<span className="text-white break-words">{selectedContent.title}</span>"? This action cannot be undone.
               </p>
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowDeleteModal(false)}
-                  className="flex-1 py-3 bg-white/10 text-white rounded-lg font-semibold hover:bg-white/20 transition-all cursor-pointer whitespace-nowrap"
+                  disabled={deleteLoading}
+                  className="flex-1 py-3 bg-white/10 text-white rounded-lg font-semibold hover:bg-white/20 transition-all cursor-pointer disabled:opacity-50 text-sm"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={confirmDelete}
-                  className="flex-1 py-3 bg-red-500 text-white rounded-lg font-semibold hover:bg-red-600 transition-all cursor-pointer whitespace-nowrap"
+                  disabled={deleteLoading}
+                  className="flex-1 py-3 bg-red-500 text-white rounded-lg font-semibold hover:bg-red-600 transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
                 >
+                  {deleteLoading && <i className="ri-loader-4-line animate-spin"></i>}
                   Delete
                 </button>
               </div>
