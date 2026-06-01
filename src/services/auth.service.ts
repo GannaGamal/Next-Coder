@@ -234,14 +234,12 @@ export const resetPassword = async (payload: ResetPasswordPayload): Promise<void
  * Throws on failure.
  */
 export const refreshToken = async (): Promise<Partial<AuthResponse>> => {
-  const token = localStorage.getItem('refreshToken') ?? '';
-  // Swagger documents GET; keep POST fallback for backend variants.
-  let response = await fetch(`${API_BASE}/Auth/refreshToken`, {
+  const response = await fetch(`${API_BASE}/Auth/refreshToken`, {
     method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+    },
   });
 
   if (!response.ok) {
@@ -249,12 +247,7 @@ export const refreshToken = async (): Promise<Partial<AuthResponse>> => {
     throw new Error(message);
   }
 
-  const rawText = await response.text();
-  try {
-    return JSON.parse(rawText) as Partial<AuthResponse>;
-  } catch {
-    return {};
-  }
+  return (await response.json()) as Partial<AuthResponse>;
 };
 
 // ─────────────────────────────────────────────

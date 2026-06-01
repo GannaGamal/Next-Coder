@@ -63,6 +63,59 @@ const getInitials = (name: string) =>
     .map((part) => part[0]?.toUpperCase())
     .join('') || 'NC';
 
+const CATEGORY_MAPPING: Record<string, { name: string; icon: string; tracks: string[] }> = {
+  languages: {
+    name: 'Languages',
+    icon: 'ri-code-line',
+    tracks: ['python', 'javascript', 'typescript', 'java', 'cpp', 'rust', 'php', 'sql'],
+  },
+  frontend: {
+    name: 'Frontend',
+    icon: 'ri-layout-grid-line',
+    tracks: ['react', 'angular', 'vue', 'frontend', 'design-system', 'ux-design'],
+  },
+  mobile: {
+    name: 'Mobile',
+    icon: 'ri-smartphone-line',
+    tracks: ['android', 'ios', 'flutter', 'react-native'],
+  },
+  backend: {
+    name: 'Backend',
+    icon: 'ri-server-line',
+    tracks: ['backend', 'nodejs', 'spring-boot', 'aspnet-core', 'graphql', 'api-design'],
+  },
+  databases: {
+    name: 'Databases',
+    icon: 'ri-database-2-line',
+    tracks: ['postgresql-dba', 'mongodb', 'redis'],
+  },
+  'devops-cloud': {
+    name: 'DevOps & Cloud',
+    icon: 'ri-cloud-line',
+    tracks: ['devops', 'aws', 'kubernetes', 'terraform', 'cloudflare', 'linux'],
+  },
+  'ai-data': {
+    name: 'AI & Data',
+    icon: 'ri-lightbulb-flash-line',
+    tracks: ['ai-agents', 'ai-data-scientist', 'ai-engineer', 'ai-red-teaming', 'mlops', 'data-analyst'],
+  },
+  'cs-fundamentals': {
+    name: 'CS Fundamentals',
+    icon: 'ri-function-line',
+    tracks: ['computer-science', 'datastructures-and-algorithms', 'software-design-architecture', 'system-design', 'software-architect'],
+  },
+  specialized: {
+    name: 'Specialized',
+    icon: 'ri-vip-crown-line',
+    tracks: ['blockchain', 'cyber-security', 'game-developer', 'server-side-game-developer', 'git-github'],
+  },
+  roles: {
+    name: 'Roles & Soft Skills',
+    icon: 'ri-team-line',
+    tracks: ['engineering-manager', 'product-manager', 'devrel', 'technical-writer', 'qa', 'full-stack'],
+  },
+};
+
 const mapAchievement = (achievement: CommunityAchievement, likedProjects: Set<number>): Achievement => ({
   id: String(achievement.projectId),
   projectId: achievement.projectId,
@@ -130,20 +183,23 @@ const Achievements = () => {
   }, []);
 
   const categoryFilters = useMemo(() => {
-    const tracks = Array.from(new Set(achievements.map((achievement) => achievement.trackCategory).filter(Boolean)));
     return [
       { id: 'all', name: 'All Tracks', icon: 'ri-apps-line' },
-      ...tracks.map((track) => ({
-        id: track,
-        name: formatTrackName(track),
-        icon: 'ri-road-map-line',
+      ...Object.entries(CATEGORY_MAPPING).map(([key, value]) => ({
+        id: key,
+        name: value.name,
+        icon: value.icon,
       })),
     ];
-  }, [achievements]);
+  }, []);
 
   const filteredAchievements = achievements
     .filter((a) => {
-      const matchesCategory = selectedCategory === 'all' || a.trackCategory === selectedCategory;
+      const matchesCategory = selectedCategory === 'all' 
+        ? true 
+        : CATEGORY_MAPPING[selectedCategory]?.tracks.some(
+            (track) => a.trackCategory.toLowerCase() === track.toLowerCase()
+          ) ?? false;
       const matchesSearch =
         a.projectTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
         a.learner.name.toLowerCase().includes(searchQuery.toLowerCase()) ||

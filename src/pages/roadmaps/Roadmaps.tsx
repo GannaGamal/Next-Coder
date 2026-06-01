@@ -310,9 +310,7 @@ const Roadmaps = () => {
                 className={`px-6 py-2.5 rounded-full text-sm font-semibold transition-all cursor-pointer whitespace-nowrap ${activeTab === 'my-courses' ? 'bg-purple-500 text-white' : 'text-white/60 hover:text-white'}`}
               >
                 <i className="ri-book-mark-line mr-2"></i>{t('roadmaps.myCourses')}
-                {enrollments.length > 0 && (
-                  <span className="ml-2 bg-white/20 px-2 py-0.5 rounded-full text-xs">{enrollments.length}</span>
-                )}
+               
               </button>
             </div>
           </div>

@@ -27,6 +27,61 @@ const getAccent = (name: string) => {
   return ACCENT_COLORS[Math.abs(hash) % ACCENT_COLORS.length];
 };
 
+// ─── Category Mapping ───────────────────────────────────────────────────────
+
+const CATEGORY_MAPPING: Record<string, { name: string; icon: string; tracks: string[] }> = {
+  languages: {
+    name: 'Languages',
+    icon: 'ri-code-line',
+    tracks: ['python', 'javascript', 'typescript', 'java', 'cpp', 'rust', 'php', 'sql'],
+  },
+  frontend: {
+    name: 'Frontend',
+    icon: 'ri-layout-grid-line',
+    tracks: ['react', 'angular', 'vue', 'frontend', 'design-system', 'ux-design'],
+  },
+  mobile: {
+    name: 'Mobile',
+    icon: 'ri-smartphone-line',
+    tracks: ['android', 'ios', 'flutter', 'react-native'],
+  },
+  backend: {
+    name: 'Backend',
+    icon: 'ri-server-line',
+    tracks: ['backend', 'nodejs', 'spring-boot', 'aspnet-core', 'graphql', 'api-design'],
+  },
+  databases: {
+    name: 'Databases',
+    icon: 'ri-database-2-line',
+    tracks: ['postgresql-dba', 'mongodb', 'redis'],
+  },
+  'devops-cloud': {
+    name: 'DevOps & Cloud',
+    icon: 'ri-cloud-line',
+    tracks: ['devops', 'aws', 'kubernetes', 'terraform', 'cloudflare', 'linux'],
+  },
+  'ai-data': {
+    name: 'AI & Data',
+    icon: 'ri-lightbulb-flash-line',
+    tracks: ['ai-agents', 'ai-data-scientist', 'ai-engineer', 'ai-red-teaming', 'mlops', 'data-analyst'],
+  },
+  'cs-fundamentals': {
+    name: 'CS Fundamentals',
+    icon: 'ri-function-line',
+    tracks: ['computer-science', 'datastructures-and-algorithms', 'software-design-architecture', 'system-design', 'software-architect'],
+  },
+  specialized: {
+    name: 'Specialized',
+    icon: 'ri-vip-crown-line',
+    tracks: ['blockchain', 'cyber-security', 'game-developer', 'server-side-game-developer', 'git-github'],
+  },
+  roles: {
+    name: 'Roles & Soft Skills',
+    icon: 'ri-team-line',
+    tracks: ['engineering-manager', 'product-manager', 'devrel', 'technical-writer', 'qa', 'full-stack'],
+  },
+};
+
 // ─── Skeleton ────────────────────────────────────────────────────────────────
 
 const TrackCardSkeleton = () => (
@@ -59,6 +114,7 @@ const BrowsePaths = ({ onRequireRole }: BrowsePathsProps) => {
   const [loading, setLoading]                           = useState(true);
   const [error, setError]                               = useState<string | null>(null);
   const [searchQuery, setSearchQuery]                   = useState('');
+  const [selectedCategory, setSelectedCategory]        = useState('all');
   const [selectedTrack, setSelectedTrack]               = useState<RoadmapTrack | null>(null);
   
   // Pagination states
@@ -86,34 +142,63 @@ const BrowsePaths = ({ onRequireRole }: BrowsePathsProps) => {
       setPageNumber(1); // reset to first page on new search
     }
     try {
-      const result = await fetchRoadmapTracksWithPagination(pageNumber, pageSize, searchQuery);
-      if(searchQuery.trim()) {
-         let newTracks;
-         for (const track of result.tracks) {
-          const curr = await fetchRoadmapTrackbyname(track.trackName);
-          newTracks = [...(newTracks ?? []), curr];
+      if (selectedCategory !== 'all' && !searchQuery.trim()) {
+        const categoryTrackNames = CATEGORY_MAPPING[selectedCategory]?.tracks ?? [];
+        const settled = await Promise.allSettled(
+          categoryTrackNames.map((name) => fetchRoadmapTrackbyname(name))
+        );
+        const fetchedTracks = settled
+          .filter((result): result is PromiseFulfilledResult<RoadmapTrack> => result.status === 'fulfilled')
+          .map((result) => result.value);
+        setTracks(fetchedTracks);
+        setHasNext(false);
+        setHasPrev(false);
+        setTotalPages(1);
+
+        const enrollCountMap = new Map<string, number>();
+        fetchedTracks.forEach((t) => enrollCountMap.set(t.trackName, t.enrolledUsersCount));
+        setEnrollCounts(enrollCountMap);
+      } else {
+        const result = await fetchRoadmapTracksWithPagination(pageNumber, pageSize, searchQuery);
+        if (searchQuery.trim()) {
+          let newTracks: RoadmapTrack[] | undefined;
+          for (const track of result.tracks) {
+            const curr = await fetchRoadmapTrackbyname(track.trackName);
+            newTracks = [...(newTracks ?? []), curr];
+          }
+          setTracks(newTracks ?? []);
+        } else {
+          setTracks(result.tracks);
         }
-        setTracks(newTracks ?? []);
+        setHasNext(result.hasNext);
+        setHasPrev(result.hasPrev);
+        setTotalPages(result.totalPages);
+
+        const enrollCountMap = new Map<string, number>();
+        result.tracks.forEach((t) => {
+          enrollCountMap.set(t.trackName, t.enrolledUsersCount);
+        });
+        setEnrollCounts(enrollCountMap);
       }
-      else setTracks(result.tracks);
-      setHasNext(result.hasNext);
-      setHasPrev(result.hasPrev);
-      setTotalPages(result.totalPages);
-      
-      // Use enrolledUsersCount directly from the API response instead of fetching separately
-      const enrollCountMap = new Map<string, number>();
-      result.tracks.forEach(t => {
-        enrollCountMap.set(t.trackName, t.enrolledUsersCount);
-      });
-      setEnrollCounts(enrollCountMap);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'We could not load roadmap tracks right now. Please try again.');
     } finally {
       setLoading(false);
     }
-  }, [pageNumber, pageSize,searchQuery]);
+  }, [pageNumber, pageSize, searchQuery, selectedCategory]);
 
   useEffect(() => { loadTracks(); }, [loadTracks]);
+
+  const categoryFilters = useMemo(() => {
+    return [
+      { id: 'all', name: 'All Tracks', icon: 'ri-apps-line' },
+      ...Object.entries(CATEGORY_MAPPING).map(([key, value]) => ({
+        id: key,
+        name: value.name,
+        icon: value.icon,
+      })),
+    ];
+  }, []);
 
   // Load user's current enrollments to mark already-enrolled tracks
   const { isAuthenticated, user } = useAuth();
@@ -135,6 +220,17 @@ const BrowsePaths = ({ onRequireRole }: BrowsePathsProps) => {
     loadUserEnrollments();
     return () => { active = false; };
   }, [isAuthenticated, user]);
+
+  const filteredTracks = useMemo(() => {
+    return tracks.filter((track) => {
+      const matchesCategory = selectedCategory === 'all' 
+        ? true 
+        : CATEGORY_MAPPING[selectedCategory]?.tracks.some(
+            (catTrack) => track.trackName.toLowerCase() === catTrack.toLowerCase()
+          ) ?? false;
+      return matchesCategory;
+    });
+  }, [tracks, selectedCategory]);
 
   const handleRetry = () => { clearRoadmapCache(); loadTracks(); };
 
@@ -189,6 +285,29 @@ const BrowsePaths = ({ onRequireRole }: BrowsePathsProps) => {
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <>
+      {/* Category Pills */}
+      {!error && (
+        <div className="flex flex-wrap gap-3 mb-6 justify-center">
+          {categoryFilters.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => {
+                setSelectedCategory(cat.id);
+                setPageNumber(1);
+              }}
+              className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all cursor-pointer whitespace-nowrap ${
+                selectedCategory === cat.id
+                  ? 'bg-purple-500 text-white'
+                  : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'
+              }`}
+            >
+              <i className={cat.icon}></i>
+              {cat.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Search + refresh */}
       <div className="flex flex-col md:flex-row gap-4 mb-8">
         <div className="flex-1 relative">
@@ -235,17 +354,17 @@ const BrowsePaths = ({ onRequireRole }: BrowsePathsProps) => {
       {/* Track grid */}
       {!loading && !error && (
         <>
-          {tracks.length === 0 && !loading ? (
+          {filteredTracks.length === 0 && !loading ? (
             <div className="text-center py-16">
               <i className="ri-search-line text-6xl text-white/20 mb-4 block"></i>
               <h3 className="text-xl font-semibold text-white mb-2">No tracks found</h3>
-              <p className="text-white/60">Try a different search term.</p>
+              <p className="text-white/60">Try a different search term or category.</p>
             </div>
           ) : (
             <>
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {tracks.map((track, idx) => {
+                {filteredTracks.map((track, idx) => {
                   const accent        = getAccent(track.trackName);
                   const totalSub      = track.topics.reduce((a, t) => a + t.subtopics.length, 0);
                   const previewTopics = track.topics.slice(0, 4);
@@ -343,7 +462,7 @@ const BrowsePaths = ({ onRequireRole }: BrowsePathsProps) => {
               </div>
 
               {/* Pagination Controls */}
-              {(tracks.length > 0) && (
+              {(filteredTracks.length > 0) && (
                 <div className="mt-12 flex items-center justify-center gap-2 sm:gap-4">
                   <button
                     onClick={handlePreviousPage}
