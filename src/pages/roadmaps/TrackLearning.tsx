@@ -409,7 +409,7 @@ const TrackLearning = () => {
                       <i className="ri-road-map-line text-xl text-white"></i>
                     </div>
                     <div>
-                      <h1 className="text-white font-bold text-xl leading-tight capitalize">{trackName}</h1>
+                      <h1 className="text-white font-bold text-xl leading-tight capitalize">{track?.displayName || trackName}</h1>
                       <p className="text-white/40 text-xs mt-0.5">Learning Track</p>
                     </div>
                   </div>

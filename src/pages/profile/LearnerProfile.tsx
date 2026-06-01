@@ -113,7 +113,7 @@ const LearnerProfile = () => {
 
   const learnerRoadmaps: Roadmap[] = learnerProfile?.enrollments?.map((enrollment) => ({
     id: String(enrollment.enrollmentId),
-    title: enrollment.trackName || 'Learning Track',
+    title: enrollment.displayName || 'Learning Track',
     description: '',
     progress: enrollment.progressPercent || 0,
     totalSteps: enrollment.totalTopics || 0,
@@ -122,7 +122,7 @@ const LearnerProfile = () => {
   })) ?? roadmaps;
   const learnerProjects: CompletedProject[] = learnerProfile?.projects?.map((project) => ({
     id: String(project.projectId),
-    courseName: project.trackName || 'Learner Project',
+    courseName: project.displayName || project.trackName || 'Learner Project',
     projectTitle: project.title || 'Project',
     description: project.description || '',
     githubLink: project.repoUrl || project.fileUrl || '#',

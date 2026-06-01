@@ -6,6 +6,7 @@ import { parseApiError } from './api.utils';
 export interface EnrollmentDetail {
   trackId: number;
   trackName: string;
+  displayName: string;
   userId: string;
   learnerId: number;
   enrolledAt: string;

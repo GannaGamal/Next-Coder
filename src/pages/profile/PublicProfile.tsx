@@ -307,7 +307,7 @@ const mergeRoleProfile = async (
         completedProjects: profile.projectsCompleted ?? 0,
         roadmaps: (profile.enrollments ?? []).map((enrollment) => ({
           id: enrollment.enrollmentId,
-          title: enrollment.trackName,
+          title: enrollment.displayName || enrollment.trackName || 'Learning Track',
           progress: enrollment.progressPercent,
           totalSteps: enrollment.totalTopics,
           completedSteps: enrollment.completedTopics,
@@ -315,7 +315,7 @@ const mergeRoleProfile = async (
         })),
         courseProjects: (profile.projects ?? []).map((project) => ({
           id: project.projectId,
-          courseName: project.trackName,
+          courseName: project.displayName || project.trackName || 'Course',
           projectTitle: project.title,
           description: project.description,
           githubLink: project.repoUrl,

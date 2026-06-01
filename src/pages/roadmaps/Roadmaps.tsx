@@ -80,7 +80,7 @@ const EnrollmentCard = ({ enrollment, onContinue, onUnenroll, unenrolling }: Enr
             <i className="ri-road-map-line text-xl text-white"></i>
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="text-white font-bold capitalize text-base leading-snug truncate">{enrollment.trackName}</h3>
+            <h3 className="text-white font-bold capitalize text-base leading-snug truncate">{enrollment.displayName || enrollment.trackName}</h3>
             <p className="text-white/40 text-xs mt-0.5">
               Enrolled {formatEnrolledDate(enrollment.enrolledAt)}
             </p>

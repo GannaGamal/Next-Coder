@@ -4,6 +4,7 @@ import { parseApiError } from './api.utils';
 export interface LearnerEnrollmentDto {
   enrollmentId: number;
   trackName: string;
+  displayName: string;
   completedTopics: number;
   totalTopics: number;
   progressPercent: number;
@@ -14,6 +15,7 @@ export interface LearnerEnrollmentDto {
 export interface LearnerProjectDto {
   projectId: number;
   trackName: string;
+  displayName: string;
   title: string;
   description: string;
   repoUrl: string;
@@ -83,6 +85,7 @@ const parseLearnerProfileData = (payload: Record<string, unknown>): LearnerProfi
       return {
         enrollmentId: Number(entry.enrollmentId ?? entry.EnrollmentId ?? 0),
         trackName: String(entry.trackName ?? entry.TrackName ?? ''),
+        displayName: String(entry.displayName ?? entry.DisplayName ?? ''),
         completedTopics: Number(entry.completedTopics ?? entry.CompletedTopics ?? 0),
         totalTopics: Number(entry.totalTopics ?? entry.TotalTopics ?? 0),
         progressPercent: Number(entry.progressPercent ?? entry.ProgressPercent ?? 0),
@@ -99,6 +102,7 @@ const parseLearnerProfileData = (payload: Record<string, unknown>): LearnerProfi
       return {
         projectId: Number(entry.projectId ?? entry.ProjectId ?? 0),
         trackName: String(entry.trackName ?? entry.TrackName ?? ''),
+        displayName: String(entry.displayName ?? entry.DisplayName ?? ''),
         title: String(entry.title ?? entry.Title ?? ''),
         description: String(entry.description ?? entry.Description ?? ''),
         repoUrl: String(entry.repoUrl ?? entry.RepoUrl ?? ''),
@@ -162,6 +166,7 @@ export const getLearnerProfile = async (): Promise<LearnerProfileDto> => {
           return {
             enrollmentId: Number(entry.enrollmentId ?? entry.EnrollmentId ?? 0),
             trackName: String(entry.trackName ?? entry.TrackName ?? ''),
+            displayName: String(entry.displayName ?? entry.DisplayName ?? ''),
             completedTopics: Number(entry.completedTopics ?? entry.CompletedTopics ?? 0),
             totalTopics: Number(entry.totalTopics ?? entry.TotalTopics ?? 0),
             progressPercent: Number(entry.progressPercent ?? entry.ProgressPercent ?? 0),
@@ -178,6 +183,7 @@ export const getLearnerProfile = async (): Promise<LearnerProfileDto> => {
           return {
             projectId: Number(entry.projectId ?? entry.ProjectId ?? 0),
             trackName: String(entry.trackName ?? entry.TrackName ?? ''),
+            displayName: String(entry.displayName ?? entry.DisplayName ?? ''),
             title: String(entry.title ?? entry.Title ?? ''),
             description: String(entry.description ?? entry.Description ?? ''),
             repoUrl: String(entry.repoUrl ?? entry.RepoUrl ?? ''),

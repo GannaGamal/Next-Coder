@@ -124,6 +124,7 @@ export interface FreelancerPublicProfile {
 export interface Enrollment {
   enrollmentId: string;
   trackName: string;
+  displayName: string;
   completedTopics: number;
   totalTopics: number;
   progressPercent: number;
@@ -134,6 +135,7 @@ export interface Enrollment {
 export interface Project {
   projectId: string;
   trackName: string;
+  displayName: string;
   title: string;
   description: string;
   repoUrl: string;
