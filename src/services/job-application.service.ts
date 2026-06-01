@@ -34,6 +34,7 @@ export interface CreateJobApplicationPayload {
   minExpectedSalary?: number;
   maxExpectedSalary?: number;
   coverLetter?: string;
+  FullText?: string;
   seekerTitle?: string;
   cvFile: File;
 }
@@ -59,8 +60,15 @@ const parseAuthAwareError = async (response: Response): Promise<string> => {
 const fetchWithNetworkError = async (url: string, init?: RequestInit): Promise<Response> => {
   try {
     return await fetch(url, init);
-  } catch {
-    throw new Error('Network connection issue. Please check your internet and try again.');
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : '';
+    const isLikelyNetworkOrCors = /failed to fetch|networkerror|load failed/i.test(message);
+
+    if (isLikelyNetworkOrCors) {
+      throw new Error('Request failed before reaching the server. Check your connection or CORS settings.');
+    }
+
+    throw new Error('Unexpected error while sending the request. Please try again.');
   }
 };
 
@@ -190,24 +198,30 @@ export const createJobApplication = async (payload: CreateJobApplicationPayload)
     throw new Error('Invalid job id. Please open the application from a valid job post.');
   }
 
-  const query = new URLSearchParams();
-  query.set('JobPostId', String(payload.jobPostId));
-  query.set('YearsofExperience', String(payload.yearsOfExperience));
-  query.set('Age', String(payload.Age));
-  if (payload.Address?.trim()) query.set('Address', payload.Address.trim());
-  if (payload.SkillsExtracted?.trim()) query.set('SkillsExtracted', payload.SkillsExtracted.trim());
-  if (payload.EducationDetailsExtracted?.trim()) query.set('EducationDetailsExtracted', payload.EducationDetailsExtracted.trim());
-  if (payload.HighestEducation?.trim()) query.set('HighestEducation', payload.HighestEducation.trim());
-  if (payload.availableStartDate) query.set('AvailableStartDate', payload.availableStartDate);
-  if (typeof payload.minExpectedSalary === 'number') query.set('MinExpectedSalary', String(payload.minExpectedSalary));
-  if (typeof payload.maxExpectedSalary === 'number') query.set('MaxExpectedSalary', String(payload.maxExpectedSalary));
-  if (payload.coverLetter?.trim()) query.set('CoverLetter', payload.coverLetter.trim());
-  if (payload.seekerTitle?.trim()) query.set('SeekerTitle', payload.seekerTitle.trim());
-
   const formData = new FormData();
+  formData.append('JobPostId', String(payload.jobPostId));
+  formData.append('YearsofExperience', String(payload.yearsOfExperience));
+  formData.append('Age', String(payload.Age));
+  if (payload.Address?.trim()) formData.append('Address', payload.Address.trim());
+  if (payload.SkillsExtracted?.trim()) formData.append('SkillsExtracted', payload.SkillsExtracted.trim());
+  if (payload.EducationDetailsExtracted?.trim()) {
+    formData.append('EducationDetailsExtracted', payload.EducationDetailsExtracted.trim());
+  }
+  if (payload.HighestEducation?.trim()) formData.append('HighestEducation', payload.HighestEducation.trim());
+  if (payload.availableStartDate) formData.append('AvailableStartDate', payload.availableStartDate);
+  if (typeof payload.minExpectedSalary === 'number') {
+    formData.append('MinExpectedSalary', String(payload.minExpectedSalary));
+  }
+  if (typeof payload.maxExpectedSalary === 'number') {
+    formData.append('MaxExpectedSalary', String(payload.maxExpectedSalary));
+  }
+  if (payload.coverLetter?.trim()) formData.append('CoverLetter', payload.coverLetter.trim());
+  if (payload.FullText?.trim()) formData.append('FullText', payload.FullText.trim());
+  if (payload.seekerTitle?.trim()) formData.append('SeekerTitle', payload.seekerTitle.trim());
   formData.append('CvFile', payload.cvFile);
 
-  const response = await fetchWithNetworkError(`${API_BASE}/JobApplication?${query.toString()}`, {
+  const requestUrl = `${API_BASE}/JobApplication`;
+  const response = await fetchWithNetworkError(requestUrl, {
     method: 'POST',
     headers: {
       ...buildAuthHeader(),
@@ -216,6 +230,14 @@ export const createJobApplication = async (payload: CreateJobApplicationPayload)
   });
 
   if (!response.ok) {
+    const rawBody = await response.clone().text();
+    if (import.meta.env.DEV) {
+      console.error('Job application request failed.', {
+        url: requestUrl,
+        status: response.status,
+        response: rawBody,
+      });
+    }
     throw new Error(await parseAuthAwareError(response));
   }
 };

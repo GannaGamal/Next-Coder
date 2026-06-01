@@ -1,7 +1,6 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import CustomSelect from '../../components/base/CustomSelect';
 import Navbar from '../../components/feature/Navbar';
 import Footer from '../../components/feature/Footer';
 import { useAuth } from '../../contexts/AuthContext';
@@ -24,14 +23,6 @@ interface JobSummary {
   companyLogoUrl?: string | null;
 }
 
-const highestEducationOptions = [
-  { value: 'High School', label: 'High School' },
-  { value: 'Diploma', label: 'Diploma' },
-  { value: 'Bachelors', label: 'Bachelors' },
-  { value: 'Masters', label: 'Masters' },
-  { value: 'PhD', label: 'PhD' },
-];
-
 const JobApplication = () => {
   const { user } = useAuth();
   const { jobId } = useParams();
@@ -45,10 +36,13 @@ const JobApplication = () => {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [fileError, setFileError] = useState('');
+  const [cvParseError, setCvParseError] = useState('');
+  const [isParsingCv, setIsParsingCv] = useState(false);
   const [job, setJob] = useState<JobSummary | null>(null);
   const [isLoadingJob, setIsLoadingJob] = useState(true);
   const [jobLoadError, setJobLoadError] = useState('');
   const [logoLoadFailed, setLogoLoadFailed] = useState(false);
+  const [fullText, setFullText] = useState('');
   const [formData, setFormData] = useState({
     seekerTitle: '',
     availableDate: '',
@@ -155,50 +149,103 @@ const JobApplication = () => {
     }
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const extractCvData = async (file: File) => {
+    if (file.type !== 'application/pdf') {
+      return;
+    }
+
+    setIsParsingCv(true);
+    setCvParseError('');
+
+    try {
+      const payload = new FormData();
+      payload.append('file', file);
+
+      const response = await fetch('https://nextcoder.runasp.net/api/RecruitmentAi/extractCv', {
+        method: 'POST',
+        body: payload,
+      });
+
+      if (!response.ok) {
+        setCvParseError('We could not parse your CV right now. You can still fill the form manually.');
+        return;
+      }
+
+      const parsed = await response.json();
+      if (!parsed?.success || !parsed?.data) {
+        setCvParseError(parsed?.message || 'We could not parse your CV right now.');
+        return;
+      }
+
+      const data = parsed.data as {
+        age?: number | string;
+        years_Of_Experience?: number | string;
+        skills_Extracted?: string;
+        highest_Education?: string;
+        address?: string;
+        education_Details_Extracted?: string;
+        full_Text?: string;
+      };
+
+      setFormData((prev) => ({
+        ...prev,
+        age: data.age !== undefined && data.age !== null ? String(data.age) : prev.age,
+        yearsExperience:
+          data.years_Of_Experience !== undefined && data.years_Of_Experience !== null
+            ? String(data.years_Of_Experience)
+            : prev.yearsExperience,
+        skillsExtracted: data.skills_Extracted ?? prev.skillsExtracted,
+        highestEducation: data.highest_Education ?? prev.highestEducation,
+        address: data.address ?? prev.address,
+        educationDetailsExtracted: data.education_Details_Extracted ?? prev.educationDetailsExtracted,
+      }));
+
+      if (data.full_Text) {
+        setFullText(String(data.full_Text));
+      }
+    } catch {
+      setCvParseError('We could not parse your CV right now. You can still fill the form manually.');
+    } finally {
+      setIsParsingCv(false);
+    }
+  };
+
+  const handleCvFile = async (file: File) => {
+    const isSupported = file.type === 'application/pdf' || file.name.endsWith('.doc') || file.name.endsWith('.docx');
+    if (!isSupported) {
+      setFileError('Please upload PDF, DOC, or DOCX file only.');
+      return;
+    }
+
+    const maxSizeInBytes = 5 * 1024 * 1024;
+    if (file.size > maxSizeInBytes) {
+      setFileError('CV file is too large. Maximum allowed size is 5MB.');
+      return;
+    }
+
+    setFileError('');
+    setCvParseError('');
+    setUploadedCV(file);
+    setFullText('');
+    await extractCvData(file);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const file = e.dataTransfer.files[0];
-      const isSupported = file.type === 'application/pdf' || file.name.endsWith('.doc') || file.name.endsWith('.docx');
-      if (!isSupported) {
-        setFileError('Please upload PDF, DOC, or DOCX file only.');
-        return;
-      }
-
-      const maxSizeInBytes = 5 * 1024 * 1024;
-      if (file.size > maxSizeInBytes) {
-        setFileError('CV file is too large. Maximum allowed size is 5MB.');
-        return;
-      }
-
-      setFileError('');
-      setUploadedCV(file);
+      await handleCvFile(e.dataTransfer.files[0]);
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      const isSupported = file.type === 'application/pdf' || file.name.endsWith('.doc') || file.name.endsWith('.docx');
-      if (!isSupported) {
-        setFileError('Please upload PDF, DOC, or DOCX file only.');
-        return;
-      }
-
-      const maxSizeInBytes = 5 * 1024 * 1024;
-      if (file.size > maxSizeInBytes) {
-        setFileError('CV file is too large. Maximum allowed size is 5MB.');
-        return;
-      }
-
-      setFileError('');
-      setUploadedCV(file);
+      await handleCvFile(e.target.files[0]);
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
@@ -222,6 +269,16 @@ const JobApplication = () => {
       return;
     }
 
+    if (!formData.seekerTitle.trim()) {
+      setSubmitError('Professional title is required.');
+      return;
+    }
+
+    if (!formData.availableDate) {
+      setSubmitError('Available start date is required.');
+      return;
+    }
+
     const yearsOfExperience = Number(formData.yearsExperience);
     if (!Number.isFinite(yearsOfExperience) || yearsOfExperience < 0 || !Number.isInteger(yearsOfExperience)) {
       setSubmitError('Years of experience must be a non-negative whole number.');
@@ -234,8 +291,38 @@ const JobApplication = () => {
       return;
     }
 
+    if (!formData.address.trim()) {
+      setSubmitError('Address is required.');
+      return;
+    }
+
+    if (!formData.skillsExtracted.trim()) {
+      setSubmitError('Skills are required.');
+      return;
+    }
+
+    if (!formData.educationDetailsExtracted.trim()) {
+      setSubmitError('Education details are required.');
+      return;
+    }
+
+    if (!formData.highestEducation.trim()) {
+      setSubmitError('Highest education is required.');
+      return;
+    }
+
     const minExpectedSalary = formData.minExpectedSalary ? Number(formData.minExpectedSalary) : undefined;
     const maxExpectedSalary = formData.maxExpectedSalary ? Number(formData.maxExpectedSalary) : undefined;
+
+    if (!formData.minExpectedSalary.trim()) {
+      setSubmitError('Minimum expected salary is required.');
+      return;
+    }
+
+    if (!formData.maxExpectedSalary.trim()) {
+      setSubmitError('Maximum expected salary is required.');
+      return;
+    }
 
     if (typeof minExpectedSalary === 'number' && !Number.isFinite(minExpectedSalary)) {
       setSubmitError('Minimum expected salary must be a valid number.');
@@ -270,6 +357,7 @@ const JobApplication = () => {
         minExpectedSalary,
         maxExpectedSalary,
         coverLetter: coverLetter.trim() || undefined,
+        FullText: fullText || undefined,
         seekerTitle: formData.seekerTitle.trim() || undefined,
         cvFile: uploadedCV,
       });
@@ -476,7 +564,11 @@ const JobApplication = () => {
                     </div>
                     <button
                       type="button"
-                      onClick={() => setUploadedCV(null)}
+                      onClick={() => {
+                        setUploadedCV(null);
+                        setFullText('');
+                        setCvParseError('');
+                      }}
                       className="w-10 h-10 flex items-center justify-center text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
                     >
                       <i className="ri-delete-bin-line text-xl"></i>
@@ -506,6 +598,12 @@ const JobApplication = () => {
               {fileError && (
                 <p className="text-red-300 text-xs mt-3">{fileError}</p>
               )}
+              {!fileError && cvParseError && (
+                <p className="text-amber-300 text-xs mt-3">{cvParseError}</p>
+              )}
+              {isParsingCv && (
+                <p className="text-xs text-gray-400 mt-3">Parsing your CV...</p>
+              )}
             </div>
 
             {/* API Parameters */}
@@ -517,13 +615,14 @@ const JobApplication = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-white text-sm font-medium mb-2">
-                    Professional Title
+                    Professional Title <span className="text-red-400">*</span>
                   </label>
                   <input
                     type="text"
                     name="seekerTitle"
                     value={formData.seekerTitle}
                     onChange={handleInputChange}
+                    required
                     placeholder="e.g., Frontend Developer"
                     className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
                   />
@@ -546,6 +645,34 @@ const JobApplication = () => {
                 </div>
                 <div>
                   <label className="block text-white text-sm font-medium mb-2">
+                    Minimum Expected Salary <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    name="minExpectedSalary"
+                    value={formData.minExpectedSalary}
+                    onChange={handleInputChange}
+                    required
+                    placeholder="120000"
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-white text-sm font-medium mb-2">
+                    Maximum Expected Salary <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    name="maxExpectedSalary"
+                    value={formData.maxExpectedSalary}
+                    onChange={handleInputChange}
+                    required
+                    placeholder="150000"
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-white text-sm font-medium mb-2">
                     Age <span className="text-red-400">*</span>
                   </label>
                   <input
@@ -563,59 +690,38 @@ const JobApplication = () => {
                 </div>
                 <div>
                   <label className="block text-white text-sm font-medium mb-2">
-                    Minimum Expected Salary
+                    Highest Education <span className="text-red-400">*</span>
                   </label>
                   <input
-                    type="number"
-                    name="minExpectedSalary"
-                    value={formData.minExpectedSalary}
-                    onChange={handleInputChange}
-                    placeholder="120000"
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-white text-sm font-medium mb-2">
-                    Maximum Expected Salary
-                  </label>
-                  <input
-                    type="number"
-                    name="maxExpectedSalary"
-                    value={formData.maxExpectedSalary}
-                    onChange={handleInputChange}
-                    placeholder="150000"
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-white text-sm font-medium mb-2">
-                    Highest Education
-                  </label>
-                  <CustomSelect
+                    type="text"
+                    name="highestEducation"
                     value={formData.highestEducation}
-                    onChange={(value) => setFormData((prev) => ({ ...prev, highestEducation: value }))}
-                    options={highestEducationOptions}
-                    placeholder="Select highest education"
-                    className="w-full"
-                    icon="ri-graduation-cap-line"
+                    onChange={handleInputChange}
+                    required
+                    placeholder="e.g., Master's Degree"
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
                   />
                 </div>
                 <div className="sm:col-span-2">
                   <label className="block text-white text-sm font-medium mb-2">
-                    Address
+                    Address <span className="text-red-400">*</span>
                   </label>
                   <input
                     type="text"
                     name="address"
                     value={formData.address}
                     onChange={handleInputChange}
+                    required
                     placeholder="Enter your address"
                     className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
                   />
                 </div>
                 <div className="sm:col-span-2">
                   <label className="block text-white text-sm font-medium mb-2">
-                    Available Start Date
+                    <span className="inline-flex items-center gap-2">
+                      <i className="ri-calendar-line !text-white"></i>
+                      Available Start Date <span className="text-red-400">*</span>
+                    </span>
                   </label>
                   <input
                     type="date"
@@ -623,17 +729,19 @@ const JobApplication = () => {
                     value={formData.availableDate}
                     onChange={handleInputChange}
                     min={todayLocalIso}
+                    required
                     className="w-full bg-[#1a1f37] border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-purple-500 cursor-pointer"
                   />
                 </div>
                 <div className="sm:col-span-2">
                   <label className="block text-white text-sm font-medium mb-2">
-                    Skills Extracted
+                    Skills Extracted <span className="text-red-400">*</span>
                   </label>
                   <textarea
                     name="skillsExtracted"
                     value={formData.skillsExtracted}
                     onChange={handleInputChange}
+                    required
                     placeholder="Enter extracted skills"
                     rows={4}
                     className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 resize-none"
@@ -641,12 +749,13 @@ const JobApplication = () => {
                 </div>
                 <div className="sm:col-span-2">
                   <label className="block text-white text-sm font-medium mb-2">
-                    Education Details Extracted
+                    Education Details Extracted <span className="text-red-400">*</span>
                   </label>
                   <textarea
                     name="educationDetailsExtracted"
                     value={formData.educationDetailsExtracted}
                     onChange={handleInputChange}
+                    required
                     placeholder="Enter extracted education details"
                     rows={4}
                     className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 resize-none"

@@ -133,7 +133,7 @@ const ApplicantProfile = () => {
 
       const updatedName = String(data.fullName ?? '').trim();
       const updatedEmail = String(data.email ?? '').trim();
-      if (updatedName || updatedEmail) {
+      if (viewedJobSeekerId === loggedInJobSeekerId && (updatedName || updatedEmail)) {
         updateUser({
           ...(updatedName ? { name: updatedName } : {}),
           ...(updatedEmail ? { email: updatedEmail } : {}),
