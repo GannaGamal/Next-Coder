@@ -17,7 +17,7 @@ interface AuthContextType {
   register: (email: string, password: string, name: string, roles: UserRole[]) => Promise<void>;
   updateUser: (updates: Partial<User>) => void;
   addRole: (role: UserRole) => Promise<void>;
-  removeRole: (role: UserRole) => void;
+  removeRole: (role: UserRole) => Promise<void>;
   isAuthenticated: boolean;
   isAuthReady: boolean;
 }
@@ -324,11 +324,45 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const removeRole = (role: UserRole) => {
+  const removeRole = async (role: UserRole) => {
     if (user && user.roles.includes(role)) {
       const updatedUser = { ...user, roles: user.roles.filter((r) => r !== role) };
       localStorage.setItem('user', JSON.stringify(updatedUser));
       setUser(updatedUser);
+
+      try {
+        const data = await refreshToken();
+        if (data.token) {
+          localStorage.setItem('authToken', data.token);
+        }
+
+        const normalizeRole = (value: string): UserRole => {
+          const lower = value.toLowerCase().trim();
+          if (lower === 'job seeker' || lower === 'job-seeker') return 'applicant';
+          return lower as UserRole;
+        };
+
+        const syncedRoles = Array.isArray(data.roles) && data.roles.length > 0
+          ? Array.from(new Set(data.roles.map(normalizeRole)))
+          : updatedUser.roles;
+
+        const syncedUser: User = {
+          ...updatedUser,
+          roles: syncedRoles,
+          jobSeekerId: data.jobSeekerId ?? updatedUser.jobSeekerId,
+          employerId: data.employerId ?? updatedUser.employerId,
+          learnerId: data.learnerId ?? updatedUser.learnerId,
+          clientId: data.clientId ?? updatedUser.clientId,
+          freeLancerId: data.freeLancerId ?? updatedUser.freeLancerId,
+          refreshTokenExpiration: data.refreshTokenExpiration ?? updatedUser.refreshTokenExpiration,
+          refreshToken: data.refreshToken ?? updatedUser.refreshToken,
+        };
+
+        localStorage.setItem('user', JSON.stringify(syncedUser));
+        setUser(syncedUser);
+      } catch {
+        // Keep the locally updated role even if token refresh is temporarily unavailable.
+      }
     }
   };
 

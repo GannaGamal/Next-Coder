@@ -245,7 +245,8 @@ const Navbar = () => {
 
   const handleAddRole = (role: UserRole) => {
     const roleInfo = availableRoles.find((r) => r.value === role);
-    if (roleInfo?.requiresDocuments) {
+    if (roleInfo?.requiresDocuments || role === "client") {
+      resetDocumentStates();
       setPendingRole(role);
       setShowAddRoleModal(true);
       setShowRoleManager(false);
@@ -262,7 +263,7 @@ const Navbar = () => {
 
     try {
       await unassignRole(getRoleApiName(role));
-      removeRole(role);
+      await removeRole(role);
     } catch (err) {
       console.error("Failed to remove role", err);
     }
@@ -337,6 +338,10 @@ const Navbar = () => {
       setAddRoleError("Please upload your CV");
       return;
     }
+    if (pendingRole === "client" && (!freelancerCountry.trim() || !freelancerPhoneNumber.trim())) {
+      setAddRoleError("Please enter your country and phone number");
+      return;
+    }
     if (pendingRole === "employer" && employerCompanies.length === 0) {
       setAddRoleError("Please add at least one company");
       return;
@@ -356,6 +361,11 @@ const Navbar = () => {
 
     if (role === "applicant" && applicantCV) {
       formData.append("CvFile", applicantCV);
+    }
+
+    if (role === "client") {
+      formData.append("country", freelancerCountry.trim());
+      formData.append("phoneNumber", freelancerPhoneNumber.trim());
     }
 
     if (role === "freelancer") {
@@ -1033,6 +1043,7 @@ const Navbar = () => {
                   {pendingRole === "freelancer" && t("roles.uploadPortfolio")}
                   {pendingRole === "applicant" && t("roles.uploadCV")}
                   {pendingRole === "employer" && t("roles.addCompany")}
+                  {pendingRole === "client" && "Enter contact details"}
                 </h3>
                 <p className="text-sm text-white/50">
                   {pendingRole === "freelancer" &&
@@ -1041,6 +1052,8 @@ const Navbar = () => {
                     "Upload your CV to apply for jobs"}
                   {pendingRole === "employer" &&
                     "Add companies you work with and their documentation"}
+                  {pendingRole === "client" &&
+                    "Provide your country and phone number for the client role"}
                 </p>
               </div>
               <button
@@ -1105,6 +1118,33 @@ const Navbar = () => {
                       </div>
                     )}
                   </label>
+                </div>
+              )}
+
+              {/* Client Contact Details */}
+              {pendingRole === "client" && (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <input
+                      type="text"
+                      placeholder="Country"
+                      value={freelancerCountry}
+                      onChange={(e) => setFreelancerCountry(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/40 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:outline-none"
+                      required
+                    />
+                    <input
+                      type="tel"
+                      placeholder="Phone number"
+                      value={freelancerPhoneNumber}
+                      onChange={(e) => setFreelancerPhoneNumber(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/40 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:outline-none"
+                      required
+                    />
+                  </div>
+                  <p className="text-sm text-white/50">
+                    Add your contact details to enable the client role.
+                  </p>
                 </div>
               )}
 

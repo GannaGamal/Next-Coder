@@ -28,7 +28,7 @@ const TrackManagement = () => {
       const data = await fetchRoadmapTracks();
       const mapped: AdminTrack[] = data.map((t, idx) => ({
         id: `api-${idx}-${t.trackName.replace(/\s+/g, '-').toLowerCase()}`,
-        trackName: t.trackName,
+        trackName: t.displayName || t.trackName,
         topics: t.topics,
         createdAt: '—',
         updatedAt: '—',
@@ -204,7 +204,6 @@ const TrackManagement = () => {
                         </div>
                         <div className="min-w-0">
                           <p className="text-white font-semibold text-sm truncate">{track.trackName}</p>
-                          <p className="text-white/30 text-xs">ID: {track.id}</p>
                         </div>
                       </div>
 

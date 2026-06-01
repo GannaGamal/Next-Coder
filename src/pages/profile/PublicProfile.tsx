@@ -13,6 +13,7 @@ import {
   getLearnerPublicProfile,
   getProfileSummary,
 } from '../../services/publicProfile.service';
+import { getProjectImageUrl } from '../../services/roadmap.service';
 
 interface PublicUserData {
   id: string;
@@ -56,7 +57,7 @@ interface PublicUserData {
   documents?: { id: string; title: string; fileName: string; documentUrl: string; uploadedAt?: string | null; contentType?: string | null }[];
   completedWork?: { id: string; title: string; clientName: string; clientImageUrl: string; description: string; completedAt: string; rating: number; comment?: string | null; category: string }[];
   roadmaps?: { id: string; title: string; progress: number; totalSteps: number; completedSteps: number; category: string }[];
-  courseProjects?: { id: string; courseName: string; projectTitle: string; description: string; githubLink: string; completedDate: string; technologies: string[] }[];
+  courseProjects?: { id: string; imageUrl: string; courseName: string; projectTitle: string; description: string; githubLink: string; completedDate: string; technologies: string[] }[];
   appliedJobsCount?: number;
   cv?: {cvUrl: string;contentType: string;jobTitle: string;isPublic: boolean; fileName: string; uploadedAt: string };
   completedProjectsCount?: number;
@@ -316,6 +317,7 @@ const mergeRoleProfile = async (
         courseProjects: (profile.projects ?? []).map((project) => ({
           id: project.projectId,
           courseName: project.displayName || project.trackName || 'Course',
+          imageUrl: project.imageUrl ? 'https://nextcoder.runasp.net/' + project.imageUrl : '',
           projectTitle: project.title,
           description: project.description,
           githubLink: project.repoUrl,
@@ -1220,43 +1222,61 @@ const PublicProfile = () => {
               {!isLoading && profileUser.courseProjects && (
             <div className="space-y-4">
               {profileUser.courseProjects.map(project => (
-                <div key={project.id} className="bg-white/5 border border-white/10 rounded-2xl p-6">
-                  <div className="flex items-center gap-3 mb-3">
-                    <span className="px-3 py-1 bg-cyan-500/20 border border-cyan-500/30 rounded-lg text-cyan-300 text-xs font-medium">
-                      {project.courseName}
-                    </span>
-                    <span className="text-gray-500 text-xs">
-                      <i className="ri-calendar-line mr-1"></i>
-                      {new Date(project.completedDate).toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric'
-                      })}
-                    </span>
-                  </div>
-                  <h3 className="text-lg font-bold text-white mb-2">{project.projectTitle}</h3>
-                  <p className="text-gray-400 text-sm mb-4">{project.description}</p>
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    {project.technologies.map(tech => (
-                      <span
-                        key={tech}
-                        className="px-2 py-1 bg-white/10 rounded-full text-white/70 text-xs font-medium"
-                      >
-                        {tech}
-                      </span>
-                    ))}
-                  </div>
-                  <a
-                    href={project.githubLink}
-                    target="_blank"
-                    rel="noopener noreferrer nofollow"
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 rounded-lg text-white text-sm hover:bg-white/20 transition-all cursor-pointer"
-                  >
-                    <i className="ri-github-fill"></i>
-                    View on GitHub
-                    <i className="ri-external-link-line text-xs"></i>
-                  </a>
-                </div>
+                <div key={project.id} className="bg-white/5 rounded-xl p-4 sm:p-5 lg:p-6 border border-white/10 overflow-hidden">
+                                  <div className="flex flex-col lg:flex-row gap-4 sm:gap-6">
+                                    {/* Project Image */}
+                                    {project.imageUrl && (
+                                      <div className="flex-shrink-0 w-full lg:w-48 h-40 lg:h-40 rounded-lg overflow-hidden bg-white/10 border border-white/10">
+                                        <img 
+                                          src={project.imageUrl} 
+                                          alt={project.projectTitle}
+                                          className="w-full h-full object-cover"
+                                        />
+                                      </div>
+                                    )}
+                                    
+                                    {/* Project Info */}
+                                    <div className="flex-1">
+                                      <div className="flex flex-col gap-3 sm:gap-4 mb-3 sm:mb-4">
+                                        <div className="flex-1">
+                                          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 mb-2">
+                                            <span className="px-3 py-1 bg-emerald-500/20 border border-emerald-500/30 rounded-lg text-emerald-300 text-xs font-medium whitespace-nowrap">
+                                              {project.courseName}
+                                            </span>
+                                            <span className="text-gray-500 text-xs sm:text-sm">
+                                              <i className="ri-calendar-line mr-1"></i>
+                                              {new Date(project.completedDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                                            </span>
+                                          </div>
+                                          <h3 className="text-lg sm:text-xl font-bold text-white mb-2">{project.projectTitle}</h3>
+                                          <p className="text-sm sm:text-base text-gray-400 mb-3 sm:mb-4">{project.description}</p>
+                                          <div className="flex flex-wrap gap-2 mb-3 sm:mb-4">
+                                            {project.technologies.map((tech) => (
+                                              <span key={tech} className="px-2 sm:px-3 py-1 bg-white/10 rounded-full text-white/70 text-xs font-medium">
+                                                {tech}
+                                              </span>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      </div>
+                                      
+                                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+                                        <a
+                                          href={project.githubLink}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 rounded-lg text-white text-sm sm:text-base hover:bg-white/20 transition-all cursor-pointer"
+                                        >
+                                          <i className="ri-github-fill text-base sm:text-lg"></i>
+                                          View on GitHub
+                                          <i className="ri-external-link-line text-xs sm:text-sm"></i>
+                                        </a>
+                                        
+                                        
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
               ))}
               {profileUser.courseProjects.length === 0 && (
                 <div className="text-center py-12 bg-white/5 border border-white/10 rounded-2xl">
