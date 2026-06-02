@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { closeJobPost, deleteJobPost, getEmployerDashboard, getJobPostDetails, rejectJobApplicant, scheduleInterviewForApplicant, type EmployerDashboardJobPostItem } from '../../../services/job-post.service';
+import { calculateMatchScore } from '../../../services/recruitment-ai.service';
 
 interface Applicant {
   id: string;
@@ -137,6 +138,8 @@ const EmployerDashboard = () => {
   const [rejectingApplicantId, setRejectingApplicantId] = useState<string | null>(null);
   const [scheduleInterviewError, setScheduleInterviewError] = useState('');
   const [schedulingApplicantId, setSchedulingApplicantId] = useState<string | null>(null);
+  const [calculatingMatchJobId, setCalculatingMatchJobId] = useState<string | null>(null);
+  const [calculateMatchError, setCalculateMatchError] = useState('');
 
   const getTodayLocalDate = (): string => {
     const now = new Date();
@@ -206,25 +209,69 @@ const EmployerDashboard = () => {
     rejected: applicants.filter(a => a.status === 'rejected').length,
   });
 
-  const handleCalculateMatching = (jobId: string) => {
-    setJobs(prev => prev.map(job => {
-      if (job.id !== jobId) return job;
-      const updatedApplicants = job.applicants.map(applicant => ({
-        ...applicant,
-        matchScore: applicant.matchScore ?? Math.floor(Math.random() * 30) + 70,
-      }));
-      return { ...job, matchingCalculated: true, applicants: updatedApplicants };
-    }));
+  const handleCalculateMatching = async (jobId: string) => {
+    const job = jobs.find((j) => j.id === jobId);
+    if (!job) return;
 
-    if (selectedJob?.id === jobId) {
-      const base = jobs.find(j => j.id === jobId);
-      if (base) {
-        const updatedApplicants = base.applicants.map(applicant => ({
-          ...applicant,
-          matchScore: applicant.matchScore ?? Math.floor(Math.random() * 30) + 70,
-        }));
-        setSelectedJob({ ...base, matchingCalculated: true, applicants: updatedApplicants });
+    // Only proceed if there are applicants with a jobSeekerId
+    const applicantsToScore = job.applicants.filter((a) => a.jobSeekerId);
+    if (applicantsToScore.length === 0) return;
+
+    setCalculateMatchError('');
+    setCalculatingMatchJobId(jobId);
+
+    try {
+      const results = await Promise.allSettled(
+        applicantsToScore.map((applicant) =>
+          calculateMatchScore({
+            jobSeekerId: Number(applicant.jobSeekerId),
+            jobPostId: Number(jobId),
+          })
+        )
+      );
+
+      // Build a map: jobSeekerId -> score
+      const scoreMap = new Map<string, number>();
+      results.forEach((result, index) => {
+        const applicant = applicantsToScore[index];
+        if (result.status === 'fulfilled' && applicant?.jobSeekerId) {
+          scoreMap.set(applicant.jobSeekerId, result.value.score);
+        }
+      });
+
+      const updatedApplicants = job.applicants.map((applicant) => ({
+        ...applicant,
+        matchScore:
+          applicant.jobSeekerId && scoreMap.has(applicant.jobSeekerId)
+            ? scoreMap.get(applicant.jobSeekerId)!
+            : applicant.matchScore,
+      }));
+
+      const hasMatching = updatedApplicants.some((a) => a.matchScore !== null);
+
+      setJobs((prev) =>
+        prev.map((j) =>
+          j.id === jobId
+            ? { ...j, matchingCalculated: hasMatching, applicants: updatedApplicants }
+            : j
+        )
+      );
+
+      if (selectedJob?.id === jobId) {
+        setSelectedJob((prev) =>
+          prev
+            ? { ...prev, matchingCalculated: hasMatching, applicants: updatedApplicants }
+            : prev
+        );
       }
+    } catch (err: unknown) {
+      setCalculateMatchError(
+        err instanceof Error
+          ? err.message
+          : 'We could not calculate match scores right now. Please try again.'
+      );
+    } finally {
+      setCalculatingMatchJobId(null);
     }
   };
 
@@ -683,12 +730,25 @@ const EmployerDashboard = () => {
               </div>
             ) : (
               <div>
+                {calculateMatchError && (
+                  <div className={`rounded-lg p-3 text-sm border mb-4 ${isLightMode ? 'bg-red-50 border-red-200 text-red-700' : 'bg-red-500/10 border-red-500/30 text-red-300'}`}>
+                    {calculateMatchError}
+                  </div>
+                )}
                 <div className="flex items-center justify-between mb-4">
                   <h4 className={`text-lg font-semibold flex items-center gap-2 ${isLightMode ? 'text-gray-900' : 'text-white'}`}>
                     <i className="ri-user-line text-violet-400"></i>{t('employerDashboard.appliedApplicants')}
                   </h4>
-                  <button onClick={() => handleCalculateMatching(selectedJob.id)} className="px-4 py-2 bg-violet-500 text-white text-sm font-semibold rounded-lg hover:bg-violet-600 transition-colors cursor-pointer whitespace-nowrap">
-                    <i className="ri-calculator-line mr-2"></i>{t('employerDashboard.calculateMatching')}
+                  <button
+                    onClick={() => { void handleCalculateMatching(selectedJob.id); }}
+                    disabled={calculatingMatchJobId === selectedJob.id}
+                    className="px-4 py-2 bg-violet-500 text-white text-sm font-semibold rounded-lg hover:bg-violet-600 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {calculatingMatchJobId === selectedJob.id ? (
+                      <><i className="ri-loader-4-line animate-spin"></i>Calculating...</>
+                    ) : (
+                      <><i className="ri-calculator-line"></i>{t('employerDashboard.calculateMatching')}</>
+                    )}
                   </button>
                 </div>
                 <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4 mb-4">
