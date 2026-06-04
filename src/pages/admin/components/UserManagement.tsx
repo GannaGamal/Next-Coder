@@ -26,6 +26,11 @@ const allRoles: Array<{ value: RoleFilterOption; label: string }> = [
   { value: 'Job Seeker', label: 'Job Seeker' },
 ];
 
+export const formatDate = (dateString: string) => {
+  const d = new Date(dateString);
+  return `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
+};
+
 const UserManagement: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -305,7 +310,7 @@ const UserManagement: React.FC = () => {
                     </div>
                     <div>
                       <p className="text-white/50 text-xs uppercase tracking-[0.2em] mb-1">Joined</p>
-                      <p className="text-white font-medium text-sm">{user.joinedDate}</p>
+                      <p className="text-white font-medium text-sm">{formatDate(user.joinedDate)}</p>
                     </div>
                   </div>
 
@@ -431,7 +436,7 @@ const UserManagement: React.FC = () => {
                             {user.status}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-white/60 text-sm">{user.joinedDate}</td>
+                        <td className="px-6 py-4 text-white/60 text-sm">{formatDate(user.joinedDate)}</td>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-2">
                             <button
@@ -579,7 +584,7 @@ const UserManagement: React.FC = () => {
 
                 <div className="bg-white/5 rounded-lg p-4">
                   <p className="text-white/60 text-sm mb-1">Joined Date</p>
-                  <p className="text-white font-semibold">{selectedUser.joinedDate}</p>
+                  <p className="text-white font-semibold">{formatDate(selectedUser.joinedDate)}</p>
                 </div>
               </div>
 

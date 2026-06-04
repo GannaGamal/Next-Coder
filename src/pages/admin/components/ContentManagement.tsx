@@ -17,58 +17,7 @@ const ContentManagement = () => {
   const [selectedContent, setSelectedContent] = useState<Content | null>(null);
   const [showContentModal, setShowContentModal] = useState(false);
 
-  const [contents, setContents] = useState<Content[]>([
-    {
-      id: 1,
-      type: 'roadmap',
-      title: 'Full Stack Web Development Roadmap',
-      author: 'John Smith',
-      category: 'Web Development',
-      status: 'approved',
-      createdDate: '2024-03-10',
-      views: 1245,
-    },
-    {
-      id: 2,
-      type: 'project',
-      title: 'E-commerce Platform with React',
-      author: 'Sarah Johnson',
-      category: 'Web Development',
-      status: 'pending',
-      createdDate: '2024-03-15',
-      views: 342,
-    },
-    {
-      id: 3,
-      type: 'course',
-      title: 'Advanced JavaScript Concepts',
-      author: 'Michael Chen',
-      category: 'Programming',
-      status: 'approved',
-      createdDate: '2024-03-08',
-      views: 2156,
-    },
-    {
-      id: 4,
-      type: 'roadmap',
-      title: 'UI/UX Design Career Path',
-      author: 'Emily Davis',
-      category: 'Design',
-      status: 'pending',
-      createdDate: '2024-03-14',
-      views: 567,
-    },
-    {
-      id: 5,
-      type: 'project',
-      title: 'Mobile App Development Guide',
-      author: 'David Wilson',
-      category: 'Mobile Development',
-      status: 'rejected',
-      createdDate: '2024-03-12',
-      views: 189,
-    },
-  ]);
+  const [contents, setContents] = useState<Content[]>([]);
 
   const filteredContents = contents.filter((content) => {
     const matchesType = contentFilter === 'all' || content.type === contentFilter;
