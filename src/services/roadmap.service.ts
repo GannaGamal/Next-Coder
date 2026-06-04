@@ -202,7 +202,7 @@ export const fetchRoadmapTracksWithPagination = async (
   page: number = 1,
   pageSize: number = 9,
   searchQuery: string = ''
-): Promise<{ tracks: RoadmapTrack[]; hasNext: boolean; hasPrev: boolean; totalPages: number; pageNumber: number }> => {
+): Promise<{ tracks: RoadmapTrack[]; hasNext: boolean; hasPrev: boolean; totalPages: number; pageNumber: number; totalCount: number }> => {
   let url = `${API_BASE}/roadmap/tracks-content?Page=${page}&PageSize=${pageSize}`;
 
   if (searchQuery.trim()) {
@@ -220,6 +220,7 @@ export const fetchRoadmapTracksWithPagination = async (
       hasPrev: false,
       totalPages: 1,
       pageNumber: page,
+      totalCount: 0,
     };
   }
 
@@ -243,6 +244,7 @@ export const fetchRoadmapTracksWithPagination = async (
     hasPrev: meta.hasPreviousPage ?? false,
     totalPages: meta.totalPages ?? 1,
     pageNumber: page,
+    totalCount: meta.totalCount ?? tracks.length,
   };
 };
 

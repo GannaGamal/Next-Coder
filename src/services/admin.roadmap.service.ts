@@ -1,3 +1,6 @@
+import { API_BASE } from './api.config';
+import { parseApiError } from './api.utils';
+
 /**
  * Admin Roadmap Service — fake CRUD for track management.
  * Replace each function body with a real fetch() call when the backend is ready.
@@ -28,9 +31,121 @@ export interface AdminTrack {
   id: string;
   trackName: string;
   topics: AdminTopic[];
+  imageUrl?: string;
+  categorySlug?: string;
   createdAt: string;
   updatedAt: string;
 }
+
+export interface AdminCreateTrackRequest {
+  trackName: string;
+  imageUrl: string;
+  categorySlug: string;
+  topics: AdminTopic[];
+}
+
+export interface AdminUpdateTrackRequest {
+  trackName: string;
+  imageUrl: string;
+  categorySlug: string;
+  topics: AdminTopic[];
+}
+
+const mapCategoryDisplayNameToSlug = (displayName: string | undefined): string => {
+  switch (displayName) {
+    case 'Languages':
+      return 'languages';
+    case 'Frontend':
+      return 'frontend';
+    case 'Mobile':
+      return 'mobile';
+    case 'Backend':
+      return 'backend';
+    case 'Databases':
+      return 'databases';
+    case 'DevOps & Cloud':
+      return 'devops-cloud';
+    case 'AI & Data':
+      return 'ai-data';
+    case 'CS Fundamentals':
+      return 'cs-fundamentals';
+    case 'Specialized':
+      return 'specialized';
+    case 'Roles & Soft Skills':
+      return 'roles';
+    default:
+      return '';
+  }
+};
+
+const buildAdminTrack = (raw: any): AdminTrack => ({
+  id: String(raw.trackName ?? raw.id ?? ''),
+  trackName: String(raw.displayName ?? raw.trackName ?? raw.id ?? ''),
+  topics: Array.isArray(raw.topics) ? raw.topics : [],
+  imageUrl: raw.imageUrl ?? '',
+  categorySlug: raw.categorySlug ?? raw.category ?? mapCategoryDisplayNameToSlug(raw.categoryDisplayName),
+  createdAt: raw.createdAt ?? raw.updatedAt ?? '—',
+  updatedAt: raw.updatedAt ?? raw.createdAt ?? '—',
+});
+
+export const adminCreateTrack = async (
+  payload: AdminCreateTrackRequest,
+): Promise<AdminTrack> => {
+  const token = localStorage.getItem('authToken');
+  const response = await fetch(`${API_BASE}/roadmap`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+
+  const body = await response.json();
+  const result = body?.data ?? body;
+  if (!result || typeof result !== 'object') {
+    throw new Error('Unable to create track.');
+  }
+
+  return buildAdminTrack(result);
+};
+
+export const adminUpdateTrack = async (
+  id: string,
+  payload: AdminUpdateTrackRequest,
+): Promise<AdminTrack> => {
+  fakeDb = fakeDb.map((t) =>
+    t.id === id
+      ? {
+          ...t,
+          trackName: payload.trackName,
+          topics: payload.topics,
+          imageUrl: payload.imageUrl,
+          categorySlug: payload.categorySlug,
+          updatedAt: new Date().toISOString().split('T')[0],
+        }
+      : t
+  );
+  return fakeDb.find((t) => t.id === id)!;
+};
+
+export const adminDeleteTrack = async (trackName: string): Promise<void> => {
+  const token = localStorage.getItem('authToken');
+  const response = await fetch(`${API_BASE}/roadmap/${encodeURIComponent(trackName)}`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+};
 
 // ─── Seeded fake data ─────────────────────────────────────────────────────────
 
@@ -109,43 +224,3 @@ let fakeDb: AdminTrack[] = [
   },
 ];
 
-let nextId = 7;
-const delay = (ms = 500) => new Promise<void>((r) => setTimeout(r, ms));
-
-// ─── CRUD ─────────────────────────────────────────────────────────────────────
-
-/** GET all tracks */
-export const adminGetTracks = async (): Promise<AdminTrack[]> => {
-  await delay(400);
-  return [...fakeDb];
-};
-
-/** POST create new track */
-export const adminCreateTrack = async (payload: { trackName: string; topics: AdminTopic[] }): Promise<AdminTrack> => {
-  await delay(600);
-  const now = new Date().toISOString().split('T')[0];
-  const newTrack: AdminTrack = {
-    id: `track-${nextId++}`,
-    trackName: payload.trackName,
-    topics: payload.topics,
-    createdAt: now,
-    updatedAt: now,
-  };
-  fakeDb = [newTrack, ...fakeDb];
-  return newTrack;
-};
-
-/** PUT update track */
-export const adminUpdateTrack = async (id: string, payload: { trackName: string; topics: AdminTopic[] }): Promise<AdminTrack> => {
-  await delay(600);
-  fakeDb = fakeDb.map((t) =>
-    t.id === id ? { ...t, trackName: payload.trackName, topics: payload.topics, updatedAt: new Date().toISOString().split('T')[0] } : t
-  );
-  return fakeDb.find((t) => t.id === id)!;
-};
-
-/** DELETE track */
-export const adminDeleteTrack = async (id: string): Promise<void> => {
-  await delay(500);
-  fakeDb = fakeDb.filter((t) => t.id !== id);
-};

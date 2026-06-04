@@ -5,9 +5,22 @@ import TopicEditor from './TopicEditor';
 interface TrackFormModalProps {
   mode: 'add' | 'edit';
   track?: AdminTrack | null;
-  onSave: (name: string, topics: AdminTopic[]) => Promise<void>;
+  onSave: (name: string, imageUrl: string, categorySlug: string, topics: AdminTopic[]) => Promise<void>;
   onClose: () => void;
 }
+
+const categoryOptions = [
+  { label: 'Languages', value: 'languages' },
+  { label: 'Frontend', value: 'frontend' },
+  { label: 'Mobile', value: 'mobile' },
+  { label: 'Backend', value: 'backend' },
+  { label: 'Databases', value: 'databases' },
+  { label: 'DevOps & Cloud', value: 'devops-cloud' },
+  { label: 'AI & Data', value: 'ai-data' },
+  { label: 'CS Fundamentals', value: 'cs-fundamentals' },
+  { label: 'Specialized', value: 'specialized' },
+  { label: 'Roles & Soft Skills', value: 'roles' },
+];
 
 const makeTopic = (): AdminTopic => ({
   nodeId: `topic-${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -19,6 +32,8 @@ const makeTopic = (): AdminTopic => ({
 
 const TrackFormModal = ({ mode, track, onSave, onClose }: TrackFormModalProps) => {
   const [trackName, setTrackName] = useState('');
+  const [categorySlug, setCategorySlug] = useState('languages');
+  const [imageUrl, setImageUrl] = useState('');
   const [topics, setTopics] = useState<AdminTopic[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -28,6 +43,8 @@ const TrackFormModal = ({ mode, track, onSave, onClose }: TrackFormModalProps) =
   useEffect(() => {
     if (mode === 'edit' && track) {
       setTrackName(track.trackName);
+      setCategorySlug(track.categorySlug || 'languages');
+      setImageUrl(track.imageUrl || '');
       // Deep clone so edits don't mutate the parent's reference
       const cloned: AdminTopic[] = track.topics.map(t => ({
         ...t,
@@ -42,6 +59,8 @@ const TrackFormModal = ({ mode, track, onSave, onClose }: TrackFormModalProps) =
     } else {
       const first = makeTopic();
       setTrackName('');
+      setCategorySlug('languages');
+      setImageUrl('');
       setTopics([first]);
       setExpandedTopics(new Set([first.nodeId]));
     }
@@ -82,11 +101,12 @@ const TrackFormModal = ({ mode, track, onSave, onClose }: TrackFormModalProps) =
   // ── Submit ───────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
     if (!trackName.trim()) { setError('Track name is required.'); return; }
+    if (!categorySlug) { setError('A category is required.'); return; }
     if (validTopics.length === 0) { setError('Add at least one topic with a title.'); return; }
     setError('');
     setSaving(true);
     try {
-      await onSave(trackName.trim(), validTopics);
+      await onSave(trackName.trim(), imageUrl.trim(), categorySlug, validTopics);
     } catch {
       setError('Failed to save. Please try again.');
     } finally {
@@ -150,6 +170,38 @@ const TrackFormModal = ({ mode, track, onSave, onClose }: TrackFormModalProps) =
             />
           </div>
 
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-white/60 text-xs font-semibold uppercase tracking-wider mb-2">
+                Category <span className="text-red-400">*</span>
+              </label>
+              <select
+                value={categorySlug}
+                onChange={e => setCategorySlug(e.target.value)}
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-teal-500"
+              >
+                {categoryOptions.map(option => (
+                  <option key={option.value} value={option.value} className="bg-[#13182e]">
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-white/60 text-xs font-semibold uppercase tracking-wider mb-2">
+                Image URL
+              </label>
+              <input
+                type="text"
+                value={imageUrl}
+                onChange={e => setImageUrl(e.target.value)}
+                placeholder="https://example.com/image.jpg"
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/25 focus:outline-none focus:border-teal-500 text-sm"
+              />
+            </div>
+          </div>
+
           {/* Topics section */}
           <div>
             <div className="flex items-center justify-between mb-3">
@@ -201,9 +253,9 @@ const TrackFormModal = ({ mode, track, onSave, onClose }: TrackFormModalProps) =
 
         {/* ── Footer ── */}
         <div className="flex gap-3 px-6 py-4 border-t border-white/10 flex-shrink-0">
-          <div className="flex-1 flex items-center text-white/30 text-xs gap-1">
+          <div className="flex-1 flex items-center text-white/40 text-xs gap-1">
             <i className="ri-information-line"></i>
-            Add / Edit / Delete are simulated
+            Creating and deleting tracks persists to the roadmap API.
           </div>
           <button
             type="button"

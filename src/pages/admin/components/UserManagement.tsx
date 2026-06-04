@@ -1,141 +1,184 @@
-import React, { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import CustomSelect from '../../../components/base/CustomSelect';
+import {
+  getAdminUsersList,
+  toggleAdminUserStatus,
+  updateAdminUserRoles,
+} from '../../../services/admin.service';
+import type {
+  AdminUserItem,
+  role as ApiUserRole,
+  userStatus,
+} from '../../../services/admin.service';
 
-interface User {
-  id: number;
-  name: string;
-  email: string;
-  roles: string[];
-  status: 'active' | 'inactive';
-  joinedDate: string;
-  avatar: string;
-}
+type RoleFilterOption = 'all' | ApiUserRole;
+
+const PAGE_SIZE = 10;
+
+const allRoles: Array<{ value: RoleFilterOption; label: string }> = [
+  { value: 'all', label: 'All Roles' },
+  { value: 'Admin', label: 'Admin' },
+  { value: 'Client', label: 'Client' },
+  { value: 'Freelancer', label: 'Freelancer' },
+  { value: 'Employer', label: 'Employer' },
+  { value: 'Learner', label: 'Learner' },
+  { value: 'Job Seeker', label: 'Job Seeker' },
+];
 
 const UserManagement: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [roleFilter, setRoleFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState<RoleFilterOption>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | userStatus>('all');
+  const [pageNumber, setPageNumber] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [users, setUsers] = useState<AdminUserItem[]>([]);
+  const [listLoading, setListLoading] = useState(true);
+  const [listError, setListError] = useState<string | null>(null);
+  const [statusUpdatingIds, setStatusUpdatingIds] = useState<string[]>([]);
+  const [selectedUser, setSelectedUser] = useState<AdminUserItem | null>(null);
+  const [editedRoles, setEditedRoles] = useState<ApiUserRole[]>([]);
   const [showUserModal, setShowUserModal] = useState(false);
   const [showRoleModal, setShowRoleModal] = useState(false);
+  const [savingRoles, setSavingRoles] = useState(false);
+  const prevFilterRef = useRef({ search: '', role: 'all' as RoleFilterOption, status: 'all' as 'all' | userStatus });
 
-  // Mock data
-  const [users, setUsers] = useState<User[]>([
-    {
-      id: 1,
-      name: 'John Smith',
-      email: 'john.smith@example.com',
-      roles: ['freelancer', 'client'],
-      status: 'active',
-      joinedDate: '2024-01-15',
-      avatar:
-        'https://readdy.ai/api/search-image?query=professional%20business%20portrait%20of%20confident%20young%20man%20with%20short%20dark%20hair%20wearing%20navy%20blue%20suit%20and%20white%20shirt%20against%20clean%20minimal%20light%20gray%20studio%20background%20corporate%20headshot%20style%20natural%20lighting%20sharp%20focus%20professional%20photography&width=200&height=200&seq=user1&orientation=squarish',
-    },
-    {
-      id: 2,
-      name: 'Sarah Johnson',
-      email: 'sarah.j@example.com',
-      roles: ['employer'],
-      status: 'active',
-      joinedDate: '2024-02-20',
-      avatar:
-        'https://readdy.ai/api/search-image?query=professional%20business%20portrait%20of%20confident%20woman%20with%20long%20brown%20hair%20wearing%20elegant%20black%20blazer%20and%20white%20blouse%20against%20clean%20minimal%20light%20gray%20studio%20background%20corporate%20headshot%20style%20natural%20lighting%20sharp%20focus%20professional%20photography&width=200&height=200&seq=user2&orientation=squarish',
-    },
-    {
-      id: 3,
-      name: 'Michael Chen',
-      email: 'michael.chen@example.com',
-      roles: ['applicant', 'learner'],
-      status: 'active',
-      joinedDate: '2024-03-10',
-      avatar:
-        'https://readdy.ai/api/search-image?query=professional%20business%20portrait%20of%20young%20asian%20man%20with%20black%20hair%20wearing%20gray%20suit%20and%20light%20blue%20shirt%20against%20clean%20minimal%20light%20gray%20studio%20background%20corporate%20headshot%20style%20natural%20lighting%20sharp%20focus%20professional%20photography&width=200&height=200&seq=user3&orientation=squarish',
-    },
-    {
-      id: 4,
-      name: 'Emily Davis',
-      email: 'emily.davis@example.com',
-      roles: ['freelancer'],
-      status: 'inactive',
-      joinedDate: '2024-01-05',
-      avatar:
-        'https://readdy.ai/api/search-image?query=professional%20business%20portrait%20of%20young%20woman%20with%20blonde%20hair%20in%20bun%20wearing%20burgundy%20blazer%20against%20clean%20minimal%20light%20gray%20studio%20background%20corporate%20headshot%20style%20natural%20lighting%20sharp%20focus%20professional%20photography&width=200&height=200&seq=user4&orientation=squarish',
-    },
-    {
-      id: 5,
-      name: 'David Wilson',
-      email: 'david.w@example.com',
-      roles: ['client'],
-      status: 'active',
-      joinedDate: '2024-02-28',
-      avatar:
-        'https://readdy.ai/api/search-image?query=professional%20business%20portrait%20of%20mature%20man%20with%20gray%20hair%20wearing%20charcoal%20suit%20and%20striped%20tie%20against%20clean%20minimal%20light%20gray%20studio%20background%20corporate%20headshot%20style%20natural%20lighting%20sharp%20focus%20professional%20photography&width=200&height=200&seq=user5&orientation=squarish',
-    },
-  ]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(searchTerm), 400);
+    return () => window.clearTimeout(timer);
+  }, [searchTerm]);
 
-  const allRoles = [
-    'admin',
-    'client',
-    'freelancer',
-    'employer',
-    'applicant',
-    'learner',
-  ];
+  useEffect(() => {
+    let active = true;
+    const prev = prevFilterRef.current;
+    const filtersChanged =
+      prev.search !== debouncedSearch || prev.role !== roleFilter || prev.status !== statusFilter;
+    const effectivePage = filtersChanged ? 1 : pageNumber;
 
-  const filteredUsers = users.filter((user) => {
-    const matchesSearch =
-      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesRole = roleFilter === 'all' || user.roles.includes(roleFilter);
-    const matchesStatus = statusFilter === 'all' || user.status === statusFilter;
-    return matchesSearch && matchesRole && matchesStatus;
-  });
+    if (filtersChanged) {
+      prevFilterRef.current = { search: debouncedSearch, role: roleFilter, status: statusFilter };
+      if (pageNumber !== 1) {
+        setPageNumber(1);
+        return;
+      }
+    }
 
-  const toggleUserStatus = (userId: number) => {
-    setUsers((prev) =>
-      prev.map((user) =>
-        user.id === userId
-          ? { ...user, status: user.status === 'active' ? 'inactive' : 'active' }
-          : user
-      )
-    );
+    setListLoading(true);
+    setListError(null);
+
+    getAdminUsersList({
+      SearchTerm: debouncedSearch || undefined,
+      Role: roleFilter !== 'all' ? roleFilter : undefined,
+      Status: statusFilter !== 'all' ? statusFilter : undefined,
+      Page: effectivePage,
+      PageSize: PAGE_SIZE,
+    })
+      .then((data) => {
+        if (!active) return;
+        setUsers(data.items);
+        setTotalPages(data.meta.totalPages);
+        setTotalCount(data.meta.totalCount);
+      })
+      .catch((err) => {
+        if (!active) return;
+        setListError(err instanceof Error ? err.message : 'Failed to load users.');
+      })
+      .finally(() => {
+        if (active) setListLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [debouncedSearch, roleFilter, statusFilter, pageNumber]);
+
+  const toggleUserStatus = async (user: AdminUserItem) => {
+    setStatusUpdatingIds((prev) => [...prev, user.appUserId]);
+
+    try {
+      await toggleAdminUserStatus(user.appUserId);
+      setUsers((prev) =>
+        prev.map((item) =>
+          item.appUserId === user.appUserId
+            ? { ...item, status: item.status === 'active' ? 'inactive' : 'active' }
+            : item
+        )
+      );
+      if (selectedUser?.appUserId === user.appUserId) {
+        setSelectedUser({
+          ...selectedUser,
+          status: selectedUser.status === 'active' ? 'inactive' : 'active',
+        });
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to update user status.');
+    } finally {
+      setStatusUpdatingIds((prev) => prev.filter((id) => id !== user.appUserId));
+    }
   };
 
-  const viewUserDetails = (user: User) => {
+  const openRoleModal = (user: AdminUserItem) => {
+    setSelectedUser(user);
+    setEditedRoles(user.roles);
+    setShowRoleModal(true);
+  };
+
+  const viewUserDetails = (user: AdminUserItem) => {
     setSelectedUser(user);
     setShowUserModal(true);
   };
 
-  const openRoleModal = (user: User) => {
-    setSelectedUser(user);
-    setShowRoleModal(true);
-  };
-
-  /** 
-   * Toggle a role for the currently selected user.
-   * Includes defensive checks and error handling to avoid
-   * state inconsistencies when the selected user disappears.
-   */
-  const toggleRole = (role: string) => {
-    if (!selectedUser) {
-      console.warn('Attempted to toggle a role with no user selected');
-      return;
-    }
-
-    const updatedRoles = selectedUser.roles.includes(role)
-      ? selectedUser.roles.filter((r) => r !== role)
-      : [...selectedUser.roles, role];
-
-    // Update the users list
-    setUsers((prev) =>
-      prev.map((u) =>
-        u.id === selectedUser.id ? { ...u, roles: updatedRoles } : u
-      )
+  const toggleRole = (role: ApiUserRole) => {
+    setEditedRoles((prev) =>
+      prev.includes(role) ? prev.filter((item) => item !== role) : [...prev, role]
     );
-
-    // Keep the modal in sync
-    setSelectedUser({ ...selectedUser, roles: updatedRoles });
   };
+
+  const saveRoleChanges = async () => {
+    if (!selectedUser) return;
+
+    setSavingRoles(true);
+    try {
+      await updateAdminUserRoles({ appUserId: selectedUser.appUserId, roles: editedRoles });
+      setUsers((prev) =>
+        prev.map((item) =>
+          item.appUserId === selectedUser.appUserId ? { ...item, roles: editedRoles } : item
+        )
+      );
+      setSelectedUser({ ...selectedUser, roles: editedRoles });
+      setShowRoleModal(false);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to update roles.');
+    } finally {
+      setSavingRoles(false);
+    }
+  };
+
+  const visiblePageButtons = () =>
+    Array.from({ length: totalPages }, (_, index) => index + 1)
+      .filter((page) => page === 1 || page === totalPages || Math.abs(page - pageNumber) <= 1)
+      .reduce<(number | '...')[]>((acc, page, index, arr) => {
+        if (index > 0 && typeof arr[index - 1] === 'number' && page - (arr[index - 1] as number) > 1) {
+          acc.push('...');
+        }
+        acc.push(page);
+        return acc;
+      }, []);
+
+    const IMG_BASE = 'https://nextcoder.runasp.net/';
+    const buildImageUrl = (path: string | undefined | null, name: string) => {
+      if (!path) {
+        return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=7c3aed&color=fff&size=128`;
+      }
+      const trimmed = path.trim();
+      if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('//') || trimmed.startsWith('data:')) {
+        return trimmed;
+      }
+      // ensure no leading slash duplication
+      return IMG_BASE.replace(/\/$/, '') + '/' + trimmed.replace(/^\//, '');
+    };
 
   return (
     <div className="space-y-6">
@@ -154,6 +197,9 @@ const UserManagement: React.FC = () => {
                 placeholder="Search by name or email..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') setDebouncedSearch(searchTerm);
+                }}
                 className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-teal-500 text-sm"
               />
             </div>
@@ -166,14 +212,11 @@ const UserManagement: React.FC = () => {
             </label>
             <CustomSelect
               value={roleFilter}
-              onChange={setRoleFilter}
-              options={[
-                { value: 'all', label: 'All Roles' },
-                ...allRoles.map((role) => ({
-                  value: role,
-                  label: role === 'applicant' ? 'Job Seeker' : role.charAt(0).toUpperCase() + role.slice(1),
-                })),
-              ]}
+              onChange={(value) => {
+                setRoleFilter(value as RoleFilterOption);
+                setPageNumber(1);
+              }}
+              options={allRoles}
               placeholder="All Roles"
             />
           </div>
@@ -185,7 +228,10 @@ const UserManagement: React.FC = () => {
             </label>
             <CustomSelect
               value={statusFilter}
-              onChange={setStatusFilter}
+              onChange={(value) => {
+                setStatusFilter(value as 'all' | userStatus);
+                setPageNumber(1);
+              }}
               options={[
                 { value: 'all', label: 'All Status' },
                 { value: 'active', label: 'Active' },
@@ -197,122 +243,296 @@ const UserManagement: React.FC = () => {
         </div>
       </div>
 
-      {/* Users Table */}
-      <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className="space-y-4">
+        <div className="space-y-4 md:hidden">
+          {listLoading ? (
+            Array.from({ length: 3 }).map((_, index) => (
+              <div
+                key={`mobile-loading-${index}`}
+                className="bg-white/5 border border-white/10 rounded-xl p-4 animate-pulse"
+              >
+                <div className="h-20 rounded-xl bg-white/10" />
+              </div>
+            ))
+          ) : listError ? (
+            <div className="bg-white/5 border border-white/10 rounded-xl p-6 text-center text-red-400 text-sm">
+              {listError}
+            </div>
+          ) : users.length === 0 ? (
+            <div className="bg-white/5 border border-white/10 rounded-xl p-6 text-center text-white/40">
+              <i className="ri-user-search-line text-5xl text-white/20 mb-4 block" />
+              No users found
+            </div>
+          ) : (
+            users.map((user) => {
+              const isUpdating = statusUpdatingIds.includes(user.appUserId);
+              return (
+                <div
+                  key={user.appUserId}
+                  className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-4"
+                >
+                  <div className="flex items-start gap-4">
+                    <Link
+                      to={`/user/${encodeURIComponent(user.appUserId)}`}
+                      className="flex items-center gap-3 no-underline"
+                    >
+                      <div className="w-14 h-14 rounded-full overflow-hidden bg-white/5 flex items-center justify-center">
+                        <img
+                          src={buildImageUrl(user.profileImageUrl, user.fullName)}
+                          alt={user.fullName}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div>
+                        <p className="text-white font-semibold">{user.fullName}</p>
+                        <p className="text-white/60 text-sm">{user.email}</p>
+                      </div>
+                    </Link>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 text-sm text-white/60">
+                    <div>
+                      <p className="text-white/50 text-xs uppercase tracking-[0.2em] mb-1">Status</p>
+                      <span
+                        className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${
+                          user.status === 'active'
+                            ? 'bg-green-500/20 text-green-400'
+                            : 'bg-red-500/20 text-red-400'
+                        }`}
+                      >
+                        {user.status}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-white/50 text-xs uppercase tracking-[0.2em] mb-1">Joined</p>
+                      <p className="text-white font-medium text-sm">{user.joinedDate}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {user.roles.map((role) => (
+                      <span
+                        key={`${user.appUserId}-${role}`}
+                        className="px-3 py-1 bg-teal-500/20 text-teal-400 rounded-full text-xs font-semibold whitespace-nowrap"
+                      >
+                        {role}
+                      </span>
+                    ))}
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => viewUserDetails(user)}
+                      className="flex-1 min-w-[120px] py-2 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-all font-semibold"
+                    >
+                      Details
+                    </button>
+                    <button
+                      onClick={() => openRoleModal(user)}
+                      className="flex-1 min-w-[120px] py-2 bg-purple-500/20 text-purple-400 rounded-lg hover:bg-purple-500/30 transition-all font-semibold"
+                    >
+                      Roles
+                    </button>
+                    <button
+                      onClick={() => toggleUserStatus(user)}
+                      disabled={isUpdating}
+                      className={`flex-1 min-w-[120px] py-2 rounded-lg transition-all font-semibold ${
+                        user.status === 'active'
+                          ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
+                          : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
+                      } ${isUpdating ? 'opacity-40 cursor-not-allowed' : ''}`}
+                    >
+                      {user.status === 'active' ? 'Deactivate' : 'Activate'}
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full">
             <thead className="bg-white/5">
               <tr>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-white/80">
-                  User
-                </th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-white/80">
-                  Email
-                </th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-white/80">
-                  Roles
-                </th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-white/80">
-                  Status
-                </th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-white/80">
-                  Joined
-                </th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-white/80">
-                  Actions
-                </th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-white/80">User</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-white/80">Email</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-white/80">Roles</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-white/80">Status</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-white/80">Joined</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-white/80">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/10">
-              {filteredUsers.map((user) => (
-                <tr key={user.id} className="hover:bg-white/5 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center">
-                        <img
-                          src={user.avatar}
-                          alt={user.name}
-                          className="w-full h-full object-cover object-top"
-                        />
-                      </div>
-                      <span className="text-white font-medium">{user.name}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-white/60 text-sm">{user.email}</td>
-                  <td className="px-6 py-4">
-                    <div className="flex flex-wrap gap-2">
-                      {user.roles.map((role) => (
-                        <span
-                          key={role}
-                          className="px-3 py-1 bg-teal-500/20 text-teal-400 rounded-full text-xs font-semibold whitespace-nowrap"
-                        >
-                          {role === 'applicant' ? 'Job Seeker' : role.charAt(0).toUpperCase() + role.slice(1)}
-                        </span>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${
-                        user.status === 'active'
-                          ? 'bg-green-500/20 text-green-400'
-                          : 'bg-red-500/20 text-red-400'
-                      }`}
-                    >
-                      {user.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-white/60 text-sm">{user.joinedDate}</td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => viewUserDetails(user)}
-                        className="w-8 h-8 flex items-center justify-center bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-all cursor-pointer"
-                        title="View Details"
-                      >
-                        <i className="ri-eye-line" />
-                      </button>
-                      <button
-                        onClick={() => openRoleModal(user)}
-                        className="w-8 h-8 flex items-center justify-center bg-purple-500/20 text-purple-400 rounded-lg hover:bg-purple-500/30 transition-all cursor-pointer"
-                        title="Manage Roles"
-                      >
-                        <i className="ri-shield-user-line" />
-                      </button>
-                      <button
-                        onClick={() => toggleUserStatus(user.id)}
-                        className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all cursor-pointer ${
-                          user.status === 'active'
-                            ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
-                            : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
-                        }`}
-                        title={user.status === 'active' ? 'Deactivate' : 'Activate'}
-                      >
-                        <i
-                          className={
-                            user.status === 'active'
-                              ? 'ri-close-circle-line'
-                              : 'ri-check-line'
-                          }
-                        />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {listLoading
+                ? Array.from({ length: PAGE_SIZE }).map((_, index) => (
+                    <tr key={`loading-${index}`} className="border-b border-white/5">
+                      <td colSpan={6} className="px-6 py-5">
+                        <div className="h-10 rounded-lg bg-white/5 animate-pulse" />
+                      </td>
+                    </tr>
+                  ))
+                : listError
+                ? (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-10 text-center text-red-400 text-sm">
+                        {listError}
+                      </td>
+                    </tr>
+                  )
+                : users.length === 0
+                ? (
+                    <tr>
+                      <td colSpan={6} className="text-center py-12">
+                        <i className="ri-user-search-line text-5xl text-white/20 mb-4 block" />
+                        <p className="text-white/40">No users found</p>
+                      </td>
+                    </tr>
+                  )
+                : users.map((user) => {
+                    const isUpdating = statusUpdatingIds.includes(user.appUserId);
+                    return (
+                      <tr key={user.appUserId} className="hover:bg-white/5 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <Link to={`/user/${encodeURIComponent(user.appUserId)}`} className="flex items-center gap-3 no-underline">
+                              <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-white/5">
+                                <img
+                                  src={buildImageUrl(user.profileImageUrl, user.fullName)}
+                                  alt={user.fullName}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                              <span className="text-white font-medium">{user.fullName}</span>
+                            </Link>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-white/60 text-sm">{user.email}</td>
+                        <td className="px-6 py-4">
+                          <div className="flex flex-wrap gap-2">
+                            {user.roles.map((role) => (
+                              <span
+                                key={`${user.appUserId}-${role}`}
+                                className="px-3 py-1 bg-teal-500/20 text-teal-400 rounded-full text-xs font-semibold whitespace-nowrap"
+                              >
+                                {role}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span
+                            className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${
+                              user.status === 'active'
+                                ? 'bg-green-500/20 text-green-400'
+                                : 'bg-red-500/20 text-red-400'
+                            }`}
+                          >
+                            {user.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-white/60 text-sm">{user.joinedDate}</td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => viewUserDetails(user)}
+                              className="w-8 h-8 flex items-center justify-center bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-all cursor-pointer"
+                              title="View Details"
+                            >
+                              <i className="ri-eye-line" />
+                            </button>
+                            <button
+                              onClick={() => openRoleModal(user)}
+                              className="w-8 h-8 flex items-center justify-center bg-purple-500/20 text-purple-400 rounded-lg hover:bg-purple-500/30 transition-all cursor-pointer"
+                              title="Manage Roles"
+                            >
+                              <i className="ri-shield-user-line" />
+                            </button>
+                            <button
+                              onClick={() => toggleUserStatus(user)}
+                              disabled={isUpdating}
+                              className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all cursor-pointer ${
+                                user.status === 'active'
+                                  ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
+                                  : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
+                              } ${isUpdating ? 'opacity-40 cursor-not-allowed' : ''}`}
+                              title={user.status === 'active' ? 'Deactivate' : 'Activate'}
+                            >
+                              {isUpdating ? (
+                                <i className="ri-loader-4-line text-base animate-spin" />
+                              ) : user.status === 'active' ? (
+                                <i className="ri-close-circle-line" />
+                              ) : (
+                                <i className="ri-check-line" />
+                              )}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
             </tbody>
           </table>
         </div>
 
-        {filteredUsers.length === 0 && (
-          <div className="text-center py-12">
-            <i className="ri-user-search-line text-5xl text-white/20 mb-4 block" />
-            <p className="text-white/40">No users found</p>
+        {!listLoading && !listError && totalPages > 1 && (
+          <div className="px-4 py-3 border-t border-white/10 flex items-center justify-between gap-4">
+            <p className="text-white/40 text-xs sm:text-sm">{totalCount.toLocaleString()} users</p>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setPageNumber(1)}
+                disabled={pageNumber === 1}
+                className="w-8 h-8 hidden sm:flex items-center justify-center rounded-lg bg-white/10 text-white/60 hover:text-white hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-xs"
+                title="First page"
+              >
+                <i className="ri-skip-left-line" />
+              </button>
+              <button
+                onClick={() => setPageNumber((p) => Math.max(1, p - 1))}
+                disabled={pageNumber === 1}
+                className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 text-white/60 hover:text-white hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              >
+                <i className="ri-arrow-left-s-line" />
+              </button>
+              <div className="flex items-center gap-1 px-1">
+                {visiblePageButtons().map((page, index) =>
+                  page === '...' ? (
+                    <span key={`ellipsis-${index}`} className="w-8 h-8 flex items-center justify-center text-white/40 text-sm">…</span>
+                  ) : (
+                    <button
+                      key={page}
+                      onClick={() => setPageNumber(page)}
+                      className={`w-8 h-8 flex items-center justify-center rounded-lg text-sm font-medium transition-all ${
+                        pageNumber === page
+                          ? 'bg-teal-500 text-white'
+                          : 'bg-white/10 text-white/60 hover:text-white hover:bg-white/20'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  )
+                )}
+              </div>
+              <button
+                onClick={() => setPageNumber((p) => Math.min(totalPages, p + 1))}
+                disabled={pageNumber === totalPages}
+                className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 text-white/60 hover:text-white hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              >
+                <i className="ri-arrow-right-s-line" />
+              </button>
+              <button
+                onClick={() => setPageNumber(totalPages)}
+                disabled={pageNumber === totalPages}
+                className="w-8 h-8 hidden sm:flex items-center justify-center rounded-lg bg-white/10 text-white/60 hover:text-white hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-xs"
+                title="Last page"
+              >
+                <i className="ri-skip-right-line" />
+              </button>
+            </div>
           </div>
         )}
       </div>
 
-      {/* User Details Modal */}
       {showUserModal && selectedUser && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-[#1a1f37] rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-white/10">
@@ -328,19 +548,19 @@ const UserManagement: React.FC = () => {
 
             <div className="p-6 space-y-6">
               <div className="flex items-center gap-4">
-                <div className="w-20 h-20 rounded-full overflow-hidden flex items-center justify-center">
-                  <img
-                    src={selectedUser.avatar}
-                    alt={selectedUser.name}
-                    className="w-full h-full object-cover object-top"
-                  />
-                </div>
-                <div>
-                  <h4 className="text-xl font-bold text-white mb-1">
-                    {selectedUser.name}
-                  </h4>
-                  <p className="text-white/60">{selectedUser.email}</p>
-                </div>
+                <Link to={`/user/${encodeURIComponent(selectedUser.appUserId)}`} className="flex items-center gap-4 no-underline">
+                  <div className="w-20 h-20 rounded-full overflow-hidden flex items-center justify-center bg-white/5">
+                    <img
+                      src={buildImageUrl(selectedUser.profileImageUrl, selectedUser.fullName)}
+                      alt={selectedUser.fullName}
+                      className="w-full h-full object-cover object-top"
+                    />
+                  </div>
+                  <div>
+                    <h4 className="text-xl font-bold text-white mb-1">{selectedUser.fullName}</h4>
+                    <p className="text-white/60">{selectedUser.email}</p>
+                  </div>
+                </Link>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -368,7 +588,7 @@ const UserManagement: React.FC = () => {
                 <div className="flex flex-wrap gap-2">
                   {selectedUser.roles.map((role) => (
                     <span
-                      key={role}
+                      key={`${selectedUser.appUserId}-${role}`}
                       className="px-4 py-2 bg-teal-500/20 text-teal-400 rounded-lg text-sm font-semibold whitespace-nowrap"
                     >
                       {role}
@@ -381,7 +601,6 @@ const UserManagement: React.FC = () => {
         </div>
       )}
 
-      {/* Role Management Modal */}
       {showRoleModal && selectedUser && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-[#1a1f37] rounded-xl max-w-md w-full border border-white/10">
@@ -398,31 +617,32 @@ const UserManagement: React.FC = () => {
             <div className="p-6 space-y-4">
               <p className="text-white/60 text-sm mb-4">
                 Select roles for{' '}
-                <span className="text-white font-semibold">{selectedUser.name}</span>
+                <span className="text-white font-semibold">{selectedUser.fullName}</span>
               </p>
 
-              {allRoles.map((role) => (
-                <label
-                  key={role}
-                  className="flex items-center gap-3 p-4 bg-white/5 rounded-lg hover:bg-white/10 transition-all cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedUser.roles.includes(role)}
-                    onChange={() => toggleRole(role)}
-                    className="w-5 h-5 rounded border-white/20 bg-white/5 text-teal-500 focus:ring-teal-500 cursor-pointer"
-                  />
-                  <span className="text-white font-medium">
-                    {role.charAt(0).toUpperCase() + role.slice(1)}
-                  </span>
-                </label>
-              ))}
+              {allRoles
+                .filter((option) => option.value !== 'all')
+                .map((option) => (
+                  <label
+                    key={option.value}
+                    className="flex items-center gap-3 p-4 bg-white/5 rounded-lg hover:bg-white/10 transition-all cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={editedRoles.includes(option.value as ApiUserRole)}
+                      onChange={() => toggleRole(option.value as ApiUserRole)}
+                      className="w-5 h-5 rounded border-white/20 bg-white/5 text-teal-500 focus:ring-teal-500 cursor-pointer"
+                    />
+                    <span className="text-white font-medium">{option.label}</span>
+                  </label>
+                ))}
 
               <button
-                onClick={() => setShowRoleModal(false)}
-                className="w-full py-3 bg-teal-500 text-white rounded-lg font-semibold hover:bg-teal-600 transition-all cursor-pointer whitespace-nowrap"
+                onClick={saveRoleChanges}
+                disabled={savingRoles}
+                className="w-full py-3 bg-teal-500 text-white rounded-lg font-semibold hover:bg-teal-600 transition-all cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Save Changes
+                {savingRoles ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
           </div>

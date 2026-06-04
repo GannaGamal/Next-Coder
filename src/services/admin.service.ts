@@ -10,6 +10,29 @@ export interface AdminDashboardSummary {
   platformRevenue: number;
 }
 
+export const getAdminDashboardSummary = async (): Promise<AdminDashboardSummary> => {
+  const response = await fetch(`${API_BASE}/Admin/dashboard`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${localStorage.getItem('authToken') ?? ''}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+
+  const body = await response.json();
+  if (!body?.success || !body?.data) {
+    throw new Error('Unable to load admin dashboard summary.');
+  }
+
+  return body.data as AdminDashboardSummary;
+};
+
+/* content management */
+
 export interface AdminContentSummary {
   total: number;
   portfolios: number;
@@ -46,27 +69,6 @@ export interface AdminContentList {
   hasNext: boolean;
   hasPrev: boolean;
 }
-
-export const getAdminDashboardSummary = async (): Promise<AdminDashboardSummary> => {
-  const response = await fetch(`${API_BASE}/Admin/dashboard`, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${localStorage.getItem('authToken') ?? ''}`,
-      'Content-Type': 'application/json',
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(await parseApiError(response));
-  }
-
-  const body = await response.json();
-  if (!body?.success || !body?.data) {
-    throw new Error('Unable to load admin dashboard summary.');
-  }
-
-  return body.data as AdminDashboardSummary;
-};
 
 export const getAdminContentSummary = async (): Promise<AdminContentSummary> => {
   const response = await fetch(`${API_BASE}/Admin/content/summary`, {
@@ -151,6 +153,136 @@ export const deleteAdminContent = async (type: ContentType, id: number): Promise
       Authorization: `Bearer ${localStorage.getItem('authToken') ?? ''}`,
       'Content-Type': 'application/json',
     },
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+};
+
+
+/* User management */
+
+export type role = 'Admin' | 'Job Seeker' | 'Employer' | 'Learner' | 'Freelancer' | 'Client';
+
+export type userStatus = 'active' | 'inactive';
+
+export interface AdminUserItem {
+  appUserId: string;
+  fullName: string;
+  email: string;
+  profileImageUrl: string;
+  roles: role[];
+  status: userStatus;
+  joinedDate: string;
+}
+
+export interface AdminUsersListParams {
+  SearchTerm?: string;
+  Role?: role;
+  Status?: userStatus;
+  PageSize?: number;
+  Page?: number;
+}
+
+export interface AdminUpdateUserRolesRequest {
+  appUserId: string;
+  roles: role[];
+}
+
+export interface AdminUsersListMeta {
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+
+export interface AdminUsersList {
+  items: AdminUserItem[];
+  meta: AdminUsersListMeta;
+}
+
+export const getAdminUsersList = async (
+  params: AdminUsersListParams = {},
+): Promise<AdminUsersList> => {
+  const query = new URLSearchParams();
+  if (params.SearchTerm) query.append('SearchTerm', params.SearchTerm);
+  if (params.Role) query.append('Role', params.Role);
+  if (params.Status) query.append('Status', params.Status);
+  if (params.Page !== undefined) query.append('Page', String(params.Page));
+  if (params.PageSize !== undefined) query.append('PageSize', String(params.PageSize));
+
+  const response = await fetch(`${API_BASE}/Admin/managementList?${query.toString()}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${localStorage.getItem('authToken') ?? ''}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+
+  const body = await response.json();
+  if (!body?.success || !body?.data) {
+    throw new Error('Unable to load admin users list.');
+  }
+
+  return body.data as AdminUsersList;
+};
+
+export const getAdminUserDetails = async (
+  id: string,
+): Promise<AdminUserItem> => {
+  const response = await fetch(`${API_BASE}/Admin/userDetails/${id}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${localStorage.getItem('authToken') ?? ''}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+
+  const body = await response.json();
+  if (!body?.success || !body?.data) {
+    throw new Error(`Unable to load user details.`);
+  }
+
+  return body.data as AdminUserItem;
+};
+
+export const toggleAdminUserStatus = async (
+  id: string,
+): Promise<void> => {
+  const response = await fetch(`${API_BASE}/Admin/toggleStatus/${id}`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${localStorage.getItem('authToken') ?? ''}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+};
+
+export const updateAdminUserRoles = async (
+  request: AdminUpdateUserRolesRequest,
+): Promise<void> => {
+  const response = await fetch(`${API_BASE}/Admin/updateRoles`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${localStorage.getItem('authToken') ?? ''}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(request),
   });
 
   if (!response.ok) {

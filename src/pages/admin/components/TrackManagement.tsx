@@ -5,7 +5,7 @@ import {
   adminDeleteTrack,
 } from '../../../services/admin.roadmap.service';
 import type { AdminTrack, AdminTopic } from '../../../services/admin.roadmap.service';
-import { fetchRoadmapTracks, clearRoadmapCache } from '../../../services/roadmap.service';
+import { fetchRoadmapTracksWithPagination, clearRoadmapCache } from '../../../services/roadmap.service';
 import TrackFormModal from './TrackFormModal';
 
 const TrackManagement = () => {
@@ -13,6 +13,10 @@ const TrackManagement = () => {
   const [loading, setLoading]             = useState(true);
   const [loadError, setLoadError]         = useState<string | null>(null);
   const [searchQuery, setSearchQuery]     = useState('');
+  const [pageNumber, setPageNumber]       = useState(1);
+  const [totalPages, setTotalPages]       = useState(1);
+  const [totalCount, setTotalCount]       = useState(0);
+  const [pageSize] = useState(10);
   const [formMode, setFormMode]           = useState<'add' | 'edit'>('add');
   const [editTarget, setEditTarget]       = useState<AdminTrack | null>(null);
   const [showForm, setShowForm]           = useState(false);
@@ -21,19 +25,39 @@ const TrackManagement = () => {
   const [toast, setToast]                 = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
   // ── Load from real API ─────────────────────────────────────────────────────
+  const categorySlugByDisplayName: Record<string, string> = {
+    Languages: 'languages',
+    Frontend: 'frontend',
+    Mobile: 'mobile',
+    Backend: 'backend',
+    Databases: 'databases',
+    'DevOps & Cloud': 'devops-cloud',
+    'AI & Data': 'ai-data',
+    'CS Fundamentals': 'cs-fundamentals',
+    Specialized: 'specialized',
+    'Roles & Soft Skills': 'roles',
+  };
+
   const loadTracks = async () => {
     setLoading(true);
     setLoadError(null);
     try {
-      const data = await fetchRoadmapTracks();
-      const mapped: AdminTrack[] = data.map((t, idx) => ({
-        id: `api-${idx}-${t.trackName.replace(/\s+/g, '-').toLowerCase()}`,
-        trackName: t.displayName || t.trackName,
-        topics: t.topics,
-        createdAt: '—',
-        updatedAt: '—',
-      }));
+      const data = await fetchRoadmapTracksWithPagination(pageNumber, pageSize, searchQuery);
+      const mapped: AdminTrack[] = Array.isArray(data.tracks)
+        ? data.tracks.map((t: any) => ({
+            id: String(t.trackName ?? t.displayName ?? t.id ?? ''),
+            trackName: String(t.displayName ?? t.trackName ?? ''),
+            topics: Array.isArray(t.topics) ? t.topics : [],
+            imageUrl: typeof t.imageUrl === 'string' ? t.imageUrl : '',
+            categorySlug:
+              categorySlugByDisplayName[String(t.categoryDisplayName)] || '',
+            createdAt: '—',
+            updatedAt: '—',
+          }))
+        : [];
       setTracks(mapped);
+      setTotalPages(data.totalPages);
+      setTotalCount(data.totalCount);
     } catch {
       setLoadError('We could not load tracks right now. Please try again.');
     } finally {
@@ -41,45 +65,46 @@ const TrackManagement = () => {
     }
   };
 
-  useEffect(() => { loadTracks(); }, []);
+  useEffect(() => {
+    loadTracks();
+  }, [pageNumber, searchQuery]);
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3000);
   };
 
-  // ── Stats ───────────────────────────────────────────────────────────────────
-  const stats = useMemo(() => ({
-    tracks: tracks.length,
-    topics: tracks.reduce((a, t) => a + t.topics.length, 0),
-    subtopics: tracks.reduce((a, t) => a + t.topics.reduce((b, tp) => b + tp.subtopics.length, 0), 0),
-  }), [tracks]);
+
 
   // ── Filter ──────────────────────────────────────────────────────────────────
-  const filtered = useMemo(() => {
-    if (!searchQuery.trim()) return tracks;
-    const q = searchQuery.toLowerCase();
-    return tracks.filter(t =>
-      t.trackName.toLowerCase().includes(q) ||
-      t.topics.some(tp => tp.title.toLowerCase().includes(q))
-    );
-  }, [tracks, searchQuery]);
+  const filtered = useMemo(() => tracks, [tracks]);
 
   // ── Handlers ────────────────────────────────────────────────────────────────
   const openAdd = () => { setFormMode('add'); setEditTarget(null); setShowForm(true); };
   const openEdit = (track: AdminTrack) => { setFormMode('edit'); setEditTarget(track); setShowForm(true); };
 
-  const handleSave = async (name: string, topics: AdminTopic[]) => {
+  const handleSave = async (
+    name: string,
+    imageUrl: string,
+    categorySlug: string,
+    topics: AdminTopic[]
+  ) => {
+    setShowForm(false);
+
     if (formMode === 'add') {
-      const created = await adminCreateTrack({ trackName: name, topics });
-      setTracks(prev => [created, ...prev]);
+      const created = await adminCreateTrack({ trackName: name, imageUrl, categorySlug, topics });
+      setTracks((prev) => [created, ...prev]);
+      setTotalCount((prev) => prev + 1);
+      setPageNumber(1);
       showToast(`Track "${created.trackName}" created successfully.`);
-    } else if (editTarget) {
-      const updated = await adminUpdateTrack(editTarget.id, { trackName: name, topics });
-      setTracks(prev => prev.map(t => t.id === updated.id ? updated : t));
+      return;
+    }
+
+    if (editTarget) {
+      const updated = await adminUpdateTrack(editTarget.id, { trackName: name, imageUrl, categorySlug, topics });
+      setTracks((prev) => prev.map((track) => (track.id === editTarget.id ? updated : track)));
       showToast(`Track "${updated.trackName}" updated.`);
     }
-    setShowForm(false);
   };
 
   const handleDelete = async () => {
@@ -87,7 +112,8 @@ const TrackManagement = () => {
     setDeleting(true);
     try {
       await adminDeleteTrack(deleteTarget.id);
-      setTracks(prev => prev.filter(t => t.id !== deleteTarget.id));
+      setTracks((prev) => prev.filter((track) => track.id !== deleteTarget.id));
+      setTotalCount((prev) => Math.max(prev - 1, 0));
       showToast(`Track "${deleteTarget.trackName}" deleted.`);
     } catch {
       showToast('Delete failed. Please try again.', 'error');
@@ -108,25 +134,7 @@ const TrackManagement = () => {
         </div>
       )}
 
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
-        {[
-          { label: 'Total Tracks', value: stats.tracks, icon: 'ri-road-map-line', color: 'text-teal-400' },
-          { label: 'Total Topics', value: stats.topics, icon: 'ri-node-tree', color: 'text-purple-400' },
-          { label: 'Subtopics', value: stats.subtopics, icon: 'ri-git-branch-line', color: 'text-pink-400' },
-        ].map(s => (
-          <div key={s.label} className="bg-white/5 rounded-xl border border-white/10 p-4 flex items-center gap-4">
-            <div className={`w-10 h-10 flex items-center justify-center bg-white/5 rounded-xl flex-shrink-0 ${s.color}`}>
-              <i className={`${s.icon} text-xl`}></i>
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-white">{s.value}</p>
-              <p className="text-xs text-white/50">{s.label}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-
+      
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="flex-1 relative">
@@ -135,7 +143,10 @@ const TrackManagement = () => {
             type="text"
             placeholder="Search tracks or topics..."
             value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
+            onChange={e => {
+              setSearchQuery(e.target.value);
+              if (pageNumber !== 1) setPageNumber(1);
+            }}
             className="w-full pl-11 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-teal-500 text-sm"
           />
         </div>
@@ -249,9 +260,69 @@ const TrackManagement = () => {
               </div>
             </div>
           )}
-          <p className="text-white/30 text-xs text-right">
-            {filtered.length} of {tracks.length} track{tracks.length !== 1 ? 's' : ''}
-          </p>
+          <div className="px-4 py-3 border-t border-white/10 flex flex-col gap-3 sm:flex-row items-center justify-between bg-white/5">
+            <p className="text-white/40 text-xs sm:text-sm">{totalCount.toLocaleString()} items</p>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setPageNumber(1)}
+                disabled={pageNumber === 1 || loading}
+                className="w-8 h-8 hidden sm:flex items-center justify-center rounded-lg bg-white/10 text-white/60 hover:text-white hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-xs"
+                title="First page"
+              >
+                <i className="ri-skip-left-line"></i>
+              </button>
+              <button
+                onClick={() => setPageNumber((p) => Math.max(1, p - 1))}
+                disabled={pageNumber === 1 || loading}
+                className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 text-white/60 hover:text-white hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              >
+                <i className="ri-arrow-left-s-line"></i>
+              </button>
+              <div className="flex items-center gap-1 px-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter((p) => p === 1 || p === totalPages || Math.abs(p - pageNumber) <= 1)
+                  .reduce<(number | '...')[]>((acc, p, idx, arr) => {
+                    if (idx > 0 && typeof arr[idx - 1] === 'number' && (p as number) - (arr[idx - 1] as number) > 1) {
+                      acc.push('...');
+                    }
+                    acc.push(p);
+                    return acc;
+                  }, [])
+                  .map((p, idx) =>
+                    p === '...' ? (
+                      <span key={`ellipsis-${idx}`} className="w-8 h-8 flex items-center justify-center text-white/40 text-sm">…</span>
+                    ) : (
+                      <button
+                        key={p}
+                        onClick={() => setPageNumber(p as number)}
+                        className={`w-8 h-8 flex items-center justify-center rounded-lg text-sm font-medium transition-all ${
+                          pageNumber === p
+                            ? 'bg-teal-500 text-white'
+                            : 'bg-white/10 text-white/60 hover:text-white hover:bg-white/20'
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    )
+                  )}
+              </div>
+              <button
+                onClick={() => setPageNumber((p) => Math.min(totalPages, p + 1))}
+                disabled={pageNumber === totalPages || loading}
+                className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 text-white/60 hover:text-white hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              >
+                <i className="ri-arrow-right-s-line"></i>
+              </button>
+              <button
+                onClick={() => setPageNumber(totalPages)}
+                disabled={pageNumber === totalPages || loading}
+                className="w-8 h-8 hidden sm:flex items-center justify-center rounded-lg bg-white/10 text-white/60 hover:text-white hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-xs"
+                title="Last page"
+              >
+                <i className="ri-skip-right-line"></i>
+              </button>
+            </div>
+          </div>
         </>
       )}
 

@@ -406,7 +406,7 @@ const TrackLearning = () => {
                 <div className="bg-gradient-to-br from-purple-500/20 to-pink-500/10 border border-purple-500/30 rounded-2xl p-6">
                   <div className="flex items-center gap-3 mb-6">
                     <div className="w-12 h-12 flex items-center justify-center bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl">
-                      <i className="ri-road-map-line text-xl text-white"></i>
+                      <i className={`${track?.imageUrl || 'ri-road-map-line'} text-xl text-white`}></i>
                     </div>
                     <div>
                       <h1 className="text-white font-bold text-xl leading-tight capitalize">{track?.displayName || trackName}</h1>
