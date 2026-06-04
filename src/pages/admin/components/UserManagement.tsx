@@ -239,8 +239,8 @@ const UserManagement: React.FC = () => {
               }}
               options={[
                 { value: 'all', label: 'All Status' },
-                { value: 'active', label: 'Active' },
-                { value: 'inactive', label: 'Inactive' },
+                { value: 'Active', label: 'Active' },
+                { value: 'Inactive', label: 'Inactive' },
               ]}
               placeholder="All Status"
             />
