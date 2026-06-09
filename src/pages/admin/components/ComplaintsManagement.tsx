@@ -7,12 +7,15 @@ import {
   getAdminComplaintList,
   getAdminComplaintDetail,
   getAdminComplaintInvestigation,
+  getAdminActions,
+  resolveAdminComplaint,
 } from '../../../services/admin.service';
 import type {
   AdminComplaintSummary,
   AdminComplaintItem,
   AdminComplaintDetail,
   AdminInvestigationData,
+  AdminAction,
 } from '../../../services/admin.service';
 
 
@@ -225,6 +228,14 @@ const ComplaintsManagement = () => {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{ type: string; label: string } | null>(null);
 
+  // Admin actions from API
+  const [adminActions, setAdminActions] = useState<AdminAction[]>([]);
+  const [actionsLoading, setActionsLoading] = useState(false);
+
+  // Resolve submission state
+  const [resolveLoading, setResolveLoading] = useState(false);
+  const [resolveError, setResolveError] = useState<string | null>(null);
+
   // API state — summary
   const [complaintSummary, setComplaintSummary] = useState<AdminComplaintSummary | null>(null);
 
@@ -334,14 +345,15 @@ const ComplaintsManagement = () => {
     resolved:   complaintSummary?.resolved        ?? 0,
   };
 
-  const actionOptions = [
-    { id: 'warn',           label: 'Warn User',            icon: 'ri-alarm-warning-line',       color: 'orange', description: 'Send a formal warning to the reported user' },
-    { id: 'suspend_temp',   label: 'Suspend Temporarily',  icon: 'ri-user-unfollow-line',        color: 'yellow', description: 'Suspend user account for 30 days' },
-    { id: 'ban',            label: 'Permanently Ban',       icon: 'ri-user-forbid-line',          color: 'red',    description: 'Permanently ban user from the platform' },
-    { id: 'refund',         label: 'Refund Payment',        icon: 'ri-refund-2-line',             color: 'teal',   description: 'Refund payment to the complainant' },
-    { id: 'release',        label: 'Release Payment',       icon: 'ri-money-dollar-circle-line',  color: 'green',  description: 'Release held payment to the freelancer' },
-    { id: 'cancel_project', label: 'Cancel Project',        icon: 'ri-close-circle-line',         color: 'pink',   description: 'Cancel the related project' },
-  ];
+  // Map backend action values to display metadata (icon + color)
+  const ACTION_META: Record<string, { icon: string; color: string; description: string }> = {
+    WarnUser:       { icon: 'ri-alarm-warning-line',      color: 'orange', description: 'Send a formal warning to the reported user' },
+    SuspendUser:    { icon: 'ri-user-unfollow-line',      color: 'yellow', description: 'Suspend the user account temporarily' },
+    BanUser:        { icon: 'ri-user-forbid-line',        color: 'red',    description: 'Permanently ban user from the platform' },
+    RefundPayment:  { icon: 'ri-refund-2-line',           color: 'teal',   description: 'Refund payment to the complainant' },
+    ReleasePayment: { icon: 'ri-money-dollar-circle-line',color: 'green',  description: 'Release held payment to the freelancer' },
+    CancelProject:  { icon: 'ri-close-circle-line',       color: 'pink',   description: 'Cancel the related project' },
+  };
 
   // Helper to load investigation data for Step 2
   const loadInvestigation = (reportId: number) => {
@@ -354,13 +366,22 @@ const ComplaintsManagement = () => {
       .finally(() => setInvestigationLoading(false));
   };
 
-  const openResolutionFlow = (complaint: Complaint) => {
+  // Helper to load admin action options from the backend
+  const loadAdminActions = () => {
+    setActionsLoading(true);
+    getAdminActions()
+      .then((actions) => setAdminActions(actions))
+      .catch(() => setAdminActions([]))
+      .finally(() => setActionsLoading(false));
+  };
 
+  const openResolutionFlow = (complaint: Complaint) => {
     setSelectedComplaint(complaint);
     setShowResolutionFlow(true);
     setCurrentStep(1);
     setSelectedActions([]);
     setResolutionNote('');
+    setResolveError(null);
     setInvestigationTab('profiles');
     // Fetch full detail for the Review step
     setDetailData(null);
@@ -370,12 +391,15 @@ const ComplaintsManagement = () => {
       .then((d) => { setDetailData(d); })
       .catch((err) => { setDetailError(err instanceof Error ? err.message : 'Failed to load complaint details.'); })
       .finally(() => { setDetailLoading(false); });
+    // Eagerly load admin actions (needed for Step 3)
+    if (adminActions.length === 0) loadAdminActions();
   };
 
 
-  const toggleAction = (actionId: string) => {
+  // actionId here is the backend "value" string (e.g. "WarnUser")
+  const toggleAction = (actionValue: string) => {
     setSelectedActions((prev) =>
-      prev.includes(actionId) ? prev.filter((a) => a !== actionId) : [...prev, actionId]
+      prev.includes(actionValue) ? prev.filter((a) => a !== actionValue) : [...prev, actionValue]
     );
   };
 
@@ -387,13 +411,25 @@ const ComplaintsManagement = () => {
   const executeAction = () => {
     if (!confirmAction || !selectedComplaint) return;
     setShowConfirmDialog(false);
-    setConfirmAction(null);
-  };
 
-  const handleResolve = (status: 'resolved' | 'rejected') => {
-    if (!selectedComplaint || !resolutionNote.trim()) return;
-    setShowResolutionFlow(false);
-    setSelectedComplaint(null);
+    setResolveLoading(true);
+    setResolveError(null);
+    resolveAdminComplaint(selectedComplaint.id, {
+      resolutionNote,
+      actions: selectedActions,
+    })
+      .then(() => {
+        setShowResolutionFlow(false);
+        setSelectedComplaint(null);
+        setConfirmAction(null);
+        // Refresh the complaint list to reflect the new status
+        setPageNumber((p) => p);
+      })
+      .catch((err) => {
+        setResolveError(err instanceof Error ? err.message : 'Failed to submit resolution.');
+        setConfirmAction(null);
+      })
+      .finally(() => setResolveLoading(false));
   };
 
   const getStatusColor = (status: string) => {
@@ -1314,36 +1350,50 @@ const ComplaintsManagement = () => {
                       <i className="ri-lock-line text-5xl text-white/20 mb-4 block"></i>
                       <p className="text-white/60">This case has been closed. No further actions can be taken.</p>
                     </div>
+                  ) : actionsLoading ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {Array.from({ length: 6 }).map((_, i) => (
+                        <div key={i} className="h-36 bg-white/5 rounded-xl border border-white/10 animate-pulse" />
+                      ))}
+                    </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {actionOptions.map((action) => (
-                        <div
-                          key={action.id}
-                          onClick={() => toggleAction(action.id)}
-                          className={`bg-white/5 rounded-xl p-5 border cursor-pointer transition-all ${
-                            selectedActions.includes(action.id)
-                              ? `border-${action.color}-500 bg-${action.color}-500/10`
-                              : 'border-white/10 hover:border-white/30'
-                          }`}
-                        >
-                          <div className="flex items-start justify-between mb-3">
-                            <div className={`w-12 h-12 flex items-center justify-center rounded-xl bg-${action.color}-500/20`}>
-                              <i className={`${action.icon} text-2xl text-${action.color}-400`}></i>
+                      {adminActions.map((action) => {
+                        const meta = ACTION_META[action.value] ?? {
+                          icon: 'ri-settings-line',
+                          color: 'gray',
+                          description: action.name,
+                        };
+                        const isSelected = selectedActions.includes(action.value);
+                        return (
+                          <div
+                            key={action.id}
+                            onClick={() => toggleAction(action.value)}
+                            className={`bg-white/5 rounded-xl p-5 border cursor-pointer transition-all ${
+                              isSelected
+                                ? `border-${meta.color}-500 bg-${meta.color}-500/10`
+                                : 'border-white/10 hover:border-white/30'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between mb-3">
+                              <div className={`w-12 h-12 flex items-center justify-center rounded-xl bg-${meta.color}-500/20`}>
+                                <i className={`${meta.icon} text-2xl text-${meta.color}-400`}></i>
+                              </div>
+                              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
+                                isSelected
+                                  ? `border-${meta.color}-500 bg-${meta.color}-500`
+                                  : 'border-white/30'
+                              }`}>
+                                {isSelected && (
+                                  <i className="ri-check-line text-white text-sm"></i>
+                                )}
+                              </div>
                             </div>
-                            <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
-                              selectedActions.includes(action.id)
-                                ? `border-${action.color}-500 bg-${action.color}-500`
-                                : 'border-white/30'
-                            }`}>
-                              {selectedActions.includes(action.id) && (
-                                <i className="ri-check-line text-white text-sm"></i>
-                              )}
-                            </div>
+                            <h5 className="text-white font-semibold mb-1">{action.name}</h5>
+                            <p className="text-white/50 text-sm">{meta.description}</p>
                           </div>
-                          <h5 className="text-white font-semibold mb-1">{action.label}</h5>
-                          <p className="text-white/50 text-sm">{action.description}</p>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
 
@@ -1354,7 +1404,7 @@ const ComplaintsManagement = () => {
                         <div>
                           <p className="text-orange-400 font-semibold">Selected Actions ({selectedActions.length})</p>
                           <p className="text-white/60 text-sm mt-1">
-                            {selectedActions.map((id) => actionOptions.find((a) => a.id === id)?.label).join(', ')}
+                            {selectedActions.map((val) => adminActions.find((a) => a.value === val)?.name ?? val).join(', ')}
                           </p>
                         </div>
                       </div>
@@ -1497,10 +1547,15 @@ const ComplaintsManagement = () => {
 
             {/* Footer */}
             <div className="p-6 border-t border-white/10 shrink-0">
+              {resolveError && (
+                <div className="mb-4 px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+                  <i className="ri-error-warning-line mr-2"></i>{resolveError}
+                </div>
+              )}
               <div className="flex items-center justify-between">
                 <button
                   onClick={() => currentStep > 1 && setCurrentStep(currentStep - 1)}
-                  disabled={currentStep === 1}
+                  disabled={currentStep === 1 || resolveLoading}
                   className="px-6 py-3 bg-white/10 text-white rounded-lg font-semibold hover:bg-white/20 transition-all cursor-pointer whitespace-nowrap disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   <i className="ri-arrow-left-line mr-2"></i>
@@ -1511,19 +1566,19 @@ const ComplaintsManagement = () => {
                   {currentStep === 4 && selectedComplaint.status !== 'Resolved' && selectedComplaint.status !== 'Dismissed' && (
                     <>
                       <button
-                        onClick={() => handleConfirmAction({ type: 'reject', label: 'Reject Complaint' })}
-                        disabled={!resolutionNote.trim()}
+                        onClick={() => handleConfirmAction({ type: 'reject', label: 'Dismiss Complaint' })}
+                        disabled={!resolutionNote.trim() || resolveLoading}
                         className="px-6 py-3 bg-red-500 text-white rounded-lg font-semibold hover:bg-red-600 transition-all cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        <i className="ri-close-line mr-2"></i>
-                        Reject Complaint
+                        {resolveLoading ? <i className="ri-loader-4-line animate-spin mr-2"></i> : <i className="ri-close-line mr-2"></i>}
+                        Dismiss Complaint
                       </button>
                       <button
                         onClick={() => handleConfirmAction({ type: 'resolve', label: 'Resolve Complaint' })}
-                        disabled={!resolutionNote.trim()}
+                        disabled={!resolutionNote.trim() || resolveLoading}
                         className="px-6 py-3 bg-green-500 text-white rounded-lg font-semibold hover:bg-green-600 transition-all cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        <i className="ri-check-line mr-2"></i>
+                        {resolveLoading ? <i className="ri-loader-4-line animate-spin mr-2"></i> : <i className="ri-check-line mr-2"></i>}
                         Resolve Complaint
                       </button>
                     </>
@@ -1557,6 +1612,7 @@ const ComplaintsManagement = () => {
                 </div>
               </div>
             </div>
+
           </div>
         </div>
       , document.body)}
@@ -1601,11 +1657,10 @@ const ComplaintsManagement = () => {
                 </button>
                 <button
                   onClick={() => {
-                    handleResolve(confirmAction.type as 'resolved' | 'rejected');
-                    setShowConfirmDialog(false);
-                    setConfirmAction(null);
+                    executeAction();
                   }}
                   className={`flex-1 py-3 rounded-lg font-semibold transition-all cursor-pointer whitespace-nowrap ${
+
                     confirmAction.type === 'resolve'
                       ? 'bg-green-500 text-white hover:bg-green-600'
                       : 'bg-red-500 text-white hover:bg-red-600'

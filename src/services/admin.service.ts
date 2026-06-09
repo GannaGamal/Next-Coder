@@ -497,10 +497,83 @@ export const getAdminComplaintInvestigation = async (
   }
 
   const d = body.data;
+
+  // Robustly handle missing or differently-cased properties from the API
+  const projectMilestones = d.project?.milestones ?? d.project?.milestone ?? d.projectTimeline?.milestones ?? [];
+  const paymentsList = d.payments ?? d.paymentHistory ?? [];
+
   return {
     complainant:  d.complainant  ?? null,
     reportedUser: d.reportedUser ?? null,
-    project:      d.project      ?? null,
-    payments:     Array.isArray(d.payments) ? d.payments : [],
+    project: d.project ? {
+      ...d.project,
+      milestones: Array.isArray(projectMilestones) ? projectMilestones : []
+    } : null,
+    payments:     Array.isArray(paymentsList) ? paymentsList : [],
   } as AdminInvestigationData;
 };
+
+/* Admin Actions */
+
+export interface AdminAction {
+  id: number;
+  name: string;
+  value: string;
+}
+
+/**
+ * GET /api/Admin/Admin-Actions
+ * Returns the list of available admin actions for resolving a complaint.
+ */
+export const getAdminActions = async (): Promise<AdminAction[]> => {
+  const response = await fetch(`${API_BASE}/Admin/Admin-Actions`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${localStorage.getItem('authToken') ?? ''}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+
+  const body = await response.json();
+
+  // The endpoint may return a plain array or a wrapped { success, data } envelope
+  if (Array.isArray(body)) return body as AdminAction[];
+  if (body?.data && Array.isArray(body.data)) return body.data as AdminAction[];
+
+  throw new Error('Unable to load admin actions.');
+};
+
+/* Resolve Complaint */
+
+export interface ResolveComplaintPayload {
+  resolutionNote: string;
+  /** Array of action "value" strings, e.g. ["WarnUser", "BanUser"] */
+  actions: string[];
+}
+
+/**
+ * POST /api/Admin/{reportId}/resolve
+ * Resolves a complaint with the given note and actions.
+ */
+export const resolveAdminComplaint = async (
+  reportId: number,
+  payload: ResolveComplaintPayload,
+): Promise<void> => {
+  const response = await fetch(`${API_BASE}/Admin/${reportId}/resolve`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${localStorage.getItem('authToken') ?? ''}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+};
+
