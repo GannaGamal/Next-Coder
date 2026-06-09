@@ -16,6 +16,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useTranslation } from 'react-i18next';
+import { PREDEFINED_SKILLS } from '../../constants/skills';
 
 interface Project {
   id: string;
@@ -210,12 +211,7 @@ const FreelanceMarketplace = () => {
     }
   };
 
-  const allSkills = [
-    'JavaScript', 'React', 'Python', 'Java', 'Node.js', 'TypeScript',
-    'UI/UX Design', 'Graphic Design', 'Content Writing', 'SEO',
-    'Mobile Development', 'WordPress', 'Shopify', 'Video Editing',
-    'Social Media', 'Data Analysis', 'Machine Learning', 'AWS',
-  ];
+  const allSkills = PREDEFINED_SKILLS;
 
   // Build select options from API lookups — use .value for the option value
   const categoryOptions = apiCategories.map(c => ({ value: c.value as string, label: c.name }));

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { PREDEFINED_SKILLS } from '../../constants/skills';
 import { useAuth } from '../../contexts/AuthContext';
 import Navbar from '../../components/feature/Navbar';
 import Footer from '../../components/feature/Footer';
@@ -861,7 +862,9 @@ const FreelancerProfile = () => {
 
               {/* Skills */}
               <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 sm:p-6 lg:p-8 border border-white/10">
-                <h2 className="text-xl sm:text-2xl font-bold text-white mb-3 sm:mb-4">Skills</h2>
+                <h2 className="text-xl sm:text-2xl font-bold text-white mb-1">Skills</h2>
+                <p className="text-xs text-gray-400 mb-4">Click a skill to add or remove it. Use the search to filter, or type a custom skill below.</p>
+
                 {skillsLoading && (
                   <div className="mb-3 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-gray-400 flex items-center gap-2">
                     <i className="ri-loader-4-line animate-spin text-purple-300"></i>
@@ -878,45 +881,108 @@ const FreelancerProfile = () => {
                     {skillsActionError}
                   </div>
                 )}
-                <div className="flex flex-wrap gap-2 sm:gap-3 mb-3 sm:mb-4">
-                  {skills.map((skill) => (
-                    <div
-                      key={skill.id}
-                      className="flex items-center gap-2 bg-purple-500/20 border border-purple-500/30 rounded-lg px-3 sm:px-4 py-1.5 sm:py-2"
-                    >
-                      <span className="text-sm sm:text-base text-white font-medium">{skill.name}</span>
-                      <button
-                        onClick={() => handleRemoveSkill(skill.id)}
-                        disabled={deletingSkillId === skill.id}
-                        className="w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center text-white hover:text-red-400 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-                      >
-                        <i className={`ri-close-line text-sm sm:text-base ${deletingSkillId === skill.id ? 'animate-pulse' : ''}`}></i>
-                      </button>
+
+                {/* Selected Skills */}
+                {skills.length > 0 && (
+                  <div className="mb-4">
+                    <p className="text-[11px] uppercase tracking-wide text-gray-400 font-bold mb-2">Selected ({skills.length})</p>
+                    <div className="flex flex-wrap gap-2">
+                      {skills.map((skill) => (
+                        <button
+                          key={skill.id}
+                          onClick={() => handleRemoveSkill(skill.id)}
+                          disabled={deletingSkillId === skill.id || isAddingSkill}
+                          title="Click to remove"
+                          className="group flex items-center gap-1.5 bg-purple-500 border border-purple-400 rounded-lg px-3 py-1.5 text-sm text-white font-medium transition-all hover:bg-red-500 hover:border-red-400 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                          {deletingSkillId === skill.id
+                            ? <i className="ri-loader-4-line animate-spin text-xs"></i>
+                            : <i className="ri-check-line text-xs group-hover:hidden"></i>
+                          }
+                          <i className="ri-close-line text-xs hidden group-hover:inline"></i>
+                          {skill.name}
+                        </button>
+                      ))}
                     </div>
-                  ))}
-                  {!skillsLoading && skills.length === 0 && (
-                    <div className="text-xs text-gray-500">No skills added yet.</div>
-                  )}
+                  </div>
+                )}
+
+                {/* Predefined skill chips */}
+                <div className="flex flex-wrap gap-2 max-h-44 overflow-y-auto pr-1 mb-4 thin-scrollbar">
+                  {PREDEFINED_SKILLS.map((skillName) => {
+                    const isSelected = skills.some(
+                      (s) => s.name.toLowerCase() === skillName.toLowerCase()
+                    );
+                    return (
+                      <button
+                        key={skillName}
+                        onClick={() => {
+                          if (isSelected) {
+                            const match = skills.find(
+                              (s) => s.name.toLowerCase() === skillName.toLowerCase()
+                            );
+                            if (match) handleRemoveSkill(match.id);
+                          } else {
+                            setNewSkill(skillName);
+                            // Immediately trigger add with the predefined name
+                            const trimmed = skillName.trim();
+                            if (!trimmed) return;
+                            if (skills.some((s) => s.name.toLowerCase() === trimmed.toLowerCase())) return;
+                            setSkillsActionError('');
+                            setIsAddingSkill(true);
+                            addFreelancerSkill(trimmed)
+                              .then(() => getFreelancerSkills())
+                              .then((refreshed) => {
+                                setSkills(refreshed);
+                                setNewSkill('');
+                              })
+                              .catch((err) => {
+                                setSkillsActionError(
+                                  err instanceof Error ? err.message : 'Could not update skills. Please try again.'
+                                );
+                              })
+                              .finally(() => setIsAddingSkill(false));
+                          }
+                        }}
+                        disabled={isAddingSkill || (deletingSkillId !== null)}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed ${
+                          isSelected
+                            ? 'bg-purple-500/20 border-purple-500/50 text-purple-300'
+                            : 'bg-white/5 border-white/10 text-gray-400 hover:bg-purple-500/15 hover:border-purple-500/40 hover:text-purple-200'
+                        }`}
+                      >
+                        {isSelected && <i className="ri-check-line mr-1 text-xs"></i>}
+                        {skillName}
+                      </button>
+                    );
+                  })}
                 </div>
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <input
-                    type="text"
-                    value={newSkill}
-                    onChange={(e) => {
-                      setNewSkill(e.target.value);
-                      if (skillsActionError) setSkillsActionError('');
-                    }}
-                    onKeyDown={(e) => e.key === 'Enter' && handleAddSkill()}
-                    className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
-                    placeholder="Add a skill..."
-                  />
-                  <button
-                    onClick={handleAddSkill}
-                    disabled={isAddingSkill || skillsLoading || !newSkill.trim()}
-                    className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-3 bg-purple-500 text-white text-sm sm:text-base font-semibold rounded-lg hover:bg-purple-600 transition-colors whitespace-nowrap cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    {isAddingSkill ? 'Adding...' : 'Add Skill'}
-                  </button>
+
+                {/* Custom skill input */}
+                <div className="border-t border-white/5 pt-4">
+                  <p className="text-[11px] uppercase tracking-wide text-gray-400 font-bold mb-2">Add a custom skill</p>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <input
+                      type="text"
+                      value={newSkill}
+                      onChange={(e) => {
+                        setNewSkill(e.target.value);
+                        if (skillsActionError) setSkillsActionError('');
+                      }}
+                      onKeyDown={(e) => e.key === 'Enter' && handleAddSkill()}
+                      className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 transition-colors"
+                      placeholder="e.g. Rust, Figma, Blender..."
+                    />
+                    <button
+                      onClick={handleAddSkill}
+                      disabled={isAddingSkill || skillsLoading || !newSkill.trim()}
+                      className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-2.5 bg-purple-500 text-white text-sm font-semibold rounded-lg hover:bg-purple-600 transition-colors whitespace-nowrap cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                    >
+                      {isAddingSkill
+                        ? <><i className="ri-loader-4-line animate-spin"></i> Adding...</>
+                        : <><i className="ri-add-line"></i> Add</>}
+                    </button>
+                  </div>
                 </div>
               </div>
 
