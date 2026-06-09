@@ -3,11 +3,14 @@ import CustomSelect from '../../../components/base/CustomSelect';
 import {
   getAdminComplaintSummary,
   getAdminComplaintList,
+  getAdminComplaintDetail,
 } from '../../../services/admin.service';
 import type {
   AdminComplaintSummary,
   AdminComplaintItem,
+  AdminComplaintDetail,
 } from '../../../services/admin.service';
+
 
 // ---------------------------------------------------------------------------
 // Types
@@ -231,7 +234,13 @@ const ComplaintsManagement = () => {
   // Filter options loaded from Swagger schema (seeded with fallback immediately)
   const [filterOptions, setFilterOptions] = useState<FilterOptions>(FALLBACK_OPTIONS);
 
+  // Complaint detail (Step 1 — Review)
+  const [detailData, setDetailData]       = useState<AdminComplaintDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError]     = useState<string | null>(null);
+
   const prevFilterRef = useRef({ search: '', status: 'all', role: 'all', type: 'all' });
+
 
   // Debounce search input
   useEffect(() => {
@@ -330,7 +339,16 @@ const ComplaintsManagement = () => {
     setSelectedActions([]);
     setResolutionNote('');
     setInvestigationTab('profiles');
+    // Fetch full detail for the Review step
+    setDetailData(null);
+    setDetailLoading(true);
+    setDetailError(null);
+    getAdminComplaintDetail(complaint.id)
+      .then((d) => { setDetailData(d); })
+      .catch((err) => { setDetailError(err instanceof Error ? err.message : 'Failed to load complaint details.'); })
+      .finally(() => { setDetailLoading(false); });
   };
+
 
   const toggleAction = (actionId: string) => {
     setSelectedActions((prev) =>
@@ -726,129 +744,238 @@ const ComplaintsManagement = () => {
                     </div>
                   </div>
 
-                  {/* Complaint Info */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div className="space-y-4">
-                      <div className="bg-white/5 rounded-xl p-5 border border-white/10">
-                        <div className="flex items-center justify-between mb-4">
-                          <h5 className="text-lg font-semibold text-white">{selectedComplaint.subject}</h5>
-                          <div className="flex gap-2">
-                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(selectedComplaint.status)}`}>
-                              {statusLabels[selectedComplaint.status] ?? selectedComplaint.status}
-                            </span>
-                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getTypeColor(selectedComplaint.type)}`}>
-                              {typeLabels[selectedComplaint.type] ?? selectedComplaint.type}
-                            </span>
-                          </div>
-                        </div>
-                        <p className="text-white/70 leading-relaxed">{selectedComplaint.description}</p>
-                        <div className="mt-4 pt-4 border-t border-white/10 flex items-center gap-4 text-sm text-white/50">
-                          <span><i className="ri-calendar-line mr-1"></i> {selectedComplaint.submittedDate}</span>
-                          <span><i className="ri-attachment-line mr-1"></i> {selectedComplaint.evidence.length} attachments</span>
-                        </div>
-                      </div>
-
-                      {/* Users */}
+                  {/* Loading skeleton */}
+                  {detailLoading && (
+                    <div className="space-y-4 animate-pulse">
+                      <div className="h-40 rounded-xl bg-white/5 border border-white/10" />
                       <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-white/5 rounded-xl p-4 border border-white/10">
-                          <p className="text-white/50 text-xs mb-3 uppercase tracking-wider">Complainant</p>
-                          <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 rounded-full overflow-hidden bg-white/10 flex items-center justify-center">
-                              {selectedComplaint.complainant.avatar ? (
-                                <img src={selectedComplaint.complainant.avatar} alt="" className="w-full h-full object-cover object-top" />
-                              ) : (
-                                <i className="ri-user-line text-white/40"></i>
-                              )}
-                            </div>
-                            <div>
-                              <p className="text-white font-semibold">{selectedComplaint.complainant.name}</p>
-                              <span className="px-2 py-0.5 bg-teal-500/20 text-teal-400 rounded text-xs font-semibold">
-                                {selectedComplaint.complainant.role}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="bg-white/5 rounded-xl p-4 border border-white/10">
-                          <p className="text-white/50 text-xs mb-3 uppercase tracking-wider">Reported User</p>
-                          <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 rounded-full overflow-hidden bg-white/10 flex items-center justify-center">
-                              {selectedComplaint.reportedUser.avatar ? (
-                                <img src={selectedComplaint.reportedUser.avatar} alt="" className="w-full h-full object-cover object-top" />
-                              ) : (
-                                <i className="ri-user-line text-white/40"></i>
-                              )}
-                            </div>
-                            <div>
-                              <p className="text-white font-semibold">{selectedComplaint.reportedUser.name}</p>
-                              <span className="px-2 py-0.5 bg-orange-500/20 text-orange-400 rounded text-xs font-semibold">
-                                {selectedComplaint.reportedUser.role}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
+                        <div className="h-28 rounded-xl bg-white/5 border border-white/10" />
+                        <div className="h-28 rounded-xl bg-white/5 border border-white/10" />
                       </div>
+                    </div>
+                  )}
 
-                      {/* Related Project */}
-                      {selectedComplaint.relatedProject && (
-                        <div className="bg-white/5 rounded-xl p-4 border border-white/10">
-                          <p className="text-white/50 text-xs mb-3 uppercase tracking-wider">Related Project</p>
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-teal-400 font-semibold">{selectedComplaint.relatedProject.name}</p>
-                              <p className="text-white/50 text-sm">Budget: ${selectedComplaint.relatedProject.budget.toLocaleString()}</p>
+                  {/* Error state */}
+                  {!detailLoading && detailError && (
+                    <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-6 text-center">
+                      <i className="ri-error-warning-line text-4xl text-red-400 mb-3 block"></i>
+                      <p className="text-red-400 text-sm">{detailError}</p>
+                      <button
+                        onClick={() => {
+                          if (!selectedComplaint) return;
+                          setDetailLoading(true);
+                          setDetailError(null);
+                          getAdminComplaintDetail(selectedComplaint.id)
+                            .then((d) => setDetailData(d))
+                            .catch((e) => setDetailError(e instanceof Error ? e.message : 'Failed to load.'))
+                            .finally(() => setDetailLoading(false));
+                        }}
+                        className="mt-4 px-4 py-2 bg-red-500/20 text-red-400 rounded-lg text-sm hover:bg-red-500/30 transition-all cursor-pointer"
+                      >
+                        <i className="ri-refresh-line mr-1"></i> Retry
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Live data */}
+                  {!detailLoading && !detailError && detailData && (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      {/* Left column */}
+                      <div className="space-y-4">
+                        {/* Report info card */}
+                        <div className="bg-white/5 rounded-xl p-5 border border-white/10">
+                          <div className="flex items-center justify-between mb-4">
+                            <h5 className="text-lg font-semibold text-white">{detailData.reportType}</h5>
+                            <div className="flex gap-2 flex-wrap justify-end">
+                              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(detailData.status)}`}>
+                                {detailData.status}
+                              </span>
+                              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getTypeColor(detailData.reportType)}`}>
+                                {toLabel(detailData.reportType)}
+                              </span>
                             </div>
-                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                              selectedComplaint.relatedProject.status === 'Completed' ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'
-                            }`}>
-                              {selectedComplaint.relatedProject.status}
+                          </div>
+                          <p className="text-white/70 leading-relaxed">{detailData.description}</p>
+                          <div className="mt-4 pt-4 border-t border-white/10 flex items-center gap-4 text-sm text-white/50">
+                            <span>
+                              <i className="ri-calendar-line mr-1"></i>
+                              {detailData.createdAt
+                                ? new Date(detailData.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+                                : '—'}
+                            </span>
+                            <span>
+                              <i className="ri-attachment-line mr-1"></i>
+                              {detailData.evidenceUrl ? '1 attachment' : 'No attachments'}
                             </span>
                           </div>
                         </div>
-                      )}
-                    </div>
 
-                    {/* Evidence */}
-                    <div className="bg-white/5 rounded-xl p-5 border border-white/10">
-                      <h5 className="text-lg font-semibold text-white mb-4">
-                        <i className="ri-attachment-line mr-2 text-teal-400"></i>
-                        Evidence &amp; Attachments
-                      </h5>
-                      <div className="space-y-4">
-                        {selectedComplaint.evidence.map((item, index) => (
-                          <div key={index} className="bg-white/5 rounded-lg overflow-hidden">
-                            {item.type === 'image' ? (
-                              <div>
-                                <div className="w-full h-48">
-                                  <img src={item.url} alt={item.name} className="w-full h-full object-cover" />
-                                </div>
-                                <div className="p-3 flex items-center justify-between">
-                                  <span className="text-white/60 text-sm truncate">{item.name}</span>
-                                  <button className="text-teal-400 hover:text-teal-300 cursor-pointer">
-                                    <i className="ri-external-link-line"></i>
-                                  </button>
-                                </div>
+                        {/* Complainant + Reported user mini cards */}
+                        <div className="grid grid-cols-2 gap-4">
+                          {/* Complainant */}
+                          <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                            <p className="text-white/50 text-xs mb-3 uppercase tracking-wider">Complainant</p>
+                            <div className="flex items-center gap-3 mb-3">
+                              <div className="w-12 h-12 rounded-full overflow-hidden bg-white/10 flex items-center justify-center flex-shrink-0">
+                                {detailData.complainant.imageUrl ? (
+                                  <img src={buildAvatarUrl(detailData.complainant.imageUrl)} alt="" className="w-full h-full object-cover object-top" />
+                                ) : (
+                                  <i className="ri-user-line text-white/40"></i>
+                                )}
                               </div>
-                            ) : (
-                              <div className="p-4 flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-10 h-10 flex items-center justify-center bg-white/10 rounded-lg">
-                                    <i className="ri-file-pdf-line text-xl text-red-400"></i>
-                                  </div>
-                                  <span className="text-white truncate">{item.name}</span>
-                                </div>
-                                <button className="text-teal-400 hover:text-teal-300 cursor-pointer">
-                                  <i className="ri-download-line"></i>
-                                </button>
+                              <div className="min-w-0">
+                                <p className="text-white font-semibold truncate">{detailData.complainant.fullName}</p>
+                                <span className="px-2 py-0.5 bg-teal-500/20 text-teal-400 rounded text-xs font-semibold">{detailData.complainant.role}</span>
                               </div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2 text-center">
+                              <div className="bg-white/5 rounded-lg p-2">
+                                <p className="text-white font-bold text-sm">{detailData.complainant.totalProjects}</p>
+                                <p className="text-white/40 text-xs">Projects</p>
+                              </div>
+                              <div className="bg-white/5 rounded-lg p-2">
+                                <p className="text-white font-bold text-sm">{detailData.complainant.rating ?? '—'}</p>
+                                <p className="text-white/40 text-xs">Rating</p>
+                              </div>
+                              <div className="bg-white/5 rounded-lg p-2">
+                                <p className="text-orange-400 font-bold text-sm">{detailData.complainant.warningsCount}</p>
+                                <p className="text-white/40 text-xs">Warnings</p>
+                              </div>
+                            </div>
+                            {detailData.complainant.email && (
+                              <p className="text-white/40 text-xs mt-3 truncate">
+                                <i className="ri-mail-line mr-1"></i>{detailData.complainant.email}
+                              </p>
+                            )}
+                            {detailData.complainant.joinedAt && (
+                              <p className="text-white/40 text-xs mt-1">
+                                <i className="ri-calendar-line mr-1"></i>
+                                Joined {new Date(detailData.complainant.joinedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short' })}
+                              </p>
                             )}
                           </div>
-                        ))}
-                        {selectedComplaint.evidence.length === 0 && (
+
+                          {/* Reported user */}
+                          <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                            <p className="text-white/50 text-xs mb-3 uppercase tracking-wider">Reported User</p>
+                            <div className="flex items-center gap-3 mb-3">
+                              <div className="w-12 h-12 rounded-full overflow-hidden bg-white/10 flex items-center justify-center flex-shrink-0">
+                                {detailData.reportedUser.imageUrl ? (
+                                  <img src={buildAvatarUrl(detailData.reportedUser.imageUrl)} alt="" className="w-full h-full object-cover object-top" />
+                                ) : (
+                                  <i className="ri-user-line text-white/40"></i>
+                                )}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-white font-semibold truncate">{detailData.reportedUser.fullName}</p>
+                                <span className="px-2 py-0.5 bg-orange-500/20 text-orange-400 rounded text-xs font-semibold">{detailData.reportedUser.role}</span>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2 text-center">
+                              <div className="bg-white/5 rounded-lg p-2">
+                                <p className="text-white font-bold text-sm">{detailData.reportedUser.totalProjects}</p>
+                                <p className="text-white/40 text-xs">Projects</p>
+                              </div>
+                              <div className="bg-white/5 rounded-lg p-2">
+                                <p className="text-white font-bold text-sm">{detailData.reportedUser.rating ?? '—'}</p>
+                                <p className="text-white/40 text-xs">Rating</p>
+                              </div>
+                              <div className="bg-white/5 rounded-lg p-2">
+                                <p className="text-orange-400 font-bold text-sm">{detailData.reportedUser.warningsCount}</p>
+                                <p className="text-white/40 text-xs">Warnings</p>
+                              </div>
+                            </div>
+                            {detailData.reportedUser.email && (
+                              <p className="text-white/40 text-xs mt-3 truncate">
+                                <i className="ri-mail-line mr-1"></i>{detailData.reportedUser.email}
+                              </p>
+                            )}
+                            {detailData.reportedUser.joinedAt && (
+                              <p className="text-white/40 text-xs mt-1">
+                                <i className="ri-calendar-line mr-1"></i>
+                                Joined {new Date(detailData.reportedUser.joinedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short' })}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Related project */}
+                        {detailData.project && (
+                          <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                            <p className="text-white/50 text-xs mb-3 uppercase tracking-wider">Related Project</p>
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-teal-400 font-semibold">{detailData.project.title}</p>
+                                <p className="text-white/50 text-sm">Budget: ${detailData.project.budget.toLocaleString()}</p>
+                              </div>
+                              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                detailData.project.status?.toLowerCase() === 'completed' ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'
+                              }`}>
+                                {detailData.project.status}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Right column — Evidence */}
+                      <div className="bg-white/5 rounded-xl p-5 border border-white/10">
+                        <h5 className="text-lg font-semibold text-white mb-4">
+                          <i className="ri-attachment-line mr-2 text-teal-400"></i>
+                          Evidence &amp; Attachments
+                        </h5>
+                        {detailData.evidenceUrl ? (
+                          <div className="space-y-4">
+                            <div className="bg-white/5 rounded-lg overflow-hidden">
+                              {/* Render as image if common image extension, otherwise as file download */}
+                              {/\.(jpe?g|png|gif|webp|svg)$/i.test(detailData.evidenceUrl) ? (
+                                <div>
+                                  <div className="w-full h-48">
+                                    <img
+                                      src={buildAvatarUrl(detailData.evidenceUrl)}
+                                      alt="Evidence"
+                                      className="w-full h-full object-cover"
+                                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                                    />
+                                  </div>
+                                  <div className="p-3 flex items-center justify-between">
+                                    <span className="text-white/60 text-sm truncate">Evidence</span>
+                                    <a
+                                      href={buildAvatarUrl(detailData.evidenceUrl)}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-teal-400 hover:text-teal-300"
+                                    >
+                                      <i className="ri-external-link-line"></i>
+                                    </a>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="p-4 flex items-center justify-between">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 flex items-center justify-center bg-white/10 rounded-lg">
+                                      <i className="ri-file-line text-xl text-teal-400"></i>
+                                    </div>
+                                    <span className="text-white truncate">Evidence File</span>
+                                  </div>
+                                  <a
+                                    href={buildAvatarUrl(detailData.evidenceUrl)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-teal-400 hover:text-teal-300"
+                                  >
+                                    <i className="ri-download-line"></i>
+                                  </a>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
                           <p className="text-white/40 text-center py-8">No evidence attached</p>
                         )}
                       </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               )}
 

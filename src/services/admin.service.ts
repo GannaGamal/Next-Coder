@@ -387,3 +387,58 @@ export const getAdminComplaintList = async (
   return body.data as AdminComplaintList;
 };
 
+/* Complaint detail */
+
+export interface AdminComplaintUserDetail {
+  profileId: number;
+  fullName: string;
+  email: string;
+  role: string;
+  imageUrl: string | null;
+  totalProjects: number;
+  rating: number;
+  warningsCount: number;
+  joinedAt: string;
+}
+
+export interface AdminComplaintProjectDetail {
+  id: number;
+  title: string;
+  budget: number;
+  status: string;
+}
+
+export interface AdminComplaintDetail {
+  id: number;
+  reportType: string;
+  description: string;
+  status: string;
+  createdAt: string;
+  evidenceUrl: string | null;
+  project: AdminComplaintProjectDetail | null;
+  complainant: AdminComplaintUserDetail;
+  reportedUser: AdminComplaintUserDetail;
+}
+
+export const getAdminComplaintDetail = async (
+  reportId: number,
+): Promise<AdminComplaintDetail> => {
+  const response = await fetch(`${API_BASE}/Admin/${reportId}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${localStorage.getItem('authToken') ?? ''}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+
+  const body = await response.json();
+  if (!body?.success || !body?.data) {
+    throw new Error('Unable to load complaint details.');
+  }
+
+  return body.data as AdminComplaintDetail;
+};
