@@ -1,15 +1,20 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+
 import CustomSelect from '../../../components/base/CustomSelect';
 import {
   getAdminComplaintSummary,
   getAdminComplaintList,
   getAdminComplaintDetail,
+  getAdminComplaintInvestigation,
 } from '../../../services/admin.service';
 import type {
   AdminComplaintSummary,
   AdminComplaintItem,
   AdminComplaintDetail,
+  AdminInvestigationData,
 } from '../../../services/admin.service';
+
 
 
 // ---------------------------------------------------------------------------
@@ -239,7 +244,13 @@ const ComplaintsManagement = () => {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError]     = useState<string | null>(null);
 
+  // Investigation data (Step 2 — Investigate)
+  const [investigationData, setInvestigationData]       = useState<AdminInvestigationData | null>(null);
+  const [investigationLoading, setInvestigationLoading] = useState(false);
+  const [investigationError, setInvestigationError]     = useState<string | null>(null);
+
   const prevFilterRef = useRef({ search: '', status: 'all', role: 'all', type: 'all' });
+
 
 
   // Debounce search input
@@ -332,7 +343,19 @@ const ComplaintsManagement = () => {
     { id: 'cancel_project', label: 'Cancel Project',        icon: 'ri-close-circle-line',         color: 'pink',   description: 'Cancel the related project' },
   ];
 
+  // Helper to load investigation data for Step 2
+  const loadInvestigation = (reportId: number) => {
+    setInvestigationData(null);
+    setInvestigationLoading(true);
+    setInvestigationError(null);
+    getAdminComplaintInvestigation(reportId)
+      .then((d) => setInvestigationData(d))
+      .catch((err) => setInvestigationError(err instanceof Error ? err.message : 'Failed to load investigation data.'))
+      .finally(() => setInvestigationLoading(false));
+  };
+
   const openResolutionFlow = (complaint: Complaint) => {
+
     setSelectedComplaint(complaint);
     setShowResolutionFlow(true);
     setCurrentStep(1);
@@ -673,11 +696,12 @@ const ComplaintsManagement = () => {
       </div>
 
       {/* Resolution Flow Modal */}
-      {showResolutionFlow && selectedComplaint && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      {showResolutionFlow && selectedComplaint && createPortal(
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+
           <div className="bg-[#1a1f37] rounded-xl max-w-6xl w-full max-h-[95vh] overflow-hidden border border-white/10 flex flex-col">
             {/* Header with Steps */}
-            <div className="p-6 border-b border-white/10 bg-[#1a1f37] sticky top-0 z-10">
+            <div className="p-6 border-b border-white/10 shrink-0">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-2xl font-bold text-white">Complaint Resolution</h3>
                 <button
@@ -693,7 +717,13 @@ const ComplaintsManagement = () => {
                 {steps.map((step, index) => (
                   <div key={step.number} className="flex items-center flex-1">
                     <div
-                      onClick={() => (selectedComplaint.status !== 'Resolved' && selectedComplaint.status !== 'Dismissed') && setCurrentStep(step.number)}
+                      onClick={() => {
+                        if (selectedComplaint.status === 'Resolved' || selectedComplaint.status === 'Dismissed') return;
+                        if (step.number === 2 && !investigationData && !investigationLoading) {
+                          loadInvestigation(selectedComplaint.id);
+                        }
+                        setCurrentStep(step.number);
+                      }}
                       className={`flex items-center gap-3 cursor-pointer transition-all ${
                         currentStep >= step.number ? 'opacity-100' : 'opacity-40'
                       }`}
@@ -988,21 +1018,20 @@ const ComplaintsManagement = () => {
                     </div>
                     <div>
                       <h4 className="text-xl font-bold text-white">Investigation</h4>
-                      <p className="text-white/60 text-sm">Review user profiles, project timeline, payments, and communications</p>
+                      <p className="text-white/60 text-sm">Review user profiles, project timeline and payment history</p>
                     </div>
                   </div>
 
-                  {/* Investigation Tabs */}
-                  <div className="flex gap-2 p-1 bg-white/5 rounded-lg w-fit">
-                    {[
-                      { id: 'profiles',  label: 'User Profiles',    icon: 'ri-user-line' },
-                      { id: 'timeline',  label: 'Project Timeline', icon: 'ri-time-line' },
-                      { id: 'payments',  label: 'Payment History',  icon: 'ri-money-dollar-circle-line' },
-                      { id: 'chat',      label: 'Chat Logs',        icon: 'ri-chat-3-line' },
-                    ].map((tab) => (
+                  {/* Tabs */}
+                  <div className="flex gap-2 p-1 bg-white/5 rounded-lg w-fit flex-wrap">
+                    {([
+                      { id: 'profiles', label: 'User Profiles',    icon: 'ri-user-line' },
+                      { id: 'timeline', label: 'Project Timeline', icon: 'ri-time-line' },
+                      { id: 'payments', label: 'Payment History',  icon: 'ri-money-dollar-circle-line' },
+                    ] as const).map((tab) => (
                       <button
                         key={tab.id}
-                        onClick={() => setInvestigationTab(tab.id as typeof investigationTab)}
+                        onClick={() => setInvestigationTab(tab.id)}
                         className={`px-4 py-2 rounded-md text-sm font-semibold transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 ${
                           investigationTab === tab.id
                             ? 'bg-teal-500 text-white'
@@ -1015,231 +1044,254 @@ const ComplaintsManagement = () => {
                     ))}
                   </div>
 
-                  {/* User Profiles Tab */}
-                  {investigationTab === 'profiles' && (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      <div className="bg-white/5 rounded-xl p-6 border border-white/10">
-                        <div className="flex items-center gap-2 mb-4">
-                          <i className="ri-user-line text-teal-400"></i>
-                          <h5 className="text-lg font-semibold text-white">Complainant Profile</h5>
-                        </div>
-                        <div className="flex items-center gap-4 mb-6">
-                          <div className="w-20 h-20 rounded-full overflow-hidden bg-white/10 flex items-center justify-center">
-                            {selectedComplaint.complainant.avatar ? (
-                              <img src={selectedComplaint.complainant.avatar} alt="" className="w-full h-full object-cover object-top" />
-                            ) : (
-                              <i className="ri-user-line text-white/40 text-2xl"></i>
-                            )}
-                          </div>
-                          <div>
-                            <p className="text-xl font-bold text-white">{selectedComplaint.complainant.name}</p>
-                            <p className="text-white/60">{selectedComplaint.complainant.email}</p>
-                            <span className="px-3 py-1 bg-teal-500/20 text-teal-400 rounded-full text-xs font-semibold mt-2 inline-block">
-                              {selectedComplaint.complainant.role}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-3 gap-4">
-                          <div className="bg-white/5 rounded-lg p-3 text-center">
-                            <p className="text-2xl font-bold text-white">{selectedComplaint.complainant.totalProjects}</p>
-                            <p className="text-white/50 text-xs">Projects</p>
-                          </div>
-                          <div className="bg-white/5 rounded-lg p-3 text-center">
-                            <p className="text-2xl font-bold text-white">{selectedComplaint.complainant.rating || 'N/A'}</p>
-                            <p className="text-white/50 text-xs">Rating</p>
-                          </div>
-                          <div className="bg-white/5 rounded-lg p-3 text-center">
-                            <p className="text-sm font-bold text-white">{selectedComplaint.complainant.joinDate || '—'}</p>
-                            <p className="text-white/50 text-xs">Joined</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="bg-white/5 rounded-xl p-6 border border-white/10">
-                        <div className="flex items-center gap-2 mb-4">
-                          <i className="ri-user-warning-line text-orange-400"></i>
-                          <h5 className="text-lg font-semibold text-white">Reported User Profile</h5>
-                        </div>
-                        <div className="flex items-center gap-4 mb-6">
-                          <div className="w-20 h-20 rounded-full overflow-hidden bg-white/10 flex items-center justify-center">
-                            {selectedComplaint.reportedUser.avatar ? (
-                              <img src={selectedComplaint.reportedUser.avatar} alt="" className="w-full h-full object-cover object-top" />
-                            ) : (
-                              <i className="ri-user-line text-white/40 text-2xl"></i>
-                            )}
-                          </div>
-                          <div>
-                            <p className="text-xl font-bold text-white">{selectedComplaint.reportedUser.name}</p>
-                            <p className="text-white/60">{selectedComplaint.reportedUser.email}</p>
-                            <div className="flex items-center gap-2 mt-2">
-                              <span className="px-3 py-1 bg-orange-500/20 text-orange-400 rounded-full text-xs font-semibold">
-                                {selectedComplaint.reportedUser.role}
-                              </span>
-                              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                                selectedComplaint.reportedUser.status === 'active'    ? 'bg-green-500/20 text-green-400' :
-                                selectedComplaint.reportedUser.status === 'suspended' ? 'bg-yellow-500/20 text-yellow-400' :
-                                'bg-red-500/20 text-red-400'
-                              }`}>
-                                {selectedComplaint.reportedUser.status}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-4 gap-4">
-                          <div className="bg-white/5 rounded-lg p-3 text-center">
-                            <p className="text-2xl font-bold text-white">{selectedComplaint.reportedUser.totalProjects}</p>
-                            <p className="text-white/50 text-xs">Projects</p>
-                          </div>
-                          <div className="bg-white/5 rounded-lg p-3 text-center">
-                            <p className="text-2xl font-bold text-white">{selectedComplaint.reportedUser.rating || 'N/A'}</p>
-                            <p className="text-white/50 text-xs">Rating</p>
-                          </div>
-                          <div className="bg-white/5 rounded-lg p-3 text-center">
-                            <p className="text-2xl font-bold text-orange-400">{selectedComplaint.reportedUser.warnings}</p>
-                            <p className="text-white/50 text-xs">Warnings</p>
-                          </div>
-                          <div className="bg-white/5 rounded-lg p-3 text-center">
-                            <p className="text-sm font-bold text-white">{selectedComplaint.reportedUser.joinDate || '—'}</p>
-                            <p className="text-white/50 text-xs">Joined</p>
-                          </div>
-                        </div>
+                  {/* Loading skeleton */}
+                  {investigationLoading && (
+                    <div className="space-y-4 animate-pulse">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="h-48 rounded-xl bg-white/5 border border-white/10" />
+                        <div className="h-48 rounded-xl bg-white/5 border border-white/10" />
                       </div>
                     </div>
                   )}
 
-                  {/* Project Timeline Tab */}
-                  {investigationTab === 'timeline' && selectedComplaint.relatedProject && (
-                    <div className="bg-white/5 rounded-xl p-6 border border-white/10">
-                      <div className="flex items-center justify-between mb-6">
-                        <div>
-                          <h5 className="text-lg font-semibold text-white">{selectedComplaint.relatedProject.name}</h5>
-                          <p className="text-white/50 text-sm">Budget: ${selectedComplaint.relatedProject.budget.toLocaleString()}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-white/50 text-sm">Start: {selectedComplaint.relatedProject.startDate}</p>
-                          <p className="text-white/50 text-sm">Deadline: {selectedComplaint.relatedProject.deadline}</p>
-                        </div>
-                      </div>
+                  {/* Error */}
+                  {!investigationLoading && investigationError && (
+                    <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-6 text-center">
+                      <i className="ri-error-warning-line text-4xl text-red-400 mb-3 block"></i>
+                      <p className="text-red-400 text-sm">{investigationError}</p>
+                      <button
+                        onClick={() => selectedComplaint && loadInvestigation(selectedComplaint.id)}
+                        className="mt-4 px-4 py-2 bg-red-500/20 text-red-400 rounded-lg text-sm hover:bg-red-500/30 transition-all cursor-pointer"
+                      >
+                        <i className="ri-refresh-line mr-1"></i> Retry
+                      </button>
+                    </div>
+                  )}
 
-                      <div className="relative">
-                        <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-white/10"></div>
-                        <div className="space-y-6">
-                          {selectedComplaint.relatedProject.milestones.map((milestone, index) => (
-                            <div key={index} className="relative flex items-start gap-4 pl-12">
-                              <div className={`absolute left-4 w-5 h-5 rounded-full border-2 ${
-                                milestone.status === 'Completed' ? 'bg-green-500 border-green-500' :
-                                milestone.status === 'In Progress' ? 'bg-blue-500 border-blue-500' :
-                                'bg-white/10 border-white/30'
-                              }`}>
-                                {milestone.status === 'Completed' && (
-                                  <i className="ri-check-line text-white text-xs absolute top-0.5 left-0.5"></i>
+                  {/* Live investigation content */}
+                  {!investigationLoading && !investigationError && investigationData && (
+                    <>
+                      {/* ── USER PROFILES ────────────────────────────────────────── */}
+                      {investigationTab === 'profiles' && (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                          {/* Complainant */}
+                          <div className="bg-white/5 rounded-xl p-6 border border-white/10">
+                            <div className="flex items-center gap-2 mb-5">
+                              <i className="ri-user-line text-teal-400"></i>
+                              <h5 className="text-lg font-semibold text-white">Complainant Profile</h5>
+                            </div>
+                            <div className="flex items-center gap-4 mb-6">
+                              <div className="w-20 h-20 rounded-full overflow-hidden bg-white/10 flex items-center justify-center flex-shrink-0">
+                                {investigationData.complainant?.imageUrl ? (
+                                  <img src={buildAvatarUrl(investigationData.complainant.imageUrl)} alt="" className="w-full h-full object-cover object-top" />
+                                ) : (
+                                  <i className="ri-user-line text-white/40 text-2xl"></i>
                                 )}
                               </div>
-                              <div className="flex-1 bg-white/5 rounded-lg p-4">
-                                <div className="flex items-center justify-between mb-2">
-                                  <h6 className="font-semibold text-white">{milestone.name}</h6>
-                                  <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
-                                    milestone.status === 'Completed'  ? 'bg-green-500/20 text-green-400' :
-                                    milestone.status === 'In Progress' ? 'bg-blue-500/20 text-blue-400' :
-                                    'bg-white/10 text-white/50'
-                                  }`}>
-                                    {milestone.status}
-                                  </span>
-                                </div>
-                                <div className="flex items-center justify-between text-sm">
-                                  <span className="text-white/50">Due: {milestone.date}</span>
-                                  <span className="text-teal-400 font-semibold">${milestone.amount.toLocaleString()}</span>
-                                </div>
+                              <div>
+                                <p className="text-xl font-bold text-white">{investigationData.complainant?.fullName ?? '—'}</p>
+                                <p className="text-white/60 text-sm">{investigationData.complainant?.email ?? ''}</p>
+                                <span className="mt-2 inline-block px-3 py-1 bg-teal-500/20 text-teal-400 rounded-full text-xs font-semibold">
+                                  {investigationData.complainant?.role ?? '—'}
+                                </span>
                               </div>
                             </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                            <div className="grid grid-cols-4 gap-3">
+                              <div className="bg-white/5 rounded-lg p-3 text-center">
+                                <p className="text-xl font-bold text-white">{investigationData.complainant?.totalProjects ?? 0}</p>
+                                <p className="text-white/50 text-xs">Projects</p>
+                              </div>
+                              <div className="bg-white/5 rounded-lg p-3 text-center">
+                                <p className="text-xl font-bold text-white">{investigationData.complainant?.rating ?? '—'}</p>
+                                <p className="text-white/50 text-xs">Rating</p>
+                              </div>
+                              <div className="bg-white/5 rounded-lg p-3 text-center">
+                                <p className="text-xl font-bold text-orange-400">{investigationData.complainant?.warningsCount ?? 0}</p>
+                                <p className="text-white/50 text-xs">Warnings</p>
+                              </div>
+                              <div className="bg-white/5 rounded-lg p-3 text-center">
+                                <p className="text-xs font-bold text-white">
+                                  {investigationData.complainant?.joinedAt
+                                    ? new Date(investigationData.complainant.joinedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short' })
+                                    : '—'}
+                                </p>
+                                <p className="text-white/50 text-xs">Joined</p>
+                              </div>
+                            </div>
+                          </div>
 
-                  {investigationTab === 'timeline' && !selectedComplaint.relatedProject && (
-                    <div className="bg-white/5 rounded-xl p-12 border border-white/10 text-center">
-                      <i className="ri-calendar-line text-5xl text-white/20 mb-4 block"></i>
-                      <p className="text-white/40">No project timeline available for this complaint</p>
-                    </div>
-                  )}
-
-                  {/* Payment History Tab */}
-                  {investigationTab === 'payments' && (
-                    <div className="bg-white/5 rounded-xl p-6 border border-white/10">
-                      <h5 className="text-lg font-semibold text-white mb-4">Payment History</h5>
-                      {selectedComplaint.paymentHistory && selectedComplaint.paymentHistory.length > 0 ? (
-                        <div className="overflow-x-auto">
-                          <table className="w-full">
-                            <thead>
-                              <tr className="border-b border-white/10">
-                                <th className="text-left py-3 px-4 text-white/50 text-sm font-semibold">Date</th>
-                                <th className="text-left py-3 px-4 text-white/50 text-sm font-semibold">Type</th>
-                                <th className="text-right py-3 px-4 text-white/50 text-sm font-semibold">Amount</th>
-                                <th className="text-right py-3 px-4 text-white/50 text-sm font-semibold">Status</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {selectedComplaint.paymentHistory.map((payment, index) => (
-                                <tr key={index} className="border-b border-white/5 hover:bg-white/5">
-                                  <td className="py-3 px-4 text-white">{payment.date}</td>
-                                  <td className="py-3 px-4 text-white/70">{payment.type}</td>
-                                  <td className="py-3 px-4 text-right text-teal-400 font-semibold">${payment.amount.toLocaleString()}</td>
-                                  <td className="py-3 px-4 text-right">
-                                    <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                                      payment.status === 'Released'              ? 'bg-green-500/20 text-green-400' :
-                                      payment.status === 'Held in Escrow'        ? 'bg-yellow-500/20 text-yellow-400' :
-                                      payment.status.includes('Approved')        ? 'bg-blue-500/20 text-blue-400' :
-                                      'bg-white/10 text-white/50'
-                                    }`}>
-                                      {payment.status}
-                                    </span>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      ) : (
-                        <div className="text-center py-8">
-                          <i className="ri-money-dollar-circle-line text-5xl text-white/20 mb-4 block"></i>
-                          <p className="text-white/40">No payment history available</p>
+                          {/* Reported user */}
+                          <div className="bg-white/5 rounded-xl p-6 border border-white/10">
+                            <div className="flex items-center gap-2 mb-5">
+                              <i className="ri-user-warning-line text-orange-400"></i>
+                              <h5 className="text-lg font-semibold text-white">Reported User Profile</h5>
+                            </div>
+                            <div className="flex items-center gap-4 mb-6">
+                              <div className="w-20 h-20 rounded-full overflow-hidden bg-white/10 flex items-center justify-center flex-shrink-0">
+                                {investigationData.reportedUser?.imageUrl ? (
+                                  <img src={buildAvatarUrl(investigationData.reportedUser.imageUrl)} alt="" className="w-full h-full object-cover object-top" />
+                                ) : (
+                                  <i className="ri-user-line text-white/40 text-2xl"></i>
+                                )}
+                              </div>
+                              <div>
+                                <p className="text-xl font-bold text-white">{investigationData.reportedUser?.fullName ?? '—'}</p>
+                                <p className="text-white/60 text-sm">{investigationData.reportedUser?.email ?? ''}</p>
+                                <span className="mt-2 inline-block px-3 py-1 bg-orange-500/20 text-orange-400 rounded-full text-xs font-semibold">
+                                  {investigationData.reportedUser?.role ?? '—'}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-4 gap-3">
+                              <div className="bg-white/5 rounded-lg p-3 text-center">
+                                <p className="text-xl font-bold text-white">{investigationData.reportedUser?.totalProjects ?? 0}</p>
+                                <p className="text-white/50 text-xs">Projects</p>
+                              </div>
+                              <div className="bg-white/5 rounded-lg p-3 text-center">
+                                <p className="text-xl font-bold text-white">{investigationData.reportedUser?.rating ?? '—'}</p>
+                                <p className="text-white/50 text-xs">Rating</p>
+                              </div>
+                              <div className="bg-white/5 rounded-lg p-3 text-center">
+                                <p className="text-xl font-bold text-orange-400">{investigationData.reportedUser?.warningsCount ?? 0}</p>
+                                <p className="text-white/50 text-xs">Warnings</p>
+                              </div>
+                              <div className="bg-white/5 rounded-lg p-3 text-center">
+                                <p className="text-xs font-bold text-white">
+                                  {investigationData.reportedUser?.joinedAt
+                                    ? new Date(investigationData.reportedUser.joinedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short' })
+                                    : '—'}
+                                </p>
+                                <p className="text-white/50 text-xs">Joined</p>
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       )}
-                    </div>
-                  )}
 
-                  {/* Chat Logs Tab */}
-                  {investigationTab === 'chat' && (
-                    <div className="bg-white/5 rounded-xl p-6 border border-white/10">
-                      <h5 className="text-lg font-semibold text-white mb-4">Communication Logs</h5>
-                      {selectedComplaint.chatLogs && selectedComplaint.chatLogs.length > 0 ? (
-                        <div className="space-y-3 max-h-96 overflow-y-auto">
-                          {selectedComplaint.chatLogs.map((log, index) => {
-                            const isComplainant = log.sender === selectedComplaint.complainant.name;
-                            return (
-                              <div key={index} className={`flex ${isComplainant ? 'justify-start' : 'justify-end'}`}>
-                                <div className={`max-w-[70%] ${isComplainant ? 'bg-white/10' : 'bg-teal-500/20'} rounded-lg p-3`}>
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <span className={`text-xs font-semibold ${isComplainant ? 'text-teal-400' : 'text-orange-400'}`}>
-                                      {log.sender}
-                                    </span>
-                                    <span className="text-white/30 text-xs">{log.date}</span>
-                                  </div>
-                                  <p className="text-white text-sm">{log.message}</p>
+                      {/* ── PROJECT TIMELINE ────────────────────────────────────── */}
+                      {investigationTab === 'timeline' && (
+                        investigationData.project ? (
+                          <div className="bg-white/5 rounded-xl p-6 border border-white/10">
+                            {/* Project header */}
+                            <div className="flex items-start justify-between mb-6 flex-wrap gap-4">
+                              <div>
+                                <h5 className="text-lg font-semibold text-white">{investigationData.project.title}</h5>
+                                <p className="text-white/50 text-sm">Budget: ${investigationData.project.budget.toLocaleString()}</p>
+                              </div>
+                              <div className="text-right text-sm text-white/50">
+                                {investigationData.project.createdAt && (
+                                  <p>Started: {new Date(investigationData.project.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</p>
+                                )}
+                                {investigationData.project.deadline && (
+                                  <p>Deadline: {new Date(investigationData.project.deadline).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</p>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Milestones timeline */}
+                            {(investigationData.project.milestones ?? []).length === 0 ? (
+                              <div className="text-center py-8">
+                                <i className="ri-roadster-line text-5xl text-white/20 mb-3 block"></i>
+                                <p className="text-white/40">No milestones available</p>
+                              </div>
+                            ) : (
+                              <div className="relative">
+                                <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-white/10"></div>
+                                <div className="space-y-6">
+                                  {investigationData.project.milestones.map((ms) => {
+                                    const isDone = ms.status?.toLowerCase() === 'completed';
+                                    const isActive = ms.status?.toLowerCase() === 'inprogress' || ms.status?.toLowerCase() === 'in progress';
+                                    return (
+                                      <div key={ms.milestoneId} className="relative flex items-start gap-4 pl-12">
+                                        <div className={`absolute left-4 w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                                          isDone   ? 'bg-green-500 border-green-500' :
+                                          isActive ? 'bg-blue-500 border-blue-500' :
+                                          'bg-white/10 border-white/30'
+                                        }`}>
+                                          {isDone && <i className="ri-check-line text-white text-xs"></i>}
+                                        </div>
+                                        <div className="flex-1 bg-white/5 rounded-lg p-4">
+                                          <div className="flex items-center justify-between mb-2">
+                                            <h6 className="font-semibold text-white">{ms.title}</h6>
+                                            <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                                              isDone   ? 'bg-green-500/20 text-green-400' :
+                                              isActive ? 'bg-blue-500/20 text-blue-400' :
+                                              'bg-white/10 text-white/50'
+                                            }`}>
+                                              {ms.status}
+                                            </span>
+                                          </div>
+                                          <div className="flex items-center justify-between text-sm">
+                                            <span className="text-white/50">
+                                              Due: {ms.dueDate
+                                                ? new Date(ms.dueDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+                                                : '—'}
+                                            </span>
+                                            <span className="text-teal-400 font-semibold">${ms.amount.toLocaleString()}</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div className="text-center py-8">
-                          <i className="ri-chat-3-line text-5xl text-white/20 mb-4 block"></i>
-                          <p className="text-white/40">No chat logs available</p>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="bg-white/5 rounded-xl p-12 border border-white/10 text-center">
+                            <i className="ri-calendar-line text-5xl text-white/20 mb-4 block"></i>
+                            <p className="text-white/40">No project timeline available for this complaint</p>
+                          </div>
+                        )
+                      )}
+
+                      {/* ── PAYMENT HISTORY ─────────────────────────────────────── */}
+                      {investigationTab === 'payments' && (
+                        <div className="bg-white/5 rounded-xl p-6 border border-white/10">
+                          <h5 className="text-lg font-semibold text-white mb-4">Payment History</h5>
+                          {(investigationData.payments ?? []).length === 0 ? (
+                            <div className="text-center py-8">
+                              <i className="ri-money-dollar-circle-line text-5xl text-white/20 mb-4 block"></i>
+                              <p className="text-white/40">No payments available</p>
+                            </div>
+                          ) : (
+                            <div className="overflow-x-auto">
+                              <table className="w-full">
+                                <thead>
+                                  <tr className="border-b border-white/10">
+                                    <th className="text-left py-3 px-4 text-white/50 text-sm font-semibold">Date</th>
+                                    <th className="text-left py-3 px-4 text-white/50 text-sm font-semibold">Type</th>
+                                    <th className="text-right py-3 px-4 text-white/50 text-sm font-semibold">Amount</th>
+                                    <th className="text-right py-3 px-4 text-white/50 text-sm font-semibold">Status</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {investigationData.payments.map((pay, i) => (
+                                    <tr key={i} className="border-b border-white/5 hover:bg-white/5">
+                                      <td className="py-3 px-4 text-white text-sm">
+                                        {pay.date ? new Date(pay.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '—'}
+                                      </td>
+                                      <td className="py-3 px-4 text-white/70 text-sm">{pay.type ?? '—'}</td>
+                                      <td className="py-3 px-4 text-right text-teal-400 font-semibold text-sm">${(pay.amount ?? 0).toLocaleString()}</td>
+                                      <td className="py-3 px-4 text-right">
+                                        <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                                          pay.status?.toLowerCase() === 'released'   ? 'bg-green-500/20 text-green-400' :
+                                          pay.status?.toLowerCase().includes('escrow') ? 'bg-yellow-500/20 text-yellow-400' :
+                                          pay.status?.toLowerCase().includes('approv') ? 'bg-blue-500/20 text-blue-400' :
+                                          'bg-white/10 text-white/50'
+                                        }`}>
+                                          {pay.status ?? '—'}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
                         </div>
                       )}
-                    </div>
+                    </>
                   )}
                 </div>
               )}
@@ -1444,7 +1496,7 @@ const ComplaintsManagement = () => {
             </div>
 
             {/* Footer */}
-            <div className="p-6 border-t border-white/10 bg-[#1a1f37] sticky bottom-0">
+            <div className="p-6 border-t border-white/10 shrink-0">
               <div className="flex items-center justify-between">
                 <button
                   onClick={() => currentStep > 1 && setCurrentStep(currentStep - 1)}
@@ -1479,7 +1531,13 @@ const ComplaintsManagement = () => {
 
                   {currentStep < 4 && (
                     <button
-                      onClick={() => setCurrentStep(currentStep + 1)}
+                      onClick={() => {
+                        const next = currentStep + 1;
+                        if (next === 2 && !investigationData && !investigationLoading) {
+                          loadInvestigation(selectedComplaint!.id);
+                        }
+                        setCurrentStep(next);
+                      }}
                       className="px-6 py-3 bg-teal-500 text-white rounded-lg font-semibold hover:bg-teal-600 transition-all cursor-pointer whitespace-nowrap"
                     >
                       Next Step
@@ -1501,11 +1559,12 @@ const ComplaintsManagement = () => {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
+
 
       {/* Confirmation Dialog */}
-      {showConfirmDialog && confirmAction && selectedComplaint && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+      {showConfirmDialog && confirmAction && selectedComplaint && createPortal(
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
           <div className="bg-[#1a1f37] rounded-xl max-w-md w-full border border-white/10">
             <div className="p-6">
               <div className="flex items-center justify-center mb-6">
@@ -1558,7 +1617,8 @@ const ComplaintsManagement = () => {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
+
     </div>
   );
 };

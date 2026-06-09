@@ -539,7 +539,7 @@ const UserManagement: React.FC = () => {
       </div>
 
       {showUserModal && selectedUser && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-[#1a1f37] rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-white/10">
             <div className="p-6 border-b border-white/10 flex items-center justify-between">
               <h3 className="text-2xl font-bold text-white">User Details</h3>
@@ -607,7 +607,7 @@ const UserManagement: React.FC = () => {
       )}
 
       {showRoleModal && selectedUser && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-[#1a1f37] rounded-xl max-w-md w-full border border-white/10">
             <div className="p-6 border-b border-white/10 flex items-center justify-between">
               <h3 className="text-2xl font-bold text-white">Manage Roles</h3>

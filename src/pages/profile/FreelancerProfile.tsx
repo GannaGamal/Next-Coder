@@ -640,8 +640,8 @@ const FreelancerProfile = () => {
           {saveStatus && (
             <div
               className={`mb-6 rounded-2xl border px-4 py-3 text-sm ${saveStatus.type === 'success'
-                  ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
-                  : 'border-red-500/30 bg-red-500/10 text-red-200'
+                ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
+                : 'border-red-500/30 bg-red-500/10 text-red-200'
                 }`}
             >
               {saveStatus.message}
@@ -802,8 +802,8 @@ const FreelancerProfile = () => {
             <button
               onClick={() => setActiveTab('profile')}
               className={`px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold transition-all whitespace-nowrap cursor-pointer ${activeTab === 'profile'
-                  ? 'bg-purple-500 text-white'
-                  : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                ? 'bg-purple-500 text-white'
+                : 'bg-white/5 text-gray-400 hover:bg-white/10'
                 }`}
             >
               Profile Info
@@ -811,8 +811,8 @@ const FreelancerProfile = () => {
             <button
               onClick={() => setActiveTab('portfolio')}
               className={`px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold transition-all whitespace-nowrap cursor-pointer ${activeTab === 'portfolio'
-                  ? 'bg-purple-500 text-white'
-                  : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                ? 'bg-purple-500 text-white'
+                : 'bg-white/5 text-gray-400 hover:bg-white/10'
                 }`}
             >
               Portfolio
@@ -820,8 +820,8 @@ const FreelancerProfile = () => {
             <button
               onClick={() => setActiveTab('completed')}
               className={`px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold transition-all whitespace-nowrap cursor-pointer ${activeTab === 'completed'
-                  ? 'bg-purple-500 text-white'
-                  : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                ? 'bg-purple-500 text-white'
+                : 'bg-white/5 text-gray-400 hover:bg-white/10'
                 }`}
             >
               Completed Projects
@@ -829,8 +829,8 @@ const FreelancerProfile = () => {
             <button
               onClick={() => setActiveTab('documents')}
               className={`px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold transition-all whitespace-nowrap cursor-pointer ${activeTab === 'documents'
-                  ? 'bg-purple-500 text-white'
-                  : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                ? 'bg-purple-500 text-white'
+                : 'bg-white/5 text-gray-400 hover:bg-white/10'
                 }`}
             >
               Documents
@@ -945,11 +945,10 @@ const FreelancerProfile = () => {
                           }
                         }}
                         disabled={isAddingSkill || (deletingSkillId !== null)}
-                        className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed ${
-                          isSelected
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed ${isSelected
                             ? 'bg-purple-500/20 border-purple-500/50 text-purple-300'
                             : 'bg-white/5 border-white/10 text-gray-400 hover:bg-purple-500/15 hover:border-purple-500/40 hover:text-purple-200'
-                        }`}
+                          }`}
                       >
                         {isSelected && <i className="ri-check-line mr-1 text-xs"></i>}
                         {skillName}
@@ -1300,10 +1299,10 @@ const FreelancerProfile = () => {
                             <div className="lg:w-80 bg-white/5 rounded-xl p-4 border border-white/10">
                               <div className="flex items-center gap-3 mb-3">
                                 <div className="w-10 h-10 rounded-full overflow-hidden">
-                                  <img 
-                                    src={project.clientAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(project.client || 'Unknown Client')}&background=7c3aed&color=fff&bold=true`} 
-                                    alt={project.client || 'Unknown Client'} 
-                                    className="w-full h-full object-cover" 
+                                  <img
+                                    src={project.clientAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(project.client || 'Unknown Client')}&background=7c3aed&color=fff&bold=true`}
+                                    alt={project.client || 'Unknown Client'}
+                                    className="w-full h-full object-cover"
                                     onError={(e) => {
                                       const target = e.target as HTMLImageElement;
                                       const fallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(project.client || 'Unknown Client')}&background=7c3aed&color=fff&bold=true`;
@@ -1372,8 +1371,8 @@ const FreelancerProfile = () => {
               {documentStatus && (
                 <div
                   className={`rounded-lg border px-3 py-2 text-xs ${documentStatus.type === 'success'
-                      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
-                      : 'border-red-500/30 bg-red-500/10 text-red-200'
+                    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
+                    : 'border-red-500/30 bg-red-500/10 text-red-200'
                     }`}
                 >
                   {documentStatus.message}

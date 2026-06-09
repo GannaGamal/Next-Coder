@@ -256,7 +256,7 @@ const Settings = () => {
 
       {/* ── Deactivate Confirmation Modal ───────────────────────────── */}
       {showDeactivateModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className={`bg-[#13182e] rounded-2xl border border-white/10 max-w-md w-full p-6 shadow-2xl ${isRTL ? 'text-right' : 'text-left'}`}>
             <div className="w-14 h-14 flex items-center justify-center bg-red-500/20 rounded-2xl mx-auto mb-4">
               <i className="ri-user-unfollow-line text-red-400 text-2xl"></i>

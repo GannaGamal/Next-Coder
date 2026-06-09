@@ -360,12 +360,12 @@ export const getAdminComplaintList = async (
   params: AdminComplaintListParams = {},
 ): Promise<AdminComplaintList> => {
   const query = new URLSearchParams();
-  if (params.Search)         query.append('Search', params.Search);
-  if (params.Status)         query.append('Status', params.Status);
+  if (params.Search)          query.append('Search', params.Search);
+  if (params.Status)          query.append('Status', params.Status);
   if (params.ComplainantRole) query.append('ComplainantRole', params.ComplainantRole);
-  if (params.ComplaintType)  query.append('ComplaintType', params.ComplaintType);
+  if (params.ComplaintType)   query.append('ComplaintType', params.ComplaintType);
   if (params.PageNumber !== undefined) query.append('PageNumber', String(params.PageNumber));
-  if (params.PageSize  !== undefined) query.append('PageSize',  String(params.PageSize));
+  if (params.PageSize   !== undefined) query.append('PageSize',   String(params.PageSize));
 
   const response = await fetch(`${API_BASE}/Admin/adminreport?${query.toString()}`, {
     method: 'GET',
@@ -441,4 +441,66 @@ export const getAdminComplaintDetail = async (
   }
 
   return body.data as AdminComplaintDetail;
+};
+
+/* Investigation */
+
+export interface AdminInvestigationMilestone {
+  milestoneId: number;
+  title: string;
+  amount: number;
+  status: string;
+  dueDate: string;
+}
+
+export interface AdminInvestigationProject {
+  projectId: number;
+  title: string;
+  budget: number;
+  createdAt: string;
+  deadline: string;
+  milestones: AdminInvestigationMilestone[];
+}
+
+export interface AdminInvestigationPayment {
+  date: string;
+  type: string;
+  amount: number;
+  status: string;
+}
+
+export interface AdminInvestigationData {
+  complainant: AdminComplaintUserDetail;
+  reportedUser: AdminComplaintUserDetail;
+  project: AdminInvestigationProject | null;
+  payments: AdminInvestigationPayment[];
+}
+
+export const getAdminComplaintInvestigation = async (
+  reportId: number,
+): Promise<AdminInvestigationData> => {
+  const response = await fetch(`${API_BASE}/Admin/${reportId}/investigation`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${localStorage.getItem('authToken') ?? ''}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+
+  const body = await response.json();
+  if (!body?.success || !body?.data) {
+    throw new Error('Unable to load investigation data.');
+  }
+
+  const d = body.data;
+  return {
+    complainant:  d.complainant  ?? null,
+    reportedUser: d.reportedUser ?? null,
+    project:      d.project      ?? null,
+    payments:     Array.isArray(d.payments) ? d.payments : [],
+  } as AdminInvestigationData;
 };

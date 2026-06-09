@@ -338,7 +338,7 @@ const TrackManagement = () => {
 
       {/* Delete confirmation */}
       {deleteTarget && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-[#1a1f37] rounded-2xl w-full max-w-md border border-white/10 p-6">
             <div className="w-14 h-14 flex items-center justify-center bg-red-500/10 rounded-2xl mx-auto mb-4">
               <i className="ri-delete-bin-line text-3xl text-red-400"></i>

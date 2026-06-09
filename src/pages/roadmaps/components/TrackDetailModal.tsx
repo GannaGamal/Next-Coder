@@ -56,7 +56,7 @@ const TrackDetailModal = ({ track, onClose }: TrackDetailModalProps) => {
   const totalSubtopics = track.topics.reduce((acc, t) => acc + t.subtopics.length, 0);
 
   return (
-    <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-[#12172d] rounded-2xl w-full max-w-3xl max-h-[92vh] flex flex-col border border-white/10">
         {/* Header */}
         <div className="flex items-start justify-between p-6 border-b border-white/10 flex-shrink-0">

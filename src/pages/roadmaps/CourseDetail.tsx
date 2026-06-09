@@ -633,7 +633,7 @@ const CourseDetail = () => {
 
       {/* Project Submission Modal */}
       {showProjectModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-[#1a1f37] rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto border border-white/10">
             <div className="p-6 border-b border-white/10">
               <div className="flex items-center justify-between">
@@ -764,7 +764,7 @@ const CourseDetail = () => {
 
       {/* Course Rating Modal */}
       {showRatingModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-[#1a1f37] rounded-2xl max-w-md w-full border border-white/10">
             <div className="p-6 border-b border-white/10">
               <div className="flex items-center justify-between">
@@ -854,7 +854,7 @@ const CourseDetail = () => {
 
       {/* Completion Celebration Modal */}
       {showCompletionModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-[#1a1f37] rounded-2xl max-w-md w-full border border-green-500/30 text-center p-8">
             <div className="w-20 h-20 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6"><i className="ri-trophy-fill text-4xl text-white"></i></div>
             <h2 className="text-2xl font-bold text-white mb-2">{t('roadmaps.congrats')}</h2>

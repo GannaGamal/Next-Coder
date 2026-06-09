@@ -461,7 +461,7 @@ const PostedContentManagement = () => {
 
       {/* Detail Modal */}
       {showDetailModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
           <div className="bg-[#1a1f37] rounded-t-2xl sm:rounded-xl w-full sm:max-w-lg max-h-[90vh] overflow-y-auto border border-white/10">
             <div className="p-4 border-b border-white/10 flex items-center justify-between sticky top-0 bg-[#1a1f37] z-10">
               <h3 className="text-lg font-bold text-white">Content Details</h3>
@@ -529,7 +529,7 @@ const PostedContentManagement = () => {
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && selectedContent && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
           <div className="bg-[#1a1f37] rounded-t-2xl sm:rounded-xl w-full sm:max-w-md border border-white/10">
             <div className="p-6 text-center">
               <div className="w-14 h-14 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-4">
