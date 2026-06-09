@@ -1,5 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import CustomSelect from '../../../components/base/CustomSelect';
+import {
+  getAdminComplaintSummary,
+  getAdminComplaintList,
+} from '../../../services/admin.service';
+import type {
+  AdminComplaintSummary,
+  AdminComplaintItem,
+} from '../../../services/admin.service';
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 interface Complaint {
   id: number;
@@ -23,8 +35,8 @@ interface Complaint {
     warnings: number;
     status: 'active' | 'suspended' | 'banned';
   };
-  type: 'payment' | 'delay' | 'misuse' | 'harassment' | 'other';
-  status: 'pending' | 'in_progress' | 'resolved' | 'rejected';
+  type: string;
+  status: string;
   subject: string;
   description: string;
   relatedProject?: {
@@ -44,11 +56,155 @@ interface Complaint {
   chatLogs?: { sender: string; message: string; date: string }[];
 }
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+const API_IMG_BASE = 'https://nextcoder.runasp.net/';
+const buildAvatarUrl = (path: string | null | undefined): string => {
+  if (!path) return '';
+  if (/^https?:\/\//i.test(path)) return path;
+  return `${API_IMG_BASE}${path.replace(/^\/+/, '')}`;
+};
+
+const toComplaint = (item: AdminComplaintItem): Complaint => ({
+  id: item.id,
+  complainant: {
+    name: item.complainantName,
+    email: '',
+    role: item.complainantRole,
+    avatar: buildAvatarUrl(item.complainantImageUrl),
+    joinDate: '',
+    totalProjects: 0,
+    rating: 0,
+  },
+  reportedUser: {
+    name: item.reportedUserName,
+    email: '',
+    role: '',
+    avatar: buildAvatarUrl(item.reportedUserImageUrl),
+    joinDate: '',
+    totalProjects: 0,
+    rating: 0,
+    warnings: 0,
+    status: 'active',
+  },
+  type: item.complaintType,
+  status: item.status,
+  subject: item.complaintType,
+  description: item.description,
+  relatedProject: item.projectTitle
+    ? { name: item.projectTitle, budget: 0, startDate: '', deadline: '', status: '', milestones: [] }
+    : undefined,
+  evidence: item.evidenceUrl
+    ? [{ name: 'Evidence', type: 'image' as const, url: item.evidenceUrl }]
+    : [],
+  submittedDate: item.submittedAt
+    ? new Date(item.submittedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+    : '',
+  adminNotes: [],
+});
+
+// ---------------------------------------------------------------------------
+// Swagger-sourced filter options
+//
+// Strategy:
+//   1. The dropdowns are seeded immediately with FALLBACK_OPTIONS — a snapshot
+//      of the enum values taken verbatim from the Swagger schema definitions.
+//      This means the UI is fully functional from the very first render.
+//
+//   2. Once the backend CORS policy is deployed (AllowedOrigins includes the
+//      frontend origin), set the environment variable:
+//
+//        VITE_SWAGGER_CORS_READY=true   (in .env.local or .env.production)
+//
+//      The component will then fetch the live Swagger JSON on mount and replace
+//      FALLBACK_OPTIONS with the current schema values automatically.
+//      If the fetch still fails, FALLBACK_OPTIONS are restored — the UI is
+//      always usable.
+//
+//   3. When the backend adds / renames enum values in the future, update
+//      FALLBACK_OPTIONS below to stay synchronized.
+// ---------------------------------------------------------------------------
+
+const SWAGGER_URL = 'https://nextcoder.runasp.net/swagger/v1/swagger.json';
+
+// Set to "true" in .env.local only after the backend CORS policy is deployed.
+const SWAGGER_CORS_READY = import.meta.env.VITE_SWAGGER_CORS_READY === 'true';
+
+interface FilterOption  { value: string; label: string; }
+interface FilterOptions {
+  status: FilterOption[];
+  role:   FilterOption[];
+  type:   FilterOption[];
+}
+
+const toLabel = (value: string): string =>
+  value.replace(/([A-Z])/g, ' $1').trim();
+
+/**
+ * Fallback values — copied verbatim from the Swagger schema definitions:
+ *   ReportStatus    → Status filter
+ *   ReportCreatedBy → Complainant Role filter
+ *   ReportType      → Complaint Type filter
+ *
+ * Update this constant whenever the backend adds or renames enum values.
+ */
+const FALLBACK_OPTIONS: FilterOptions = {
+  // ReportStatus enum
+  status: ['Pending', 'UnderReview', 'Resolved', 'Dismissed']
+    .map((v) => ({ value: v, label: toLabel(v) })),
+
+  // ReportCreatedBy enum
+  role: ['Client', 'Freelancer']
+    .map((v) => ({ value: v, label: toLabel(v) })),
+
+  // ReportType enum
+  type: [
+    'MissedDeadline', 'PoorQuality', 'UnprofessionalBehavior',
+    'NonPayment', 'ScopeCreep', 'Unresponsive', 'Harassment',
+    'UnclearRequirements', 'Fraud', 'Other',
+  ].map((v) => ({ value: v, label: toLabel(v) })),
+};
+
+/**
+ * Fetches the live Swagger JSON and parses enum values for filter dropdowns.
+ * Only called when SWAGGER_CORS_READY is true (i.e. backend CORS is deployed).
+ */
+const parseSwaggerEnums = async (): Promise<FilterOptions> => {
+  const res = await fetch(SWAGGER_URL);
+  if (!res.ok) throw new Error('Failed to fetch API schema.');
+  const spec = await res.json();
+  const schemas = spec?.components?.schemas ?? {};
+
+  const toOptions = (schemaName: string): FilterOption[] => {
+    const values: string[] = schemas[schemaName]?.enum ?? [];
+    if (values.length === 0) return FALLBACK_OPTIONS[schemaName as keyof FilterOptions] ?? [];
+    return values.map((v) => ({ value: v, label: toLabel(v) }));
+  };
+
+  return {
+    status: toOptions('ReportStatus'),
+    role:   toOptions('ReportCreatedBy'),
+    type:   toOptions('ReportType'),
+  };
+};
+
+
+
+const PAGE_SIZE = 10;
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
 const ComplaintsManagement = () => {
   const [statusFilter, setStatusFilter] = useState('all');
-  const [roleFilter, setRoleFilter] = useState('all');
-  const [typeFilter, setTypeFilter] = useState('all');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [roleFilter, setRoleFilter]     = useState('all');
+  const [typeFilter, setTypeFilter]     = useState('all');
+  const [searchTerm, setSearchTerm]     = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null);
   const [showResolutionFlow, setShowResolutionFlow] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
@@ -61,306 +217,111 @@ const ComplaintsManagement = () => {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{ type: string; label: string } | null>(null);
 
-  const [complaints, setComplaints] = useState<Complaint[]>([
-    {
-      id: 1,
-      complainant: {
-        name: 'John Smith',
-        email: 'john.smith@example.com',
-        role: 'client',
-        avatar: 'https://readdy.ai/api/search-image?query=professional%20business%20portrait%20of%20confident%20young%20man%20with%20short%20dark%20hair%20wearing%20navy%20blue%20suit%20and%20white%20shirt%20against%20clean%20minimal%20light%20gray%20studio%20background%20corporate%20headshot%20style%20natural%20lighting%20sharp%20focus%20professional%20photography&width=200&height=200&seq=comp1&orientation=squarish',
-        joinDate: '2023-06-15',
-        totalProjects: 12,
-        rating: 4.8,
-      },
-      reportedUser: {
-        name: 'Sarah Johnson',
-        email: 'sarah.j@example.com',
-        role: 'freelancer',
-        avatar: 'https://readdy.ai/api/search-image?query=professional%20business%20portrait%20of%20confident%20woman%20with%20long%20brown%20hair%20wearing%20elegant%20black%20blazer%20and%20white%20blouse%20against%20clean%20minimal%20light%20gray%20studio%20background%20corporate%20headshot%20style%20natural%20lighting%20sharp%20focus%20professional%20photography&width=200&height=200&seq=comp2&orientation=squarish',
-        joinDate: '2023-03-20',
-        totalProjects: 28,
-        rating: 4.5,
-        warnings: 1,
-        status: 'active',
-      },
-      type: 'delay',
-      status: 'pending',
-      subject: 'Project Deadline Missed',
-      description: 'The freelancer has missed the agreed deadline by 2 weeks without any prior communication. Multiple attempts to contact have been unsuccessful. This has caused significant delays in our product launch.',
-      relatedProject: {
-        name: 'E-commerce Website Development',
-        budget: 5000,
-        startDate: '2024-01-15',
-        deadline: '2024-03-01',
-        status: 'In Progress',
-        milestones: [
-          { name: 'Design Mockups', amount: 1000, status: 'Completed', date: '2024-01-25' },
-          { name: 'Frontend Development', amount: 2000, status: 'Completed', date: '2024-02-10' },
-          { name: 'Backend Integration', amount: 1500, status: 'In Progress', date: '2024-02-25' },
-          { name: 'Testing & Launch', amount: 500, status: 'Pending', date: '2024-03-01' },
-        ],
-      },
-      evidence: [
-        { name: 'contract.pdf', type: 'file', url: '#' },
-        { name: 'chat_screenshot.png', type: 'image', url: 'https://readdy.ai/api/search-image?query=screenshot%20of%20chat%20conversation%20showing%20messages%20about%20project%20deadline%20discussion%20on%20messaging%20app%20interface%20clean%20minimal%20design&width=400&height=300&seq=evidence1&orientation=landscape' },
-      ],
-      submittedDate: '2024-03-15',
-      adminNotes: [],
-      paymentHistory: [
-        { date: '2024-01-15', amount: 1000, type: 'Milestone Payment', status: 'Released' },
-        { date: '2024-02-10', amount: 2000, type: 'Milestone Payment', status: 'Released' },
-        { date: '2024-02-25', amount: 1500, type: 'Milestone Payment', status: 'Held in Escrow' },
-        { date: '2024-03-01', amount: 500, type: 'Final Payment', status: 'Pending' },
-      ],
-      chatLogs: [
-        { sender: 'John Smith', message: 'Hi Sarah, how is the backend integration going?', date: '2024-02-20 10:30' },
-        { sender: 'Sarah Johnson', message: 'Making good progress, should be done by Friday.', date: '2024-02-20 11:15' },
-        { sender: 'John Smith', message: 'Great! Looking forward to it.', date: '2024-02-20 11:20' },
-        { sender: 'John Smith', message: 'Hi Sarah, any updates? Friday has passed.', date: '2024-02-26 09:00' },
-        { sender: 'John Smith', message: 'Sarah? Please respond.', date: '2024-02-28 14:30' },
-        { sender: 'John Smith', message: 'This is urgent. The deadline was March 1st.', date: '2024-03-02 10:00' },
-        { sender: 'John Smith', message: 'I need to escalate this if I dont hear back.', date: '2024-03-05 16:45' },
-      ],
-    },
-    {
-      id: 2,
-      complainant: {
-        name: 'Emily Davis',
-        email: 'emily.davis@example.com',
-        role: 'freelancer',
-        avatar: 'https://readdy.ai/api/search-image?query=professional%20business%20portrait%20of%20young%20woman%20with%20blonde%20hair%20in%20bun%20wearing%20burgundy%20blazer%20against%20clean%20minimal%20light%20gray%20studio%20background%20corporate%20headshot%20style%20natural%20lighting%20sharp%20focus%20professional%20photography&width=200&height=200&seq=comp3&orientation=squarish',
-        joinDate: '2022-11-10',
-        totalProjects: 45,
-        rating: 4.9,
-      },
-      reportedUser: {
-        name: 'David Wilson',
-        email: 'david.w@example.com',
-        role: 'client',
-        avatar: 'https://readdy.ai/api/search-image?query=professional%20business%20portrait%20of%20mature%20man%20with%20gray%20hair%20wearing%20charcoal%20suit%20and%20striped%20tie%20against%20clean%20minimal%20light%20gray%20studio%20background%20corporate%20headshot%20style%20natural%20lighting%20sharp%20focus%20professional%20photography&width=200&height=200&seq=comp4&orientation=squarish',
-        joinDate: '2023-08-05',
-        totalProjects: 8,
-        rating: 3.2,
-        warnings: 2,
-        status: 'active',
-      },
-      type: 'payment',
-      status: 'in_progress',
-      subject: 'Payment Not Released After Milestone Completion',
-      description: 'I completed all milestones as agreed and the client approved them, but the payment has not been released for over 3 weeks. The client is not responding to my messages.',
-      relatedProject: {
-        name: 'Mobile App Design',
-        budget: 3500,
-        startDate: '2024-02-01',
-        deadline: '2024-02-28',
-        status: 'Completed',
-        milestones: [
-          { name: 'Wireframes', amount: 700, status: 'Completed', date: '2024-02-08' },
-          { name: 'UI Design', amount: 1400, status: 'Completed', date: '2024-02-18' },
-          { name: 'Prototype', amount: 1000, status: 'Completed', date: '2024-02-25' },
-          { name: 'Final Delivery', amount: 400, status: 'Completed', date: '2024-02-28' },
-        ],
-      },
-      evidence: [
-        { name: 'milestone_approval.png', type: 'image', url: 'https://readdy.ai/api/search-image?query=screenshot%20of%20project%20management%20dashboard%20showing%20approved%20milestone%20status%20with%20green%20checkmark%20clean%20minimal%20interface%20design&width=400&height=300&seq=evidence2&orientation=landscape' },
-        { name: 'payment_history.pdf', type: 'file', url: '#' },
-      ],
-      submittedDate: '2024-03-12',
-      adminNotes: [
-        { action: 'Investigation Started', note: 'Contacted client for clarification', admin: 'Admin User', date: '2024-03-13' },
-        { action: 'Follow-up', note: 'Awaiting client response', admin: 'Admin User', date: '2024-03-14' },
-      ],
-      paymentHistory: [
-        { date: '2024-02-01', amount: 700, type: 'Milestone Payment', status: 'Held in Escrow' },
-        { date: '2024-02-08', amount: 700, type: 'Milestone Payment', status: 'Approved - Not Released' },
-        { date: '2024-02-18', amount: 1400, type: 'Milestone Payment', status: 'Approved - Not Released' },
-        { date: '2024-02-25', amount: 1000, type: 'Milestone Payment', status: 'Approved - Not Released' },
-        { date: '2024-02-28', amount: 400, type: 'Final Payment', status: 'Approved - Not Released' },
-      ],
-      chatLogs: [
-        { sender: 'Emily Davis', message: 'Hi David, all milestones are now complete!', date: '2024-02-28 15:00' },
-        { sender: 'David Wilson', message: 'Great work! Ill review and approve.', date: '2024-02-28 16:30' },
-        { sender: 'Emily Davis', message: 'Thanks! Please release the payment when ready.', date: '2024-02-28 16:35' },
-        { sender: 'Emily Davis', message: 'Hi David, the payment is still pending. Can you release it?', date: '2024-03-05 10:00' },
-        { sender: 'Emily Davis', message: 'David? Please respond about the payment.', date: '2024-03-08 14:00' },
-        { sender: 'Emily Davis', message: 'This is my third message. I need the payment released.', date: '2024-03-10 09:30' },
-      ],
-    },
-    {
-      id: 3,
-      complainant: {
-        name: 'Michael Chen',
-        email: 'michael.chen@example.com',
-        role: 'applicant',
-        avatar: 'https://readdy.ai/api/search-image?query=professional%20business%20portrait%20of%20young%20asian%20man%20with%20black%20hair%20wearing%20gray%20suit%20and%20light%20blue%20shirt%20against%20clean%20minimal%20light%20gray%20studio%20background%20corporate%20headshot%20style%20natural%20lighting%20sharp%20focus%20professional%20photography&width=200&height=200&seq=comp5&orientation=squarish',
-        joinDate: '2024-01-20',
-        totalProjects: 0,
-        rating: 0,
-      },
-      reportedUser: {
-        name: 'Tech Solutions Inc.',
-        email: 'hr@techsolutions.com',
-        role: 'employer',
-        avatar: 'https://readdy.ai/api/search-image?query=modern%20tech%20company%20logo%20icon%20abstract%20geometric%20design%20teal%20and%20white%20colors%20on%20dark%20background%20minimalist%20corporate%20branding&width=200&height=200&seq=comp6&orientation=squarish',
-        joinDate: '2023-05-10',
-        totalProjects: 15,
-        rating: 2.1,
-        warnings: 3,
-        status: 'suspended',
-      },
-      type: 'misuse',
-      status: 'resolved',
-      subject: 'Fake Job Posting',
-      description: 'This company posted a job that turned out to be a data collection scheme. They asked for personal documents during the application process but never conducted any interviews.',
-      relatedJob: 'Senior React Developer',
-      evidence: [
-        { name: 'job_posting.png', type: 'image', url: 'https://readdy.ai/api/search-image?query=screenshot%20of%20job%20posting%20page%20showing%20developer%20position%20details%20on%20job%20board%20website%20clean%20minimal%20interface&width=400&height=300&seq=evidence3&orientation=landscape' },
-        { name: 'email_thread.pdf', type: 'file', url: '#' },
-      ],
-      submittedDate: '2024-03-08',
-      adminNotes: [
-        { action: 'Investigation Started', note: 'Investigated job posting', admin: 'Admin User', date: '2024-03-09' },
-        { action: 'Evidence Confirmed', note: 'Confirmed fraudulent activity', admin: 'Admin User', date: '2024-03-10' },
-        { action: 'User Suspended', note: 'Employer account suspended', admin: 'Admin User', date: '2024-03-10' },
-      ],
-      resolution: 'Employer account has been permanently suspended. All affected applicants have been notified.',
-      chatLogs: [],
-      paymentHistory: [],
-    },
-    {
-      id: 4,
-      complainant: {
-        name: 'Lisa Anderson',
-        email: 'lisa.a@example.com',
-        role: 'freelancer',
-        avatar: 'https://readdy.ai/api/search-image?query=professional%20business%20portrait%20of%20young%20woman%20with%20red%20hair%20wearing%20teal%20blouse%20against%20clean%20minimal%20light%20gray%20studio%20background%20corporate%20headshot%20style%20natural%20lighting%20sharp%20focus%20professional%20photography&width=200&height=200&seq=comp7&orientation=squarish',
-        joinDate: '2023-02-14',
-        totalProjects: 32,
-        rating: 4.7,
-      },
-      reportedUser: {
-        name: 'Robert Brown',
-        email: 'robert.b@example.com',
-        role: 'client',
-        avatar: 'https://readdy.ai/api/search-image?query=professional%20business%20portrait%20of%20middle%20aged%20man%20with%20brown%20hair%20wearing%20navy%20polo%20shirt%20against%20clean%20minimal%20light%20gray%20studio%20background%20corporate%20headshot%20style%20natural%20lighting%20sharp%20focus%20professional%20photography&width=200&height=200&seq=comp8&orientation=squarish',
-        joinDate: '2023-09-22',
-        totalProjects: 5,
-        rating: 3.8,
-        warnings: 0,
-        status: 'active',
-      },
-      type: 'harassment',
-      status: 'pending',
-      subject: 'Inappropriate Messages from Client',
-      description: 'The client has been sending inappropriate and unprofessional messages outside of project scope. Despite my requests to keep communication professional, the behavior has continued.',
-      relatedProject: {
-        name: 'Brand Identity Package',
-        budget: 2000,
-        startDate: '2024-02-15',
-        deadline: '2024-03-15',
-        status: 'In Progress',
-        milestones: [
-          { name: 'Logo Concepts', amount: 500, status: 'Completed', date: '2024-02-22' },
-          { name: 'Brand Guidelines', amount: 800, status: 'In Progress', date: '2024-03-05' },
-          { name: 'Collateral Design', amount: 700, status: 'Pending', date: '2024-03-15' },
-        ],
-      },
-      evidence: [
-        { name: 'messages_screenshot1.png', type: 'image', url: 'https://readdy.ai/api/search-image?query=blurred%20screenshot%20of%20chat%20messages%20on%20messaging%20platform%20interface%20showing%20conversation%20thread%20clean%20minimal%20design&width=400&height=300&seq=evidence4&orientation=landscape' },
-        { name: 'messages_screenshot2.png', type: 'image', url: 'https://readdy.ai/api/search-image?query=blurred%20screenshot%20of%20email%20inbox%20showing%20multiple%20messages%20from%20same%20sender%20clean%20minimal%20email%20interface%20design&width=400&height=300&seq=evidence5&orientation=landscape' },
-      ],
-      submittedDate: '2024-03-14',
-      adminNotes: [],
-      chatLogs: [
-        { sender: 'Robert Brown', message: 'The logo concepts look great!', date: '2024-02-22 14:00' },
-        { sender: 'Lisa Anderson', message: 'Thank you! Ill proceed with the brand guidelines.', date: '2024-02-22 14:30' },
-        { sender: 'Robert Brown', message: 'You seem really talented. Are you single?', date: '2024-02-23 20:15' },
-        { sender: 'Lisa Anderson', message: 'Please keep our communication professional.', date: '2024-02-23 21:00' },
-        { sender: 'Robert Brown', message: 'Just trying to be friendly. Whats your Instagram?', date: '2024-02-24 19:30' },
-        { sender: 'Lisa Anderson', message: 'I prefer to keep things strictly professional. Please only contact me about the project.', date: '2024-02-24 20:00' },
-        { sender: 'Robert Brown', message: 'Come on, dont be so uptight. We could grab coffee sometime.', date: '2024-02-25 21:45' },
-      ],
-      paymentHistory: [
-        { date: '2024-02-15', amount: 500, type: 'Milestone Payment', status: 'Released' },
-        { date: '2024-03-05', amount: 800, type: 'Milestone Payment', status: 'Held in Escrow' },
-        { date: '2024-03-15', amount: 700, type: 'Final Payment', status: 'Pending' },
-      ],
-    },
-    {
-      id: 5,
-      complainant: {
-        name: 'James Taylor',
-        email: 'james.t@example.com',
-        role: 'learner',
-        avatar: 'https://readdy.ai/api/search-image?query=professional%20business%20portrait%20of%20young%20man%20with%20curly%20hair%20wearing%20casual%20gray%20sweater%20against%20clean%20minimal%20light%20gray%20studio%20background%20corporate%20headshot%20style%20natural%20lighting%20sharp%20focus%20professional%20photography&width=200&height=200&seq=comp9&orientation=squarish',
-        joinDate: '2024-02-01',
-        totalProjects: 0,
-        rating: 0,
-      },
-      reportedUser: {
-        name: 'Course Creator Pro',
-        email: 'support@coursecreator.com',
-        role: 'employer',
-        avatar: 'https://readdy.ai/api/search-image?query=education%20platform%20logo%20icon%20book%20and%20graduation%20cap%20design%20orange%20and%20white%20colors%20on%20dark%20background%20minimalist%20branding&width=200&height=200&seq=comp10&orientation=squarish',
-        joinDate: '2022-08-15',
-        totalProjects: 50,
-        rating: 4.2,
-        warnings: 0,
-        status: 'active',
-      },
-      type: 'other',
-      status: 'rejected',
-      subject: 'Course Content Quality Issue',
-      description: 'The course content is outdated and does not match the description. Many videos are from 2019 and the technologies covered are no longer relevant.',
-      evidence: [
-        { name: 'course_description.png', type: 'image', url: 'https://readdy.ai/api/search-image?query=screenshot%20of%20online%20course%20page%20showing%20course%20description%20and%20curriculum%20details%20clean%20minimal%20learning%20platform%20interface&width=400&height=300&seq=evidence6&orientation=landscape' },
-      ],
-      submittedDate: '2024-03-05',
-      adminNotes: [
-        { action: 'Investigation Started', note: 'Reviewed course content', admin: 'Admin User', date: '2024-03-06' },
-        { action: 'Complaint Rejected', note: 'Course description accurately reflects content', admin: 'Admin User', date: '2024-03-06' },
-      ],
-      resolution: 'After review, the course content matches its description. The course is labeled as fundamentals and does not claim to cover the latest technologies. Complaint rejected.',
-      chatLogs: [],
-      paymentHistory: [],
-    },
-  ]);
+  // API state — summary
+  const [complaintSummary, setComplaintSummary] = useState<AdminComplaintSummary | null>(null);
 
-  const typeLabels: Record<string, string> = {
-    payment: 'Payment Issue',
-    delay: 'Project Delay',
-    misuse: 'Misuse',
-    harassment: 'Harassment',
-    other: 'Other',
-  };
+  // API state — list
+  const [apiComplaints, setApiComplaints] = useState<AdminComplaintItem[]>([]);
+  const [listLoading, setListLoading] = useState(true);
+  const [listError, setListError]     = useState<string | null>(null);
+  const [pageNumber, setPageNumber]   = useState(1);
+  const [totalPages, setTotalPages]   = useState(1);
+  const [totalCount, setTotalCount]   = useState(0);
 
-  const statusLabels: Record<string, string> = {
-    pending: 'Pending',
-    in_progress: 'In Progress',
-    resolved: 'Resolved',
-    rejected: 'Rejected',
+  // Filter options loaded from Swagger schema (seeded with fallback immediately)
+  const [filterOptions, setFilterOptions] = useState<FilterOptions>(FALLBACK_OPTIONS);
+
+  const prevFilterRef = useRef({ search: '', status: 'all', role: 'all', type: 'all' });
+
+  // Debounce search input
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchTerm), 400);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+
+  // Load summary once on mount; optionally sync filter options from live Swagger
+  useEffect(() => {
+    let active = true;
+    getAdminComplaintSummary()
+      .then((data) => { if (active) setComplaintSummary(data); })
+      .catch(() => {});
+
+    // Only attempt the live Swagger fetch after backend CORS is deployed.
+    // Set VITE_SWAGGER_CORS_READY=true in .env.local / .env.production once ready.
+    if (SWAGGER_CORS_READY) {
+      parseSwaggerEnums()
+        .then((opts) => { if (active) setFilterOptions(opts); })
+        .catch(() => { if (active) setFilterOptions(FALLBACK_OPTIONS); });
+    }
+
+    return () => { active = false; };
+  }, []);
+
+  // Load list when filters or page changes
+  useEffect(() => {
+    let active = true;
+    const prev = prevFilterRef.current;
+    const filtersChanged =
+      prev.search !== debouncedSearch ||
+      prev.status !== statusFilter ||
+      prev.role   !== roleFilter ||
+      prev.type   !== typeFilter;
+
+    const effectivePage = filtersChanged ? 1 : pageNumber;
+    if (filtersChanged) {
+      prevFilterRef.current = { search: debouncedSearch, status: statusFilter, role: roleFilter, type: typeFilter };
+      if (pageNumber !== 1) { setPageNumber(1); return; }
+    }
+
+    setListLoading(true);
+    setListError(null);
+
+    getAdminComplaintList({
+      Search:          debouncedSearch || undefined,
+      Status:          statusFilter !== 'all' ? statusFilter : undefined,
+      ComplainantRole: roleFilter   !== 'all' ? roleFilter   : undefined,
+      ComplaintType:   typeFilter   !== 'all' ? typeFilter   : undefined,
+      PageNumber: effectivePage,
+      PageSize:   PAGE_SIZE,
+    })
+      .then((data) => {
+        if (!active) return;
+        setApiComplaints(data.items);
+        setTotalPages(data.totalPages);
+        setTotalCount(data.totalCount);
+      })
+      .catch((err) => {
+        if (active) setListError(err instanceof Error ? err.message : 'Failed to load complaints.');
+      })
+      .finally(() => { if (active) setListLoading(false); });
+
+    return () => { active = false; };
+  }, [debouncedSearch, statusFilter, roleFilter, typeFilter, pageNumber]);
+
+  // Map API items → UI Complaint shape
+  const complaints = apiComplaints.map(toComplaint);
+  const filteredComplaints = complaints;
+
+  // Labels — raw string from API is used as fallback
+  const typeLabels: Record<string, string> = {};
+  const statusLabels: Record<string, string> = {};
+
+  // Summary card values
+  const stats = {
+    total:      complaintSummary?.totalComplaints ?? 0,
+    pending:    complaintSummary?.pending         ?? 0,
+    inProgress: complaintSummary?.inProgress      ?? 0,
+    resolved:   complaintSummary?.resolved        ?? 0,
   };
 
   const actionOptions = [
-    { id: 'warn', label: 'Warn User', icon: 'ri-alarm-warning-line', color: 'orange', description: 'Send a formal warning to the reported user' },
-    { id: 'suspend_temp', label: 'Suspend Temporarily', icon: 'ri-user-unfollow-line', color: 'yellow', description: 'Suspend user account for 30 days' },
-    { id: 'ban', label: 'Permanently Ban', icon: 'ri-user-forbid-line', color: 'red', description: 'Permanently ban user from the platform' },
-    { id: 'refund', label: 'Refund Payment', icon: 'ri-refund-2-line', color: 'teal', description: 'Refund payment to the complainant' },
-    { id: 'release', label: 'Release Payment', icon: 'ri-money-dollar-circle-line', color: 'green', description: 'Release held payment to the freelancer' },
-    { id: 'cancel_project', label: 'Cancel Project', icon: 'ri-close-circle-line', color: 'pink', description: 'Cancel the related project' },
+    { id: 'warn',           label: 'Warn User',            icon: 'ri-alarm-warning-line',       color: 'orange', description: 'Send a formal warning to the reported user' },
+    { id: 'suspend_temp',   label: 'Suspend Temporarily',  icon: 'ri-user-unfollow-line',        color: 'yellow', description: 'Suspend user account for 30 days' },
+    { id: 'ban',            label: 'Permanently Ban',       icon: 'ri-user-forbid-line',          color: 'red',    description: 'Permanently ban user from the platform' },
+    { id: 'refund',         label: 'Refund Payment',        icon: 'ri-refund-2-line',             color: 'teal',   description: 'Refund payment to the complainant' },
+    { id: 'release',        label: 'Release Payment',       icon: 'ri-money-dollar-circle-line',  color: 'green',  description: 'Release held payment to the freelancer' },
+    { id: 'cancel_project', label: 'Cancel Project',        icon: 'ri-close-circle-line',         color: 'pink',   description: 'Cancel the related project' },
   ];
-
-  const filteredComplaints = complaints.filter((complaint) => {
-    const matchesSearch =
-      complaint.subject.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      complaint.complainant.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      complaint.reportedUser.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || complaint.status === statusFilter;
-    const matchesRole = roleFilter === 'all' || complaint.complainant.role === roleFilter;
-    const matchesType = typeFilter === 'all' || complaint.type === typeFilter;
-    return matchesSearch && matchesStatus && matchesRole && matchesType;
-  });
 
   const openResolutionFlow = (complaint: Complaint) => {
     setSelectedComplaint(complaint);
@@ -390,88 +351,37 @@ const ComplaintsManagement = () => {
 
   const handleResolve = (status: 'resolved' | 'rejected') => {
     if (!selectedComplaint || !resolutionNote.trim()) return;
-
-    const timestamp = new Date().toISOString().split('T')[0];
-    const newNotes = [...selectedComplaint.adminNotes];
-
-    selectedActions.forEach((actionId) => {
-      const action = actionOptions.find((a) => a.id === actionId);
-      if (action) {
-        newNotes.push({
-          action: action.label,
-          note: `Action executed: ${action.description}`,
-          admin: 'Admin User',
-          date: timestamp,
-        });
-      }
-    });
-
-    newNotes.push({
-      action: status === 'resolved' ? 'Complaint Resolved' : 'Complaint Rejected',
-      note: resolutionNote,
-      admin: 'Admin User',
-      date: timestamp,
-    });
-
-    setComplaints((prev) =>
-      prev.map((c) =>
-        c.id === selectedComplaint.id
-          ? {
-              ...c,
-              status: status,
-              adminNotes: newNotes,
-              resolution: resolutionNote,
-            }
-          : c
-      )
-    );
-
     setShowResolutionFlow(false);
     setSelectedComplaint(null);
   };
 
   const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return 'bg-orange-500/20 text-orange-400';
-      case 'in_progress':
-        return 'bg-blue-500/20 text-blue-400';
-      case 'resolved':
-        return 'bg-green-500/20 text-green-400';
-      case 'rejected':
-        return 'bg-red-500/20 text-red-400';
-      default:
-        return 'bg-gray-500/20 text-gray-400';
+    switch (status.toLowerCase()) {
+      case 'pending':      return 'bg-orange-500/20 text-orange-400';
+      case 'underreview':
+      case 'in_progress':  return 'bg-blue-500/20 text-blue-400';
+      case 'resolved':     return 'bg-green-500/20 text-green-400';
+      case 'dismissed':
+      case 'rejected':     return 'bg-red-500/20 text-red-400';
+      default:             return 'bg-gray-500/20 text-gray-400';
     }
   };
 
   const getTypeColor = (type: string) => {
-    switch (type) {
-      case 'payment':
-        return 'bg-yellow-500/20 text-yellow-400';
-      case 'delay':
-        return 'bg-orange-500/20 text-orange-400';
-      case 'misuse':
-        return 'bg-red-500/20 text-red-400';
-      case 'harassment':
-        return 'bg-pink-500/20 text-pink-400';
-      default:
-        return 'bg-gray-500/20 text-gray-400';
+    switch (type.toLowerCase()) {
+      case 'paymentissue':  return 'bg-yellow-500/20 text-yellow-400';
+      case 'projectdelay':  return 'bg-orange-500/20 text-orange-400';
+      case 'fraud':         return 'bg-red-500/20 text-red-400';
+      case 'harassment':    return 'bg-pink-500/20 text-pink-400';
+      default:              return 'bg-gray-500/20 text-gray-400';
     }
   };
 
-  const stats = {
-    total: complaints.length,
-    pending: complaints.filter((c) => c.status === 'pending').length,
-    inProgress: complaints.filter((c) => c.status === 'in_progress').length,
-    resolved: complaints.filter((c) => c.status === 'resolved').length,
-  };
-
   const steps = [
-    { number: 1, title: 'Review', icon: 'ri-file-search-line' },
-    { number: 2, title: 'Investigate', icon: 'ri-search-eye-line' },
-    { number: 3, title: 'Take Action', icon: 'ri-hammer-line' },
-    { number: 4, title: 'Resolve', icon: 'ri-check-double-line' },
+    { number: 1, title: 'Review',     icon: 'ri-file-search-line'   },
+    { number: 2, title: 'Investigate', icon: 'ri-search-eye-line'   },
+    { number: 3, title: 'Take Action', icon: 'ri-hammer-line'       },
+    { number: 4, title: 'Resolve',    icon: 'ri-check-double-line'  },
   ];
 
   return (
@@ -547,10 +457,7 @@ const ComplaintsManagement = () => {
               onChange={setStatusFilter}
               options={[
                 { value: 'all', label: 'All Status' },
-                { value: 'pending', label: 'Pending' },
-                { value: 'in_progress', label: 'In Progress' },
-                { value: 'resolved', label: 'Resolved' },
-                { value: 'rejected', label: 'Rejected' }
+                ...filterOptions.status,
               ]}
               placeholder="All Status"
             />
@@ -562,11 +469,7 @@ const ComplaintsManagement = () => {
               onChange={setRoleFilter}
               options={[
                 { value: 'all', label: 'All Roles' },
-                { value: 'client', label: 'Client' },
-                { value: 'freelancer', label: 'Freelancer' },
-                { value: 'employer', label: 'Employer' },
-                { value: 'applicant', label: 'Job Seeker' },
-                { value: 'learner', label: 'Learner' }
+                ...filterOptions.role,
               ]}
               placeholder="All Roles"
             />
@@ -578,11 +481,7 @@ const ComplaintsManagement = () => {
               onChange={setTypeFilter}
               options={[
                 { value: 'all', label: 'All Types' },
-                { value: 'payment', label: 'Payment Issue' },
-                { value: 'delay', label: 'Project Delay' },
-                { value: 'misuse', label: 'Misuse' },
-                { value: 'harassment', label: 'Harassment' },
-                { value: 'other', label: 'Other' }
+                ...filterOptions.type,
               ]}
               placeholder="All Types"
             />
@@ -592,78 +491,166 @@ const ComplaintsManagement = () => {
 
       {/* Complaints List */}
       <div className="space-y-4">
-        {filteredComplaints.map((complaint) => (
-          <div
-            key={complaint.id}
-            className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10 hover:border-teal-500/50 transition-all"
-          >
-            <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
-              <div className="flex-1">
-                <div className="flex items-start gap-4 mb-4">
+        {listLoading ? (
+          Array.from({ length: 3 }).map((_, i) => (
+            <div key={`skel-${i}`} className="h-32 rounded-xl bg-white/5 border border-white/10 animate-pulse" />
+          ))
+        ) : listError ? (
+          <div className="text-center py-12 bg-white/5 rounded-xl border border-red-500/20">
+            <i className="ri-error-warning-line text-5xl text-red-400/40 mb-4 block"></i>
+            <p className="text-red-400 text-sm">{listError}</p>
+          </div>
+        ) : (
+          <>
+            {filteredComplaints.map((complaint) => (
+              <div
+                key={complaint.id}
+                className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10 hover:border-teal-500/50 transition-all"
+              >
+                <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
                   <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2 flex-wrap">
-                      <h3 className="text-lg font-bold text-white">{complaint.subject}</h3>
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${getStatusColor(complaint.status)}`}>
-                        {statusLabels[complaint.status]}
-                      </span>
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${getTypeColor(complaint.type)}`}>
-                        {typeLabels[complaint.type]}
-                      </span>
+                    <div className="flex items-start gap-4 mb-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2 flex-wrap">
+                          <h3 className="text-lg font-bold text-white">{complaint.subject}</h3>
+                          <span className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${getStatusColor(complaint.status)}`}>
+                            {statusLabels[complaint.status] ?? complaint.status}
+                          </span>
+                          <span className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${getTypeColor(complaint.type)}`}>
+                            {typeLabels[complaint.type] ?? complaint.type}
+                          </span>
+                        </div>
+                        <p className="text-white/60 text-sm line-clamp-2">{complaint.description}</p>
+                      </div>
                     </div>
-                    <p className="text-white/60 text-sm line-clamp-2">{complaint.description}</p>
-                  </div>
-                </div>
 
-                <div className="flex flex-wrap items-center gap-6 text-sm">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center">
-                      <img src={complaint.complainant.avatar} alt="" className="w-full h-full object-cover object-top" />
-                    </div>
-                    <div>
-                      <p className="text-white/40 text-xs">Complainant</p>
-                      <p className="text-white">{complaint.complainant.name}</p>
+                    <div className="flex flex-wrap items-center gap-6 text-sm">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center bg-white/10">
+                          {complaint.complainant.avatar ? (
+                            <img src={complaint.complainant.avatar} alt="" className="w-full h-full object-cover object-top" />
+                          ) : (
+                            <i className="ri-user-line text-white/40 text-sm"></i>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-white/40 text-xs">Complainant</p>
+                          <p className="text-white">{complaint.complainant.name}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center bg-white/10">
+                          {complaint.reportedUser.avatar ? (
+                            <img src={complaint.reportedUser.avatar} alt="" className="w-full h-full object-cover object-top" />
+                          ) : (
+                            <i className="ri-user-line text-white/40 text-sm"></i>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-white/40 text-xs">Reported User</p>
+                          <p className="text-white">{complaint.reportedUser.name}</p>
+                        </div>
+                      </div>
+                      {(complaint.relatedProject || complaint.relatedJob) && (
+                        <div>
+                          <p className="text-white/40 text-xs">{complaint.relatedProject ? 'Related Project' : 'Related Job'}</p>
+                          <p className="text-teal-400">{complaint.relatedProject?.name || complaint.relatedJob}</p>
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-white/40 text-xs">Submitted</p>
+                        <p className="text-white/60">{complaint.submittedDate}</p>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center">
-                      <img src={complaint.reportedUser.avatar} alt="" className="w-full h-full object-cover object-top" />
-                    </div>
-                    <div>
-                      <p className="text-white/40 text-xs">Reported User</p>
-                      <p className="text-white">{complaint.reportedUser.name}</p>
-                    </div>
-                  </div>
-                  {(complaint.relatedProject || complaint.relatedJob) && (
-                    <div>
-                      <p className="text-white/40 text-xs">{complaint.relatedProject ? 'Related Project' : 'Related Job'}</p>
-                      <p className="text-teal-400">{complaint.relatedProject?.name || complaint.relatedJob}</p>
-                    </div>
-                  )}
-                  <div>
-                    <p className="text-white/40 text-xs">Submitted</p>
-                    <p className="text-white/60">{complaint.submittedDate}</p>
+
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => openResolutionFlow(complaint)}
+                      className="px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 transition-all cursor-pointer whitespace-nowrap text-sm font-semibold"
+                    >
+                      <i className="ri-file-search-line mr-1"></i>
+                      {complaint.status === 'Resolved' || complaint.status === 'Dismissed' ? 'View Case' : 'Handle Case'}
+                    </button>
                   </div>
                 </div>
               </div>
+            ))}
 
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => openResolutionFlow(complaint)}
-                  className="px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 transition-all cursor-pointer whitespace-nowrap text-sm font-semibold"
-                >
-                  <i className="ri-file-search-line mr-1"></i>
-                  {complaint.status === 'resolved' || complaint.status === 'rejected' ? 'View Case' : 'Handle Case'}
-                </button>
+            {filteredComplaints.length === 0 && (
+              <div className="text-center py-12 bg-white/5 rounded-xl border border-white/10">
+                <i className="ri-file-search-line text-5xl text-white/20 mb-4 block"></i>
+                <p className="text-white/40">No complaints found</p>
               </div>
-            </div>
-          </div>
-        ))}
+            )}
 
-        {filteredComplaints.length === 0 && (
-          <div className="text-center py-12 bg-white/5 rounded-xl border border-white/10">
-            <i className="ri-file-search-line text-5xl text-white/20 mb-4 block"></i>
-            <p className="text-white/40">No complaints found</p>
-          </div>
+            {/* Pagination */}
+            {!listLoading && !listError && totalPages > 1 && (
+              <div className="px-4 py-3 border-t border-white/10 flex items-center justify-between gap-4 bg-white/5 rounded-xl">
+                <p className="text-white/40 text-xs sm:text-sm">{totalCount.toLocaleString()} complaints</p>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setPageNumber(1)}
+                    disabled={pageNumber === 1}
+                    className="w-8 h-8 hidden sm:flex items-center justify-center rounded-lg bg-white/10 text-white/60 hover:text-white hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-xs"
+                    title="First page"
+                  >
+                    <i className="ri-skip-left-line"></i>
+                  </button>
+                  <button
+                    onClick={() => setPageNumber((p) => Math.max(1, p - 1))}
+                    disabled={pageNumber === 1}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 text-white/60 hover:text-white hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                  >
+                    <i className="ri-arrow-left-s-line"></i>
+                  </button>
+                  <div className="flex items-center gap-1 px-1">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                      .filter((p) => p === 1 || p === totalPages || Math.abs(p - pageNumber) <= 1)
+                      .reduce<(number | '...')[]>((acc, p, idx, arr) => {
+                        if (idx > 0 && typeof arr[idx - 1] === 'number' && (p as number) - (arr[idx - 1] as number) > 1) {
+                          acc.push('...');
+                        }
+                        acc.push(p);
+                        return acc;
+                      }, [])
+                      .map((p, idx) =>
+                        p === '...' ? (
+                          <span key={`ellipsis-${idx}`} className="w-8 h-8 flex items-center justify-center text-white/40 text-sm">…</span>
+                        ) : (
+                          <button
+                            key={p}
+                            onClick={() => setPageNumber(p as number)}
+                            className={`w-8 h-8 flex items-center justify-center rounded-lg text-sm font-medium transition-all ${
+                              pageNumber === p
+                                ? 'bg-teal-500 text-white'
+                                : 'bg-white/10 text-white/60 hover:text-white hover:bg-white/20'
+                            }`}
+                          >
+                            {p}
+                          </button>
+                        )
+                      )}
+                  </div>
+                  <button
+                    onClick={() => setPageNumber((p) => Math.min(totalPages, p + 1))}
+                    disabled={pageNumber === totalPages}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 text-white/60 hover:text-white hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                  >
+                    <i className="ri-arrow-right-s-line"></i>
+                  </button>
+                  <button
+                    onClick={() => setPageNumber(totalPages)}
+                    disabled={pageNumber === totalPages}
+                    className="w-8 h-8 hidden sm:flex items-center justify-center rounded-lg bg-white/10 text-white/60 hover:text-white hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-xs"
+                    title="Last page"
+                  >
+                    <i className="ri-skip-right-line"></i>
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -688,7 +675,7 @@ const ComplaintsManagement = () => {
                 {steps.map((step, index) => (
                   <div key={step.number} className="flex items-center flex-1">
                     <div
-                      onClick={() => (selectedComplaint.status !== 'resolved' && selectedComplaint.status !== 'rejected') && setCurrentStep(step.number)}
+                      onClick={() => (selectedComplaint.status !== 'Resolved' && selectedComplaint.status !== 'Dismissed') && setCurrentStep(step.number)}
                       className={`flex items-center gap-3 cursor-pointer transition-all ${
                         currentStep >= step.number ? 'opacity-100' : 'opacity-40'
                       }`}
@@ -747,10 +734,10 @@ const ComplaintsManagement = () => {
                           <h5 className="text-lg font-semibold text-white">{selectedComplaint.subject}</h5>
                           <div className="flex gap-2">
                             <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(selectedComplaint.status)}`}>
-                              {statusLabels[selectedComplaint.status]}
+                              {statusLabels[selectedComplaint.status] ?? selectedComplaint.status}
                             </span>
                             <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getTypeColor(selectedComplaint.type)}`}>
-                              {typeLabels[selectedComplaint.type]}
+                              {typeLabels[selectedComplaint.type] ?? selectedComplaint.type}
                             </span>
                           </div>
                         </div>
@@ -766,8 +753,12 @@ const ComplaintsManagement = () => {
                         <div className="bg-white/5 rounded-xl p-4 border border-white/10">
                           <p className="text-white/50 text-xs mb-3 uppercase tracking-wider">Complainant</p>
                           <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 rounded-full overflow-hidden">
-                              <img src={selectedComplaint.complainant.avatar} alt="" className="w-full h-full object-cover object-top" />
+                            <div className="w-12 h-12 rounded-full overflow-hidden bg-white/10 flex items-center justify-center">
+                              {selectedComplaint.complainant.avatar ? (
+                                <img src={selectedComplaint.complainant.avatar} alt="" className="w-full h-full object-cover object-top" />
+                              ) : (
+                                <i className="ri-user-line text-white/40"></i>
+                              )}
                             </div>
                             <div>
                               <p className="text-white font-semibold">{selectedComplaint.complainant.name}</p>
@@ -780,8 +771,12 @@ const ComplaintsManagement = () => {
                         <div className="bg-white/5 rounded-xl p-4 border border-white/10">
                           <p className="text-white/50 text-xs mb-3 uppercase tracking-wider">Reported User</p>
                           <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 rounded-full overflow-hidden">
-                              <img src={selectedComplaint.reportedUser.avatar} alt="" className="w-full h-full object-cover object-top" />
+                            <div className="w-12 h-12 rounded-full overflow-hidden bg-white/10 flex items-center justify-center">
+                              {selectedComplaint.reportedUser.avatar ? (
+                                <img src={selectedComplaint.reportedUser.avatar} alt="" className="w-full h-full object-cover object-top" />
+                              ) : (
+                                <i className="ri-user-line text-white/40"></i>
+                              )}
                             </div>
                             <div>
                               <p className="text-white font-semibold">{selectedComplaint.reportedUser.name}</p>
@@ -816,7 +811,7 @@ const ComplaintsManagement = () => {
                     <div className="bg-white/5 rounded-xl p-5 border border-white/10">
                       <h5 className="text-lg font-semibold text-white mb-4">
                         <i className="ri-attachment-line mr-2 text-teal-400"></i>
-                        Evidence & Attachments
+                        Evidence &amp; Attachments
                       </h5>
                       <div className="space-y-4">
                         {selectedComplaint.evidence.map((item, index) => (
@@ -873,10 +868,10 @@ const ComplaintsManagement = () => {
                   {/* Investigation Tabs */}
                   <div className="flex gap-2 p-1 bg-white/5 rounded-lg w-fit">
                     {[
-                      { id: 'profiles', label: 'User Profiles', icon: 'ri-user-line' },
-                      { id: 'timeline', label: 'Project Timeline', icon: 'ri-time-line' },
-                      { id: 'payments', label: 'Payment History', icon: 'ri-money-dollar-circle-line' },
-                      { id: 'chat', label: 'Chat Logs', icon: 'ri-chat-3-line' },
+                      { id: 'profiles',  label: 'User Profiles',    icon: 'ri-user-line' },
+                      { id: 'timeline',  label: 'Project Timeline', icon: 'ri-time-line' },
+                      { id: 'payments',  label: 'Payment History',  icon: 'ri-money-dollar-circle-line' },
+                      { id: 'chat',      label: 'Chat Logs',        icon: 'ri-chat-3-line' },
                     ].map((tab) => (
                       <button
                         key={tab.id}
@@ -896,15 +891,18 @@ const ComplaintsManagement = () => {
                   {/* User Profiles Tab */}
                   {investigationTab === 'profiles' && (
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      {/* Complainant Profile */}
                       <div className="bg-white/5 rounded-xl p-6 border border-white/10">
                         <div className="flex items-center gap-2 mb-4">
                           <i className="ri-user-line text-teal-400"></i>
                           <h5 className="text-lg font-semibold text-white">Complainant Profile</h5>
                         </div>
                         <div className="flex items-center gap-4 mb-6">
-                          <div className="w-20 h-20 rounded-full overflow-hidden">
-                            <img src={selectedComplaint.complainant.avatar} alt="" className="w-full h-full object-cover object-top" />
+                          <div className="w-20 h-20 rounded-full overflow-hidden bg-white/10 flex items-center justify-center">
+                            {selectedComplaint.complainant.avatar ? (
+                              <img src={selectedComplaint.complainant.avatar} alt="" className="w-full h-full object-cover object-top" />
+                            ) : (
+                              <i className="ri-user-line text-white/40 text-2xl"></i>
+                            )}
                           </div>
                           <div>
                             <p className="text-xl font-bold text-white">{selectedComplaint.complainant.name}</p>
@@ -924,21 +922,24 @@ const ComplaintsManagement = () => {
                             <p className="text-white/50 text-xs">Rating</p>
                           </div>
                           <div className="bg-white/5 rounded-lg p-3 text-center">
-                            <p className="text-sm font-bold text-white">{selectedComplaint.complainant.joinDate}</p>
+                            <p className="text-sm font-bold text-white">{selectedComplaint.complainant.joinDate || '—'}</p>
                             <p className="text-white/50 text-xs">Joined</p>
                           </div>
                         </div>
                       </div>
 
-                      {/* Reported User Profile */}
                       <div className="bg-white/5 rounded-xl p-6 border border-white/10">
                         <div className="flex items-center gap-2 mb-4">
                           <i className="ri-user-warning-line text-orange-400"></i>
                           <h5 className="text-lg font-semibold text-white">Reported User Profile</h5>
                         </div>
                         <div className="flex items-center gap-4 mb-6">
-                          <div className="w-20 h-20 rounded-full overflow-hidden">
-                            <img src={selectedComplaint.reportedUser.avatar} alt="" className="w-full h-full object-cover object-top" />
+                          <div className="w-20 h-20 rounded-full overflow-hidden bg-white/10 flex items-center justify-center">
+                            {selectedComplaint.reportedUser.avatar ? (
+                              <img src={selectedComplaint.reportedUser.avatar} alt="" className="w-full h-full object-cover object-top" />
+                            ) : (
+                              <i className="ri-user-line text-white/40 text-2xl"></i>
+                            )}
                           </div>
                           <div>
                             <p className="text-xl font-bold text-white">{selectedComplaint.reportedUser.name}</p>
@@ -948,7 +949,7 @@ const ComplaintsManagement = () => {
                                 {selectedComplaint.reportedUser.role}
                               </span>
                               <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                                selectedComplaint.reportedUser.status === 'active' ? 'bg-green-500/20 text-green-400' :
+                                selectedComplaint.reportedUser.status === 'active'    ? 'bg-green-500/20 text-green-400' :
                                 selectedComplaint.reportedUser.status === 'suspended' ? 'bg-yellow-500/20 text-yellow-400' :
                                 'bg-red-500/20 text-red-400'
                               }`}>
@@ -971,7 +972,7 @@ const ComplaintsManagement = () => {
                             <p className="text-white/50 text-xs">Warnings</p>
                           </div>
                           <div className="bg-white/5 rounded-lg p-3 text-center">
-                            <p className="text-sm font-bold text-white">{selectedComplaint.reportedUser.joinDate}</p>
+                            <p className="text-sm font-bold text-white">{selectedComplaint.reportedUser.joinDate || '—'}</p>
                             <p className="text-white/50 text-xs">Joined</p>
                           </div>
                         </div>
@@ -1011,7 +1012,7 @@ const ComplaintsManagement = () => {
                                 <div className="flex items-center justify-between mb-2">
                                   <h6 className="font-semibold text-white">{milestone.name}</h6>
                                   <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
-                                    milestone.status === 'Completed' ? 'bg-green-500/20 text-green-400' :
+                                    milestone.status === 'Completed'  ? 'bg-green-500/20 text-green-400' :
                                     milestone.status === 'In Progress' ? 'bg-blue-500/20 text-blue-400' :
                                     'bg-white/10 text-white/50'
                                   }`}>
@@ -1060,9 +1061,9 @@ const ComplaintsManagement = () => {
                                   <td className="py-3 px-4 text-right text-teal-400 font-semibold">${payment.amount.toLocaleString()}</td>
                                   <td className="py-3 px-4 text-right">
                                     <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                                      payment.status === 'Released' ? 'bg-green-500/20 text-green-400' :
-                                      payment.status === 'Held in Escrow' ? 'bg-yellow-500/20 text-yellow-400' :
-                                      payment.status.includes('Approved') ? 'bg-blue-500/20 text-blue-400' :
+                                      payment.status === 'Released'              ? 'bg-green-500/20 text-green-400' :
+                                      payment.status === 'Held in Escrow'        ? 'bg-yellow-500/20 text-yellow-400' :
+                                      payment.status.includes('Approved')        ? 'bg-blue-500/20 text-blue-400' :
                                       'bg-white/10 text-white/50'
                                     }`}>
                                       {payment.status}
@@ -1129,7 +1130,7 @@ const ComplaintsManagement = () => {
                     </div>
                   </div>
 
-                  {selectedComplaint.status === 'resolved' || selectedComplaint.status === 'rejected' ? (
+                  {selectedComplaint.status === 'Resolved' || selectedComplaint.status === 'Dismissed' ? (
                     <div className="bg-white/5 rounded-xl p-6 border border-white/10 text-center">
                       <i className="ri-lock-line text-5xl text-white/20 mb-4 block"></i>
                       <p className="text-white/60">This case has been closed. No further actions can be taken.</p>
@@ -1196,23 +1197,22 @@ const ComplaintsManagement = () => {
                     </div>
                   </div>
 
-                  {selectedComplaint.status === 'resolved' || selectedComplaint.status === 'rejected' ? (
+                  {selectedComplaint.status === 'Resolved' || selectedComplaint.status === 'Dismissed' ? (
                     <div className="space-y-6">
-                      {/* Resolution Summary */}
                       <div className={`rounded-xl p-6 border ${
-                        selectedComplaint.status === 'resolved' 
-                          ? 'bg-green-500/10 border-green-500/30' 
+                        selectedComplaint.status === 'Resolved'
+                          ? 'bg-green-500/10 border-green-500/30'
                           : 'bg-red-500/10 border-red-500/30'
                       }`}>
                         <div className="flex items-center gap-3 mb-4">
                           <div className={`w-12 h-12 flex items-center justify-center rounded-full ${
-                            selectedComplaint.status === 'resolved' ? 'bg-green-500' : 'bg-red-500'
+                            selectedComplaint.status === 'Resolved' ? 'bg-green-500' : 'bg-red-500'
                           }`}>
-                            <i className={`${selectedComplaint.status === 'resolved' ? 'ri-check-line' : 'ri-close-line'} text-2xl text-white`}></i>
+                            <i className={`${selectedComplaint.status === 'Resolved' ? 'ri-check-line' : 'ri-close-line'} text-2xl text-white`}></i>
                           </div>
                           <div>
                             <h5 className="text-xl font-bold text-white">
-                              Case {selectedComplaint.status === 'resolved' ? 'Resolved' : 'Rejected'}
+                              Case {selectedComplaint.status === 'Resolved' ? 'Resolved' : 'Dismissed'}
                             </h5>
                             <p className="text-white/60 text-sm">This complaint has been closed</p>
                           </div>
@@ -1223,55 +1223,34 @@ const ComplaintsManagement = () => {
                         </div>
                       </div>
 
-                      {/* Activity Timeline */}
                       {selectedComplaint.adminNotes.length > 0 && (
                         <div className="bg-white/5 rounded-xl p-6 border border-white/10">
                           <h5 className="text-lg font-semibold text-white mb-4">
                             <i className="ri-history-line mr-2 text-teal-400"></i>
                             Activity Timeline
                           </h5>
-                          <div className="relative">
-                            <div className="absolute left-3 top-0 bottom-0 w-0.5 bg-white/10"></div>
-                            <div className="space-y-4">
-                              {selectedComplaint.adminNotes.map((note, index) => (
-                                <div key={index} className="relative flex items-start gap-4 pl-8">
-                                  <div className="absolute left-1 w-5 h-5 rounded-full bg-teal-500/20 border-2 border-teal-500 flex items-center justify-center">
-                                    <div className="w-2 h-2 rounded-full bg-teal-500"></div>
-                                  </div>
-                                  <div className="flex-1 bg-white/5 rounded-lg p-4">
-                                    <div className="flex items-center justify-between mb-2">
-                                      <span className="text-teal-400 font-semibold text-sm">{note.action}</span>
-                                      <span className="text-white/40 text-xs">{note.date}</span>
-                                    </div>
-                                    <p className="text-white/70 text-sm">{note.note}</p>
-                                    <p className="text-white/40 text-xs mt-2">By: {note.admin}</p>
-                                  </div>
+                          <div className="space-y-4">
+                            {selectedComplaint.adminNotes.map((note, index) => (
+                              <div key={index} className="flex items-start gap-4">
+                                <div className="w-8 h-8 rounded-full bg-teal-500/20 flex items-center justify-center flex-shrink-0">
+                                  <i className="ri-user-line text-teal-400 text-sm"></i>
                                 </div>
-                              ))}
-                            </div>
+                                <div className="flex-1 bg-white/5 rounded-lg p-3">
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className="text-teal-400 text-sm font-semibold">{note.action}</span>
+                                    <span className="text-white/40 text-xs">{note.date}</span>
+                                  </div>
+                                  <p className="text-white/70 text-sm">{note.note}</p>
+                                  <p className="text-white/40 text-xs mt-1">By {note.admin}</p>
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         </div>
                       )}
                     </div>
                   ) : (
                     <>
-                      {/* Actions Summary */}
-                      {selectedActions.length > 0 && (
-                        <div className="bg-white/5 rounded-xl p-4 border border-white/10">
-                          <p className="text-white/50 text-xs uppercase tracking-wider mb-3">Actions to be executed</p>
-                          <div className="flex flex-wrap gap-2">
-                            {selectedActions.map((id) => {
-                              const action = actionOptions.find((a) => a.id === id);
-                              return action ? (
-                                <span key={id} className={`px-3 py-1 rounded-full text-sm font-semibold bg-${action.color}-500/20 text-${action.color}-400`}>
-                                  {action.label}
-                                </span>
-                              ) : null;
-                            })}
-                          </div>
-                        </div>
-                      )}
-
                       {/* Resolution Note */}
                       <div className="bg-white/5 rounded-xl p-6 border border-white/10">
                         <label className="block text-white font-semibold mb-3">Resolution Note</label>
@@ -1350,7 +1329,7 @@ const ComplaintsManagement = () => {
                 </button>
 
                 <div className="flex gap-3">
-                  {currentStep === 4 && selectedComplaint.status !== 'resolved' && selectedComplaint.status !== 'rejected' && (
+                  {currentStep === 4 && selectedComplaint.status !== 'Resolved' && selectedComplaint.status !== 'Dismissed' && (
                     <>
                       <button
                         onClick={() => handleConfirmAction({ type: 'reject', label: 'Reject Complaint' })}
@@ -1381,7 +1360,7 @@ const ComplaintsManagement = () => {
                     </button>
                   )}
 
-                  {currentStep === 4 && (selectedComplaint.status === 'resolved' || selectedComplaint.status === 'rejected') && (
+                  {currentStep === 4 && (selectedComplaint.status === 'Resolved' || selectedComplaint.status === 'Dismissed') && (
                     <button
                       onClick={() => setShowResolutionFlow(false)}
                       className="px-6 py-3 bg-teal-500 text-white rounded-lg font-semibold hover:bg-teal-600 transition-all cursor-pointer whitespace-nowrap"
