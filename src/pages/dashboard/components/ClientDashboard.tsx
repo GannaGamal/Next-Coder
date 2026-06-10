@@ -130,19 +130,19 @@ const ClientDashboard = () => {
   const getMilestoneStatusConfig = (status: string) => {
     const key = normalizeMilestoneStatus(status);
     const config: Record<string, { bg: string; text: string; icon: string; label: string }> = {
-      pending:    { bg: 'bg-gray-500/15',  text: 'text-gray-400',  icon: 'ri-alarm-warning-line',   label: t('Pending') },
-      inprogress: { bg: 'bg-orange-500/15',  text: 'text-orange-400',  icon: 'ri-alarm-warning-line',   label: t('In progress') },
-      submitted:  { bg: 'bg-teal-500/15',    text: 'text-teal-400',    icon: 'ri-upload-2-line',        label: t('clientDashboard.submittedStatus') },
-      accepted:   { bg: 'bg-green-500/15',   text: 'text-green-400',   icon: 'ri-check-line',           label: t('Accepted') },
+      pending: { bg: 'bg-gray-500/15', text: 'text-gray-400', icon: 'ri-alarm-warning-line', label: t('Pending') },
+      inprogress: { bg: 'bg-orange-500/15', text: 'text-orange-400', icon: 'ri-alarm-warning-line', label: t('In progress') },
+      submitted: { bg: 'bg-teal-500/15', text: 'text-teal-400', icon: 'ri-upload-2-line', label: t('clientDashboard.submittedStatus') },
+      accepted: { bg: 'bg-green-500/15', text: 'text-green-400', icon: 'ri-check-line', label: t('Accepted') },
     };
     return config[key] || { bg: 'bg-gray-500/15', text: 'text-gray-400', icon: 'ri-question-line', label: status };
   };
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
-      open:          'bg-teal-500/20 text-teal-400',
+      open: 'bg-teal-500/20 text-teal-400',
       'in-progress': 'bg-cyan-500/20 text-cyan-400',
-      completed:     'bg-green-500/20 text-green-400',
+      completed: 'bg-green-500/20 text-green-400',
     };
     return colors[status] || 'bg-gray-500/20 text-gray-400';
   };
@@ -263,13 +263,13 @@ const ClientDashboard = () => {
         prev.map(p =>
           p.id === selectedActiveProject.id
             ? {
-                ...p,
-                milestones: p.milestones.map(m =>
-                  m.id === reviewingMilestone.id
-                    ? { ...m, status: 'Rejected', clientComment: rejectionComment }
-                    : m
-                ),
-              }
+              ...p,
+              milestones: p.milestones.map(m =>
+                m.id === reviewingMilestone.id
+                  ? { ...m, status: 'Rejected', clientComment: rejectionComment }
+                  : m
+              ),
+            }
             : p
         )
       );
@@ -314,13 +314,13 @@ const ClientDashboard = () => {
         prev.map(p =>
           p.id === selectedActiveProject.id
             ? {
-                ...p,
-                milestones: p.milestones.map(m =>
-                  m.id === reviewingMilestone.id
-                    ? { ...m, status: 'Rejected', submissionNote: null }
-                    : m
-                ),
-              }
+              ...p,
+              milestones: p.milestones.map(m =>
+                m.id === reviewingMilestone.id
+                  ? { ...m, status: 'Rejected', submissionNote: null }
+                  : m
+              ),
+            }
             : p
         )
       );
@@ -344,13 +344,13 @@ const ClientDashboard = () => {
       prev.map(p =>
         p.id === selectedActiveProject.id
           ? {
-              ...p,
-              totalPaid: p.totalPaid + reviewingMilestone.amount,
-              remainingAmount: p.remainingAmount - reviewingMilestone.amount,
-              milestones: p.milestones.map(m =>
-                m.id === reviewingMilestone.id ? { ...m, status: 'Accepted' } : m
-              ),
-            }
+            ...p,
+            totalPaid: p.totalPaid + reviewingMilestone.amount,
+            remainingAmount: p.remainingAmount - reviewingMilestone.amount,
+            milestones: p.milestones.map(m =>
+              m.id === reviewingMilestone.id ? { ...m, status: 'Accepted' } : m
+            ),
+          }
           : p
       )
     );
@@ -394,18 +394,18 @@ const ClientDashboard = () => {
         prev.map(p =>
           p.id === projectId
             ? {
-                ...p,
-                comments: [
-                  ...p.comments,
-                  {
-                    id: `c-${Date.now()}`,
-                    content: newComment,
-                    senderName: 'You',
-                    senderImage: '',
-                    createdAt: new Date().toISOString().split('T')[0],
-                  },
-                ],
-              }
+              ...p,
+              comments: [
+                ...p.comments,
+                {
+                  id: `c-${Date.now()}`,
+                  content: newComment,
+                  senderName: 'You',
+                  senderImage: '',
+                  createdAt: new Date().toISOString().split('T')[0],
+                },
+              ],
+            }
             : p
         )
       );
@@ -466,10 +466,10 @@ const ClientDashboard = () => {
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         {[
-          { label: t('clientDashboard.activeProjects'),  value: stats.activeProjects,        sub: t('clientDashboard.inProgress'),    icon: 'ri-folder-line',              color: 'text-teal-400' },
-          { label: t('clientDashboard.totalSpent'),       value: `$${stats.totalSpent}`,       sub: t('clientDashboard.allTime'),       icon: 'ri-money-dollar-circle-line', color: 'text-orange-400' },
-          { label: t('clientDashboard.openPositions'),    value: stats.openPositions,          sub: t('clientDashboard.hiring'),        icon: 'ri-briefcase-line',           color: 'text-teal-400' },
-          { label: t('clientDashboard.completed'),        value: stats.completed,              sub: t('clientDashboard.projectsDone'),  icon: 'ri-checkbox-circle-line',     color: 'text-green-400' },
+          { label: t('clientDashboard.activeProjects'), value: stats.activeProjects, sub: t('clientDashboard.inProgress'), icon: 'ri-folder-line', color: 'text-teal-400' },
+          { label: t('clientDashboard.totalSpent'), value: `$${stats.totalSpent}`, sub: t('clientDashboard.allTime'), icon: 'ri-money-dollar-circle-line', color: 'text-orange-400' },
+          { label: t('clientDashboard.openPositions'), value: stats.openPositions, sub: t('clientDashboard.hiring'), icon: 'ri-briefcase-line', color: 'text-teal-400' },
+          { label: t('clientDashboard.completed'), value: stats.completed, sub: t('clientDashboard.projectsDone'), icon: 'ri-checkbox-circle-line', color: 'text-green-400' },
         ].map((s) => (
           <div key={s.label} className={`${statCard} rounded-xl p-6`}>
             <div className="flex items-center justify-between mb-2">
@@ -488,17 +488,16 @@ const ClientDashboard = () => {
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-6 py-3 font-semibold transition-colors whitespace-nowrap cursor-pointer ${
-              activeTab === tab
-                ? 'text-teal-400 border-b-2 border-teal-400'
-                : `${textSec} hover:text-teal-500`
-            }`}
+            className={`px-6 py-3 font-semibold transition-colors whitespace-nowrap cursor-pointer ${activeTab === tab
+              ? 'text-teal-400 border-b-2 border-teal-400'
+              : `${textSec} hover:text-teal-500`
+              }`}
           >
             {tab === 'posted'
               ? `${t('clientDashboard.postedProjectsTab')} (${postedProjects.length})`
               : tab === 'active'
-              ? `${t('clientDashboard.activeTab')} (${activeProjects.length})`
-              : `${t('clientDashboard.completedTab')} (${completedProjects.length})`}
+                ? `${t('clientDashboard.activeTab')} (${activeProjects.length})`
+                : `${t('clientDashboard.completedTab')} (${completedProjects.length})`}
           </button>
         ))}
       </div>
@@ -573,7 +572,7 @@ const ClientDashboard = () => {
                     />
                   )}
                   {!project.freelancerImageUrl && (
-                     <img
+                    <img
                       src={generalAvatar}
                       alt={project.freelancerName}
                       className="w-12 h-12 rounded-lg object-cover"
@@ -597,9 +596,9 @@ const ClientDashboard = () => {
               {/* Budget & Progress */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                 {[
-                  { label: t('clientDashboard.totalBudget'), value: `$${project.totalBudget}`,      cls: textPrimary },
-                  { label: t('clientDashboard.totalPaid'),   value: `$${project.totalPaid}`,        cls: 'text-green-400' },
-                  { label: t('clientDashboard.remaining'),   value: `$${project.remainingAmount}`,  cls: 'text-orange-400' },
+                  { label: t('clientDashboard.totalBudget'), value: `$${project.totalBudget}`, cls: textPrimary },
+                  { label: t('clientDashboard.totalPaid'), value: `$${project.totalPaid}`, cls: 'text-green-400' },
+                  { label: t('clientDashboard.remaining'), value: `$${project.remainingAmount}`, cls: 'text-orange-400' },
                 ].map((item) => (
                   <div key={item.label} className={`${milestoneMiniCard} rounded-lg p-4`}>
                     <span className={`${labelSmall} text-sm`}>{item.label}</span>
@@ -760,7 +759,7 @@ const ClientDashboard = () => {
                                 <p className="text-red-500/80 text-sm">{milestone.clientComment}</p>
                               </div>
                             )}
-                            
+
                             {milestone.clientComment && milestone.status === 'Accepted' && (
                               <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
                                 <div className="flex items-center gap-2 mb-1">
@@ -843,7 +842,7 @@ const ClientDashboard = () => {
                     />
                   )}
                   {!project.freelancerImageUrl && (
-                     <img
+                    <img
                       src={generalAvatar}
                       alt={project.freelancerName}
                       className="w-12 h-12 rounded-lg object-cover"
@@ -892,9 +891,8 @@ const ClientDashboard = () => {
                         {[...Array(5)].map((_, i) => (
                           <i
                             key={i}
-                            className={`ri-star-fill text-xl ${
-                              i < project.freelancerRatingFromClient! ? 'text-yellow-400' : isLightMode ? 'text-gray-200' : 'text-white/20'
-                            }`}
+                            className={`ri-star-fill text-xl ${i < project.freelancerRatingFromClient! ? 'text-yellow-400' : isLightMode ? 'text-gray-200' : 'text-white/20'
+                              }`}
                           ></i>
                         ))}
                       </div>
@@ -911,7 +909,7 @@ const ClientDashboard = () => {
                     </button>
                   )}
                 </div>
-                
+
                 <div className={`${milestoneMiniCard} rounded-lg p-4`}>
                   <span className={`${textSec} text-sm mb-2 block`}>{t('clientDashboard.ratingFromFreelancer')}</span>
                   {/* clientRatingFromFreelancer from service */}
@@ -921,9 +919,8 @@ const ClientDashboard = () => {
                         {[...Array(5)].map((_, i) => (
                           <i
                             key={i}
-                            className={`ri-star-fill text-xl ${
-                              i < project.clientRatingFromFreelancer! ? 'text-yellow-400' : isLightMode ? 'text-gray-200' : 'text-white/20'
-                            }`}
+                            className={`ri-star-fill text-xl ${i < project.clientRatingFromFreelancer! ? 'text-yellow-400' : isLightMode ? 'text-gray-200' : 'text-white/20'
+                              }`}
                           ></i>
                         ))}
                       </div>

@@ -28,6 +28,11 @@ const ReportModal = ({ isOpen, onClose, targetName, targetAvatar, projectId, rep
     { value: 'MissedDeadline', label: 'Missed Deadline' },
     { value: 'PoorQuality', label: 'Poor Quality' },
     { value: 'UnprofessionalBehavior', label: 'Unprofessional Behavior' },
+    { value: 'NonPayment', label: 'Non-Payment' },
+    { value: 'ScopeCreep', label: 'Scope Creep' },
+    { value: 'Unresponsive', label: 'Unresponsive' },
+    { value: 'Harassment', label: 'Harassment' },
+    { value: 'UnclearRequirements', label: 'Unclear Requirements' },
     { value: 'Fraud', label: 'Fraud' },
     { value: 'Other', label: 'Other' },
   ];

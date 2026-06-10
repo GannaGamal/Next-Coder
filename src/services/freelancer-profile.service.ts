@@ -351,3 +351,49 @@ export const getFreelancerCompletedProjects = async (): Promise<FreelancerComple
   }
 };
 
+export interface FreelancerReport {
+  reportId: number;
+  reportType: string;
+  complaintAgainst: string;
+  reportedBy: string;
+  description: string;
+  status: string;
+  createdAt: string;
+  resolvedAt: string | null;
+  resolutionNote: string | null;
+  actions: string[];
+}
+
+/**
+ * GET /api/Freelancer/my-reports
+ * Returns a list of reports filed against the authenticated freelancer.
+ */
+export const getMyReports = async (): Promise<FreelancerReport[]> => {
+  const token = getToken();
+  if (!token) {
+    throw new Error('You must be signed in to view your reports.');
+  }
+
+  const response = await fetch(`${API_BASE}/Freelancer/my-reports`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+
+  const rawText = await response.text();
+  if (!rawText.trim()) return [];
+
+  try {
+    const parsed = JSON.parse(rawText) as Record<string, unknown>;
+    const data = parsed?.data;
+    return Array.isArray(data) ? (data as FreelancerReport[]) : [];
+  } catch {
+    return [];
+  }
+};

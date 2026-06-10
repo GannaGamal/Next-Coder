@@ -12,7 +12,9 @@ import {
   getFreelancerProfile,
   updateFreelancerProfile,
   getFreelancerCompletedProjects,
+  getMyReports,
   type FreelancerProfileDto,
+  type FreelancerReport,
 } from '../../services/freelancer-profile.service';
 import {
   addFreelancerSkill,
@@ -132,7 +134,7 @@ const toDocumentItem = (item: FreelancerDocumentDto): Document => ({
 
 const FreelancerProfile = () => {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'profile' | 'portfolio' | 'completed' | 'documents'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'portfolio' | 'completed' | 'documents' | 'reports'>('profile');
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
   const [freelancerProfile, setFreelancerProfile] = useState<FreelancerEditData>({
@@ -191,6 +193,11 @@ const FreelancerProfile = () => {
   );
   const [isDocumentUploading, setIsDocumentUploading] = useState(false);
   const [deletingDocumentId, setDeletingDocumentId] = useState<string | null>(null);
+
+  const [reports, setReports] = useState<FreelancerReport[]>([]);
+  const [reportsLoading, setReportsLoading] = useState(true);
+  const [reportsError, setReportsError] = useState('');
+  const [expandedReportId, setExpandedReportId] = useState<number | null>(null);
 
   const [newSkill, setNewSkill] = useState('');
   const [showPortfolioForm, setShowPortfolioForm] = useState(false);
@@ -537,6 +544,30 @@ const FreelancerProfile = () => {
 
   useEffect(() => {
     let isMounted = true;
+    const loadReports = async () => {
+      setReportsLoading(true);
+      setReportsError('');
+      try {
+        const data = await getMyReports();
+        if (!isMounted) return;
+        setReports(data);
+      } catch (error) {
+        if (!isMounted) return;
+        setReportsError(
+          error instanceof Error
+            ? error.message
+            : 'We could not load your reports right now. Please try again.'
+        );
+      } finally {
+        if (isMounted) setReportsLoading(false);
+      }
+    };
+    loadReports();
+    return () => { isMounted = false; };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
     const loadCompletedProjects = async () => {
       setCompletedProjectsLoading(true);
       setCompletedProjectsError('');
@@ -834,6 +865,16 @@ const FreelancerProfile = () => {
                 }`}
             >
               Documents
+            </button>
+            <button
+              onClick={() => setActiveTab('reports')}
+              className={`px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold transition-all whitespace-nowrap cursor-pointer ${activeTab === 'reports'
+                ? 'bg-red-500 text-white'
+                : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                }`}
+            >
+              <i className="ri-shield-user-line mr-1.5"></i>
+              Reports Against Me
             </button>
           </div>
 
@@ -1425,6 +1466,174 @@ const FreelancerProfile = () => {
                   <p className="text-xs sm:text-sm text-gray-500 mt-2">Click the upload button to add your first document</p>
                 </div>
               ) : null}
+            </div>
+          )}
+
+          {/* ── Reports Against Me Tab ─────────────────────────────────────────── */}
+          {activeTab === 'reports' && (
+            <div className="space-y-4 sm:space-y-6">
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-3">
+                    <i className="ri-shield-user-line text-red-400"></i>
+                    Reports Against Me
+                  </h2>
+                  <p className="text-sm text-gray-400 mt-1">Only you can see this section</p>
+                </div>
+                {!reportsLoading && !reportsError && (
+                  <div className="px-4 py-2 bg-red-500/20 border border-red-500/30 rounded-lg">
+                    <span className="text-red-400 font-semibold">{reports.length} Report{reports.length !== 1 ? 's' : ''}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Loading */}
+              {reportsLoading && (
+                <div className="rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-gray-400 flex items-center gap-2">
+                  <i className="ri-loader-4-line animate-spin text-purple-300"></i>
+                  Loading reports...
+                </div>
+              )}
+
+              {/* Error */}
+              {reportsError && (
+                <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300 flex items-center gap-2">
+                  <i className="ri-error-warning-line"></i>
+                  {reportsError}
+                </div>
+              )}
+
+              {/* Empty State */}
+              {!reportsLoading && !reportsError && reports.length === 0 && (
+                <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-8 sm:p-12 border border-white/10 text-center">
+                  <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i className="ri-shield-check-line text-3xl text-green-400"></i>
+                  </div>
+                  <h3 className="text-lg text-white font-semibold mb-2">No Reports Found</h3>
+                  <p className="text-gray-500 text-sm">You have no reports filed against your account.</p>
+                </div>
+              )}
+
+              {/* Report Cards */}
+              {!reportsLoading && !reportsError && reports.length > 0 && (
+                <div className="space-y-4">
+                  {reports.map((report) => {
+                    const isExpanded = expandedReportId === report.reportId;
+                    const statusColors: Record<string, string> = {
+                      Pending:     'bg-yellow-500/20 border-yellow-500/30 text-yellow-400',
+                      UnderReview: 'bg-blue-500/20 border-blue-500/30 text-blue-400',
+                      Resolved:    'bg-green-500/20 border-green-500/30 text-green-400',
+                      Dismissed:   'bg-gray-500/20 border-gray-500/30 text-gray-400',
+                    };
+                    const statusCls = statusColors[report.status] ?? 'bg-white/10 border-white/20 text-gray-300';
+
+                    const formatDate = (iso: string | null) => {
+                      if (!iso) return null;
+                      const d = new Date(iso);
+                      if (Number.isNaN(d.getTime())) return iso;
+                      return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) +
+                        ' at ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                    };
+
+                    const formatReportType = (t: string) =>
+                      t.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2');
+
+                    const formatAction = (a: string) =>
+                      a.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2');
+
+                    return (
+                      <div
+                        key={report.reportId}
+                        className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 hover:border-red-500/30 transition-all overflow-hidden"
+                      >
+                        {/* Card Header — always visible */}
+                        <div className="p-4 sm:p-6">
+                          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <span className="px-3 py-1 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 text-xs font-medium">
+                                {formatReportType(report.reportType)}
+                              </span>
+                              <span className={`px-3 py-1 border rounded-lg text-xs font-medium ${statusCls}`}>
+                                {report.status === 'UnderReview' ? 'Under Review' : report.status}
+                              </span>
+                            </div>
+                            <span className="text-gray-400 text-xs flex items-center gap-1 flex-shrink-0">
+                              <i className="ri-calendar-line"></i>
+                              {formatDate(report.createdAt)}
+                            </span>
+                          </div>
+
+                          {/* Description */}
+                          <p className="text-sm sm:text-base text-gray-300 leading-relaxed mb-4">{report.description}</p>
+
+                          {/* Reported By */}
+                          <div className="flex items-center gap-2 text-sm text-gray-400">
+                            <i className="ri-user-line text-purple-400"></i>
+                            <span>Reported by <span className="text-white font-medium">{report.reportedBy}</span></span>
+                          </div>
+
+                          {/* Expand / Collapse toggle */}
+                          <button
+                            type="button"
+                            onClick={() => setExpandedReportId(isExpanded ? null : report.reportId)}
+                            className="mt-4 flex items-center gap-1.5 text-xs text-purple-400 hover:text-purple-300 transition-colors cursor-pointer"
+                          >
+                            <i className={`ri-arrow-${isExpanded ? 'up' : 'down'}-s-line text-sm`}></i>
+                            {isExpanded ? 'Hide details' : 'Show details'}
+                          </button>
+                        </div>
+
+                        {/* Expanded Details */}
+                        {isExpanded && (
+                          <div className="border-t border-white/10 p-4 sm:p-6 space-y-4">
+                            {/* Admin Actions */}
+                            {report.actions && report.actions.length > 0 && (
+                              <div>
+                                <p className="text-[11px] uppercase tracking-wide text-gray-400 font-bold mb-2">Admin Actions Taken</p>
+                                <div className="flex flex-wrap gap-2">
+                                  {report.actions.map((action) => (
+                                    <span
+                                      key={action}
+                                      className="px-3 py-1 bg-orange-500/20 border border-orange-500/30 rounded-lg text-orange-300 text-xs font-medium"
+                                    >
+                                      {formatAction(action)}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Resolution Info */}
+                            {(report.resolvedAt || report.resolutionNote) && (
+                              <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4 space-y-2">
+                                <p className="text-[11px] uppercase tracking-wide text-green-400 font-bold flex items-center gap-1.5">
+                                  <i className="ri-check-double-line"></i>
+                                  Resolution
+                                </p>
+                                {report.resolvedAt && (
+                                  <p className="text-xs text-gray-400 flex items-center gap-1.5">
+                                    <i className="ri-time-line text-green-400"></i>
+                                    Resolved on <span className="text-gray-200">{formatDate(report.resolvedAt)}</span>
+                                  </p>
+                                )}
+                                {report.resolutionNote && (
+                                  <p className="text-sm text-gray-300 leading-relaxed">{report.resolutionNote}</p>
+                                )}
+                              </div>
+                            )}
+
+                            {/* No resolution yet */}
+                            {!report.resolvedAt && !report.resolutionNote && (
+                              <p className="text-xs text-gray-500 italic">No resolution note available yet.</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 

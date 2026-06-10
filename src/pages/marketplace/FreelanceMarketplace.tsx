@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Navbar from '../../components/feature/Navbar';
 import Footer from '../../components/feature/Footer';
-import ComplaintModal from '../../components/feature/ComplaintModal';
+
 import RoleGateModal from '../../components/feature/RoleGateModal';
 import CustomSelect from '../../components/base/CustomSelect';
 import {
@@ -61,8 +61,7 @@ const FreelanceMarketplace = () => {
   const [showPostModal, setShowPostModal] = useState(false);
   const [requirements, setRequirements] = useState<string[]>(['']);
   const [deliverables, setDeliverables] = useState<string[]>(['']);
-  const [showComplaintModal, setShowComplaintModal] = useState(false);
-  const [selectedClient, setSelectedClient] = useState<{ name: string; avatar: string } | null>(null);
+
 
   // Form states for posting project
   const [projectTitle, setProjectTitle] = useState('');
@@ -89,15 +88,15 @@ const FreelanceMarketplace = () => {
     getProjectCategories().then(data => {
       setApiCategories(data);
       if (data.length > 0) setProjectCategory(data[0].value as string);
-    }).catch(() => {});
+    }).catch(() => { });
     getDurationTypes().then(data => {
       setApiDurationTypes(data);
       if (data.length > 0) setProjectDurationType(data[0].value as string);
-    }).catch(() => {});
+    }).catch(() => { });
     getExperienceLevels().then(data => {
       setApiExperienceLevels(data);
       if (data.length > 0) setProjectExperience(data[0].value as string);
-    }).catch(() => {});
+    }).catch(() => { });
   }, []);
 
   const handlePostProject = () => {
@@ -182,6 +181,7 @@ const FreelanceMarketplace = () => {
       setTimeout(() => {
         setShowPostModal(false);
         setProjectSuccess(false);
+        setRefreshKey(k => k + 1);
       }, 2000);
     } catch (error) {
       setProjectError(error instanceof Error ? error.message : 'Failed to post project');
@@ -221,6 +221,7 @@ const FreelanceMarketplace = () => {
   // Projects loaded from API
   const [projectsData, setProjectsData] = useState<Project[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [pageNumber, setPageNumber] = useState(1);
   const [pageSize] = useState(12);
   const [hasNext, setHasNext] = useState(false);
@@ -305,7 +306,7 @@ const FreelanceMarketplace = () => {
 
     fetchProjects();
     return () => { mounted = false; };
-  }, [searchQuery, categoryFilter, experienceFilter, selectedSkills, sortBy, pageNumber, pageSize]);
+  }, [searchQuery, categoryFilter, experienceFilter, selectedSkills, sortBy, pageNumber, pageSize, refreshKey]);
 
   const activeFiltersCount = [
     selectedSkills.length > 0,
@@ -333,10 +334,7 @@ const FreelanceMarketplace = () => {
     setDeliverables(updated);
   };
 
-  const handleOpenComplaint = (clientName: string, clientAvatar: string) => {
-    setSelectedClient({ name: clientName, avatar: clientAvatar });
-    setShowComplaintModal(true);
-  };
+
 
   const handleNextPage = () => {
     if (hasNext) setPageNumber(prev => prev + 1);
@@ -349,15 +347,7 @@ const FreelanceMarketplace = () => {
   return (
     <div className={`min-h-screen ${isLightMode ? 'bg-gray-50' : 'bg-[#1a1f37]'}`}>
       <Navbar />
-      {selectedClient && (
-        <ComplaintModal
-          isOpen={showComplaintModal}
-          onClose={() => { setShowComplaintModal(false); setSelectedClient(null); }}
-          targetName={selectedClient.name}
-          targetAvatar={selectedClient.avatar}
-          targetType="client"
-        />
-      )}
+
       <RoleGateModal
         isOpen={showRoleGateModal}
         onClose={() => setShowRoleGateModal(false)}
@@ -787,7 +777,6 @@ const FreelanceMarketplace = () => {
                       project={project}
                       selectedSkills={selectedSkills}
                       formatBudget={formatBudget}
-                      onReportClient={handleOpenComplaint}
                       isLightMode={isLightMode}
                       t={t}
                     />
@@ -800,15 +789,14 @@ const FreelanceMarketplace = () => {
                   <button
                     onClick={handlePreviousPage}
                     disabled={!hasPrev || loadingProjects}
-                    className={`px-3 sm:px-4 py-2 rounded-lg font-semibold text-sm sm:text-base transition-all flex items-center gap-2 ${
-                      hasPrev && !loadingProjects
+                    className={`px-3 sm:px-4 py-2 rounded-lg font-semibold text-sm sm:text-base transition-all flex items-center gap-2 ${hasPrev && !loadingProjects
                         ? isLightMode
                           ? 'bg-gray-200 text-gray-900 hover:bg-gray-300'
                           : 'bg-white/10 text-white hover:bg-white/20'
                         : isLightMode
                           ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                           : 'bg-white/5 text-gray-500 cursor-not-allowed'
-                    }`}
+                      }`}
                   >
                     <i className="ri-arrow-left-s-line"></i>
                   </button>
@@ -820,15 +808,14 @@ const FreelanceMarketplace = () => {
                   <button
                     onClick={handleNextPage}
                     disabled={!hasNext || loadingProjects}
-                    className={`px-3 sm:px-4 py-2 rounded-lg font-semibold text-sm sm:text-base transition-all flex items-center gap-2 ${
-                      hasNext && !loadingProjects
+                    className={`px-3 sm:px-4 py-2 rounded-lg font-semibold text-sm sm:text-base transition-all flex items-center gap-2 ${hasNext && !loadingProjects
                         ? isLightMode
                           ? 'bg-purple-500 text-white hover:bg-purple-600'
                           : 'bg-purple-600 text-white hover:bg-purple-700'
                         : isLightMode
                           ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                           : 'bg-white/5 text-gray-500 cursor-not-allowed'
-                    }`}
+                      }`}
                   >
                     <i className="ri-arrow-right-s-line"></i>
                   </button>
@@ -863,24 +850,18 @@ interface ProjectCardProps {
   project: Project;
   selectedSkills: string[];
   formatBudget: (budget: Project['budget']) => string;
-  onReportClient: (clientName: string, clientAvatar: string) => void;
   isLightMode: boolean;
   t: (key: string) => string;
 }
 
-const ProjectCard = ({ project, selectedSkills, formatBudget, onReportClient, isLightMode, t }: ProjectCardProps) => (
+const ProjectCard = ({ project, selectedSkills, formatBudget, isLightMode, t }: ProjectCardProps) => (
   <div className={`backdrop-blur-sm rounded-xl border p-4 sm:p-5 transition-all group ${project.featured ? isLightMode ? 'bg-yellow-50 border-yellow-300 hover:border-yellow-400' : 'border-yellow-500/50 bg-gradient-to-r from-yellow-500/5 to-transparent' : isLightMode ? 'bg-white border-gray-200 hover:border-purple-400' : 'bg-white/5 border-white/10 hover:border-purple-500/50'}`}>
     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-4">
       <div className="flex-shrink-0 mx-auto sm:mx-0 relative">
         <Link to={`/user/${project.client.appUserId}`} className="block w-12 h-12 sm:w-16 sm:h-16 rounded-xl overflow-hidden hover:ring-2 hover:ring-purple-500 transition-all cursor-pointer">
           <img src={project.client.avatar} alt={project.client.name} className="w-full h-full object-cover" />
         </Link>
-        <button
-          onClick={() => onReportClient(project.client.name, project.client.avatar)}
-          className={`absolute -top-1 -right-1 w-6 h-6 flex items-center justify-center border rounded-full text-gray-400 hover:text-red-400 hover:border-red-500/50 transition-all cursor-pointer opacity-0 group-hover:opacity-100 ${isLightMode ? 'bg-white border-gray-200' : 'bg-[#1a1f37] border-white/10'}`}
-        >
-          <i className="ri-flag-line text-xs"></i>
-        </button>
+
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-4 mb-2">

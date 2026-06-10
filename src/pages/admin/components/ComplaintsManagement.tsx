@@ -143,11 +143,11 @@ const SWAGGER_URL = 'https://nextcoder.runasp.net/swagger/v1/swagger.json';
 // Set to "true" in .env.local only after the backend CORS policy is deployed.
 const SWAGGER_CORS_READY = import.meta.env.VITE_SWAGGER_CORS_READY === 'true';
 
-interface FilterOption  { value: string; label: string; }
+interface FilterOption { value: string; label: string; }
 interface FilterOptions {
   status: FilterOption[];
-  role:   FilterOption[];
-  type:   FilterOption[];
+  role: FilterOption[];
+  type: FilterOption[];
 }
 
 const toLabel = (value: string): string =>
@@ -196,8 +196,8 @@ const parseSwaggerEnums = async (): Promise<FilterOptions> => {
 
   return {
     status: toOptions('ReportStatus'),
-    role:   toOptions('ReportCreatedBy'),
-    type:   toOptions('ReportType'),
+    role: toOptions('ReportCreatedBy'),
+    type: toOptions('ReportType'),
   };
 };
 
@@ -211,9 +211,9 @@ const PAGE_SIZE = 10;
 
 const ComplaintsManagement = () => {
   const [statusFilter, setStatusFilter] = useState('all');
-  const [roleFilter, setRoleFilter]     = useState('all');
-  const [typeFilter, setTypeFilter]     = useState('all');
-  const [searchTerm, setSearchTerm]     = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null);
@@ -245,23 +245,23 @@ const ComplaintsManagement = () => {
   // API state — list
   const [apiComplaints, setApiComplaints] = useState<AdminComplaintItem[]>([]);
   const [listLoading, setListLoading] = useState(true);
-  const [listError, setListError]     = useState<string | null>(null);
-  const [pageNumber, setPageNumber]   = useState(1);
-  const [totalPages, setTotalPages]   = useState(1);
-  const [totalCount, setTotalCount]   = useState(0);
+  const [listError, setListError] = useState<string | null>(null);
+  const [pageNumber, setPageNumber] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
 
   // Filter options loaded from Swagger schema (seeded with fallback immediately)
   const [filterOptions, setFilterOptions] = useState<FilterOptions>(FALLBACK_OPTIONS);
 
   // Complaint detail (Step 1 — Review)
-  const [detailData, setDetailData]       = useState<AdminComplaintDetail | null>(null);
+  const [detailData, setDetailData] = useState<AdminComplaintDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [detailError, setDetailError]     = useState<string | null>(null);
+  const [detailError, setDetailError] = useState<string | null>(null);
 
   // Investigation data (Step 2 — Investigate)
-  const [investigationData, setInvestigationData]       = useState<AdminInvestigationData | null>(null);
+  const [investigationData, setInvestigationData] = useState<AdminInvestigationData | null>(null);
   const [investigationLoading, setInvestigationLoading] = useState(false);
-  const [investigationError, setInvestigationError]     = useState<string | null>(null);
+  const [investigationError, setInvestigationError] = useState<string | null>(null);
 
   const prevFilterRef = useRef({ search: '', status: 'all', role: 'all', type: 'all' });
 
@@ -278,7 +278,7 @@ const ComplaintsManagement = () => {
     let active = true;
     getAdminComplaintSummary()
       .then((data) => { if (active) setComplaintSummary(data); })
-      .catch(() => {});
+      .catch(() => { });
 
     // Only attempt the live Swagger fetch after backend CORS is deployed.
     // Set VITE_SWAGGER_CORS_READY=true in .env.local / .env.production once ready.
@@ -298,8 +298,8 @@ const ComplaintsManagement = () => {
     const filtersChanged =
       prev.search !== debouncedSearch ||
       prev.status !== statusFilter ||
-      prev.role   !== roleFilter ||
-      prev.type   !== typeFilter;
+      prev.role !== roleFilter ||
+      prev.type !== typeFilter;
 
     const effectivePage = filtersChanged ? 1 : pageNumber;
     if (filtersChanged) {
@@ -311,12 +311,12 @@ const ComplaintsManagement = () => {
     setListError(null);
 
     getAdminComplaintList({
-      Search:          debouncedSearch || undefined,
-      Status:          statusFilter !== 'all' ? statusFilter : undefined,
-      ComplainantRole: roleFilter   !== 'all' ? roleFilter   : undefined,
-      ComplaintType:   typeFilter   !== 'all' ? typeFilter   : undefined,
+      Search: debouncedSearch || undefined,
+      Status: statusFilter !== 'all' ? statusFilter : undefined,
+      ComplainantRole: roleFilter !== 'all' ? roleFilter : undefined,
+      ComplaintType: typeFilter !== 'all' ? typeFilter : undefined,
       PageNumber: effectivePage,
-      PageSize:   PAGE_SIZE,
+      PageSize: PAGE_SIZE,
     })
       .then((data) => {
         if (!active) return;
@@ -330,7 +330,7 @@ const ComplaintsManagement = () => {
       .finally(() => { if (active) setListLoading(false); });
 
     return () => { active = false; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearch, statusFilter, roleFilter, typeFilter, pageNumber, refreshKey]);
 
   // Map API items → UI Complaint shape
@@ -343,20 +343,20 @@ const ComplaintsManagement = () => {
 
   // Summary card values
   const stats = {
-    total:      complaintSummary?.totalComplaints ?? 0,
-    pending:    complaintSummary?.pending         ?? 0,
-    inProgress: complaintSummary?.inProgress      ?? 0,
-    resolved:   complaintSummary?.resolved        ?? 0,
+    total: complaintSummary?.totalComplaints ?? 0,
+    pending: complaintSummary?.pending ?? 0,
+    inProgress: complaintSummary?.inProgress ?? 0,
+    resolved: complaintSummary?.resolved ?? 0,
   };
 
   // Map backend action values to display metadata (icon + color)
   const ACTION_META: Record<string, { icon: string; color: string; description: string }> = {
-    WarnUser:       { icon: 'ri-alarm-warning-line',      color: 'orange', description: 'Send a formal warning to the reported user' },
-    SuspendUser:    { icon: 'ri-user-unfollow-line',      color: 'yellow', description: 'Suspend the user account temporarily' },
-    BanUser:        { icon: 'ri-user-forbid-line',        color: 'red',    description: 'Permanently ban user from the platform' },
-    RefundPayment:  { icon: 'ri-refund-2-line',           color: 'teal',   description: 'Refund payment to the complainant' },
-    ReleasePayment: { icon: 'ri-money-dollar-circle-line',color: 'green',  description: 'Release held payment to the freelancer' },
-    CancelProject:  { icon: 'ri-close-circle-line',       color: 'pink',   description: 'Cancel the related project' },
+    WarnUser: { icon: 'ri-alarm-warning-line', color: 'orange', description: 'Send a formal warning to the reported user' },
+    SuspendUser: { icon: 'ri-user-unfollow-line', color: 'yellow', description: 'Suspend the user account temporarily' },
+    BanUser: { icon: 'ri-user-forbid-line', color: 'red', description: 'Permanently ban user from the platform' },
+    RefundPayment: { icon: 'ri-refund-2-line', color: 'teal', description: 'Refund payment to the complainant' },
+    ReleasePayment: { icon: 'ri-money-dollar-circle-line', color: 'green', description: 'Release held payment to the freelancer' },
+    CancelProject: { icon: 'ri-close-circle-line', color: 'pink', description: 'Cancel the related project' },
   };
 
   // Helper to load investigation data for Step 2
@@ -430,7 +430,7 @@ const ComplaintsManagement = () => {
         setRefreshKey((k) => k + 1);
         getAdminComplaintSummary()
           .then((data) => setComplaintSummary(data))
-          .catch(() => {});
+          .catch(() => { });
       })
       .catch((err) => {
         setResolveError(err instanceof Error ? err.message : 'Failed to submit resolution.');
@@ -441,31 +441,31 @@ const ComplaintsManagement = () => {
 
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
-      case 'pending':      return 'bg-orange-500/20 text-orange-400';
+      case 'pending': return 'bg-orange-500/20 text-orange-400';
       case 'underreview':
-      case 'in_progress':  return 'bg-blue-500/20 text-blue-400';
-      case 'resolved':     return 'bg-green-500/20 text-green-400';
+      case 'in_progress': return 'bg-blue-500/20 text-blue-400';
+      case 'resolved': return 'bg-green-500/20 text-green-400';
       case 'dismissed':
-      case 'rejected':     return 'bg-red-500/20 text-red-400';
-      default:             return 'bg-gray-500/20 text-gray-400';
+      case 'rejected': return 'bg-red-500/20 text-red-400';
+      default: return 'bg-gray-500/20 text-gray-400';
     }
   };
 
   const getTypeColor = (type: string) => {
     switch (type.toLowerCase()) {
-      case 'paymentissue':  return 'bg-yellow-500/20 text-yellow-400';
-      case 'projectdelay':  return 'bg-orange-500/20 text-orange-400';
-      case 'fraud':         return 'bg-red-500/20 text-red-400';
-      case 'harassment':    return 'bg-pink-500/20 text-pink-400';
-      default:              return 'bg-gray-500/20 text-gray-400';
+      case 'paymentissue': return 'bg-yellow-500/20 text-yellow-400';
+      case 'projectdelay': return 'bg-orange-500/20 text-orange-400';
+      case 'fraud': return 'bg-red-500/20 text-red-400';
+      case 'harassment': return 'bg-pink-500/20 text-pink-400';
+      default: return 'bg-gray-500/20 text-gray-400';
     }
   };
 
   const steps = [
-    { number: 1, title: 'Review',     icon: 'ri-file-search-line'   },
-    { number: 2, title: 'Investigate', icon: 'ri-search-eye-line'   },
-    { number: 3, title: 'Take Action', icon: 'ri-hammer-line'       },
-    { number: 4, title: 'Resolve',    icon: 'ri-check-double-line'  },
+    { number: 1, title: 'Review', icon: 'ri-file-search-line' },
+    { number: 2, title: 'Investigate', icon: 'ri-search-eye-line' },
+    { number: 3, title: 'Take Action', icon: 'ri-hammer-line' },
+    { number: 4, title: 'Resolve', icon: 'ri-check-double-line' },
   ];
 
   return (
@@ -705,11 +705,10 @@ const ComplaintsManagement = () => {
                           <button
                             key={p}
                             onClick={() => setPageNumber(p as number)}
-                            className={`w-8 h-8 flex items-center justify-center rounded-lg text-sm font-medium transition-all ${
-                              pageNumber === p
+                            className={`w-8 h-8 flex items-center justify-center rounded-lg text-sm font-medium transition-all ${pageNumber === p
                                 ? 'bg-teal-500 text-white'
                                 : 'bg-white/10 text-white/60 hover:text-white hover:bg-white/20'
-                            }`}
+                              }`}
                           >
                             {p}
                           </button>
@@ -767,18 +766,16 @@ const ComplaintsManagement = () => {
                         }
                         setCurrentStep(step.number);
                       }}
-                      className={`flex items-center gap-3 cursor-pointer transition-all ${
-                        currentStep >= step.number ? 'opacity-100' : 'opacity-40'
-                      }`}
+                      className={`flex items-center gap-3 cursor-pointer transition-all ${currentStep >= step.number ? 'opacity-100' : 'opacity-40'
+                        }`}
                     >
                       <div
-                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
-                          currentStep > step.number
+                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${currentStep > step.number
                             ? 'bg-green-500'
                             : currentStep === step.number
-                            ? 'bg-teal-500'
-                            : 'bg-white/10'
-                        }`}
+                              ? 'bg-teal-500'
+                              : 'bg-white/10'
+                          }`}
                       >
                         {currentStep > step.number ? (
                           <i className="ri-check-line text-2xl"></i>
@@ -786,16 +783,14 @@ const ComplaintsManagement = () => {
                           <i className={`${step.icon} text-2xl`}></i>
                         )}
                       </div>
-                      <span className={`font-semibold hidden sm:block ${
-                        currentStep === step.number ? 'text-white' : 'text-white/60'
-                      }`}>
+                      <span className={`font-semibold hidden sm:block ${currentStep === step.number ? 'text-white' : 'text-white/60'
+                        }`}>
                         {step.title}
                       </span>
                     </div>
                     {index < steps.length - 1 && (
-                      <div className={`flex-1 h-0.5 mx-4 ${
-                        currentStep > step.number ? 'bg-green-500' : 'bg-white/10'
-                      }`}></div>
+                      <div className={`flex-1 h-0.5 mx-4 ${currentStep > step.number ? 'bg-green-500' : 'bg-white/10'
+                        }`}></div>
                     )}
                   </div>
                 ))}
@@ -981,9 +976,8 @@ const ComplaintsManagement = () => {
                                 <p className="text-teal-400 font-semibold">{detailData.project.title}</p>
                                 <p className="text-white/50 text-sm">Budget: ${detailData.project.budget.toLocaleString()}</p>
                               </div>
-                              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                                detailData.project.status?.toLowerCase() === 'completed' ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'
-                              }`}>
+                              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${detailData.project.status?.toLowerCase() === 'completed' ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'
+                                }`}>
                                 {detailData.project.status}
                               </span>
                             </div>
@@ -1068,18 +1062,17 @@ const ComplaintsManagement = () => {
                   {/* Tabs */}
                   <div className="flex gap-2 p-1 bg-white/5 rounded-lg w-fit flex-wrap">
                     {([
-                      { id: 'profiles', label: 'User Profiles',    icon: 'ri-user-line' },
+                      { id: 'profiles', label: 'User Profiles', icon: 'ri-user-line' },
                       { id: 'timeline', label: 'Project Timeline', icon: 'ri-time-line' },
-                      { id: 'payments', label: 'Payment History',  icon: 'ri-money-dollar-circle-line' },
+                      { id: 'payments', label: 'Payment History', icon: 'ri-money-dollar-circle-line' },
                     ] as const).map((tab) => (
                       <button
                         key={tab.id}
                         onClick={() => setInvestigationTab(tab.id)}
-                        className={`px-4 py-2 rounded-md text-sm font-semibold transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 ${
-                          investigationTab === tab.id
+                        className={`px-4 py-2 rounded-md text-sm font-semibold transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 ${investigationTab === tab.id
                             ? 'bg-teal-500 text-white'
                             : 'text-white/60 hover:text-white hover:bg-white/10'
-                        }`}
+                          }`}
                       >
                         <i className={tab.icon}></i>
                         {tab.label}
@@ -1246,21 +1239,19 @@ const ComplaintsManagement = () => {
                                     const isActive = ms.status?.toLowerCase() === 'inprogress' || ms.status?.toLowerCase() === 'in progress';
                                     return (
                                       <div key={ms.milestoneId} className="relative flex items-start gap-4 pl-12">
-                                        <div className={`absolute left-4 w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                                          isDone   ? 'bg-green-500 border-green-500' :
-                                          isActive ? 'bg-blue-500 border-blue-500' :
-                                          'bg-white/10 border-white/30'
-                                        }`}>
+                                        <div className={`absolute left-4 w-5 h-5 rounded-full border-2 flex items-center justify-center ${isDone ? 'bg-green-500 border-green-500' :
+                                            isActive ? 'bg-blue-500 border-blue-500' :
+                                              'bg-white/10 border-white/30'
+                                          }`}>
                                           {isDone && <i className="ri-check-line text-white text-xs"></i>}
                                         </div>
                                         <div className="flex-1 bg-white/5 rounded-lg p-4">
                                           <div className="flex items-center justify-between mb-2">
                                             <h6 className="font-semibold text-white">{ms.title}</h6>
-                                            <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
-                                              isDone   ? 'bg-green-500/20 text-green-400' :
-                                              isActive ? 'bg-blue-500/20 text-blue-400' :
-                                              'bg-white/10 text-white/50'
-                                            }`}>
+                                            <span className={`px-2 py-0.5 rounded text-xs font-semibold ${isDone ? 'bg-green-500/20 text-green-400' :
+                                                isActive ? 'bg-blue-500/20 text-blue-400' :
+                                                  'bg-white/10 text-white/50'
+                                              }`}>
                                               {ms.status}
                                             </span>
                                           </div>
@@ -1317,12 +1308,11 @@ const ComplaintsManagement = () => {
                                       <td className="py-3 px-4 text-white/70 text-sm">{pay.type ?? '—'}</td>
                                       <td className="py-3 px-4 text-right text-teal-400 font-semibold text-sm">${(pay.amount ?? 0).toLocaleString()}</td>
                                       <td className="py-3 px-4 text-right">
-                                        <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                                          pay.status?.toLowerCase() === 'released'   ? 'bg-green-500/20 text-green-400' :
-                                          pay.status?.toLowerCase().includes('escrow') ? 'bg-yellow-500/20 text-yellow-400' :
-                                          pay.status?.toLowerCase().includes('approv') ? 'bg-blue-500/20 text-blue-400' :
-                                          'bg-white/10 text-white/50'
-                                        }`}>
+                                        <span className={`px-2 py-1 rounded text-xs font-semibold ${pay.status?.toLowerCase() === 'released' ? 'bg-green-500/20 text-green-400' :
+                                            pay.status?.toLowerCase().includes('escrow') ? 'bg-yellow-500/20 text-yellow-400' :
+                                              pay.status?.toLowerCase().includes('approv') ? 'bg-blue-500/20 text-blue-400' :
+                                                'bg-white/10 text-white/50'
+                                          }`}>
                                           {pay.status ?? '—'}
                                         </span>
                                       </td>
@@ -1376,21 +1366,19 @@ const ComplaintsManagement = () => {
                           <div
                             key={action.id}
                             onClick={() => toggleAction(action.value)}
-                            className={`bg-white/5 rounded-xl p-5 border cursor-pointer transition-all ${
-                              isSelected
+                            className={`bg-white/5 rounded-xl p-5 border cursor-pointer transition-all ${isSelected
                                 ? `border-${meta.color}-500 bg-${meta.color}-500/10`
                                 : 'border-white/10 hover:border-white/30'
-                            }`}
+                              }`}
                           >
                             <div className="flex items-start justify-between mb-3">
                               <div className={`w-12 h-12 flex items-center justify-center rounded-xl bg-${meta.color}-500/20`}>
                                 <i className={`${meta.icon} text-2xl text-${meta.color}-400`}></i>
                               </div>
-                              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
-                                isSelected
+                              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${isSelected
                                   ? `border-${meta.color}-500 bg-${meta.color}-500`
                                   : 'border-white/30'
-                              }`}>
+                                }`}>
                                 {isSelected && (
                                   <i className="ri-check-line text-white text-sm"></i>
                                 )}
@@ -1435,15 +1423,13 @@ const ComplaintsManagement = () => {
 
                   {selectedComplaint.status === 'Resolved' || selectedComplaint.status === 'Dismissed' ? (
                     <div className="space-y-6">
-                      <div className={`rounded-xl p-6 border ${
-                        selectedComplaint.status === 'Resolved'
+                      <div className={`rounded-xl p-6 border ${selectedComplaint.status === 'Resolved'
                           ? 'bg-green-500/10 border-green-500/30'
                           : 'bg-red-500/10 border-red-500/30'
-                      }`}>
+                        }`}>
                         <div className="flex items-center gap-3 mb-4">
-                          <div className={`w-12 h-12 flex items-center justify-center rounded-full ${
-                            selectedComplaint.status === 'Resolved' ? 'bg-green-500' : 'bg-red-500'
-                          }`}>
+                          <div className={`w-12 h-12 flex items-center justify-center rounded-full ${selectedComplaint.status === 'Resolved' ? 'bg-green-500' : 'bg-red-500'
+                            }`}>
                             <i className={`${selectedComplaint.status === 'Resolved' ? 'ri-check-line' : 'ri-close-line'} text-2xl text-white`}></i>
                           </div>
                           <div>
@@ -1622,7 +1608,7 @@ const ComplaintsManagement = () => {
 
           </div>
         </div>
-      , document.body)}
+        , document.body)}
 
 
       {/* Confirmation Dialog */}
@@ -1631,9 +1617,8 @@ const ComplaintsManagement = () => {
           <div className="bg-[#1a1f37] rounded-xl max-w-md w-full border border-white/10">
             <div className="p-6">
               <div className="flex items-center justify-center mb-6">
-                <div className={`w-16 h-16 rounded-full flex items-center justify-center ${
-                  confirmAction.type === 'resolve' ? 'bg-green-500/20' : 'bg-red-500/20'
-                }`}>
+                <div className={`w-16 h-16 rounded-full flex items-center justify-center ${confirmAction.type === 'resolve' ? 'bg-green-500/20' : 'bg-red-500/20'
+                  }`}>
                   <i className={`${confirmAction.type === 'resolve' ? 'ri-check-line' : 'ri-close-line'} text-3xl text-white`}></i>
                 </div>
               </div>
@@ -1666,12 +1651,10 @@ const ComplaintsManagement = () => {
                   onClick={() => {
                     executeAction();
                   }}
-                  className={`flex-1 py-3 rounded-lg font-semibold transition-all cursor-pointer whitespace-nowrap ${
-
-                    confirmAction.type === 'resolve'
+                  className={`flex-1 py-3 rounded-lg font-semibold transition-all cursor-pointer whitespace-nowrap ${confirmAction.type === 'resolve'
                       ? 'bg-green-500 text-white hover:bg-green-600'
                       : 'bg-red-500 text-white hover:bg-red-600'
-                  }`}
+                    }`}
                 >
                   Confirm
                 </button>
@@ -1679,7 +1662,7 @@ const ComplaintsManagement = () => {
             </div>
           </div>
         </div>
-      , document.body)}
+        , document.body)}
 
     </div>
   );

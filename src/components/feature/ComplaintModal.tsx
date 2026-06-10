@@ -17,27 +17,19 @@ const ComplaintModal = ({ isOpen, onClose, targetName, targetAvatar, targetType 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
 
-  const complaintTypes = targetType === 'freelancer'
-    ? [
-        'Poor Quality Work',
-        'Missed Deadline',
-        'Unprofessional Behavior',
-        'Communication Issues',
-        'Fraudulent Activity',
-        'Contract Violation',
-        'Plagiarism',
-        'Other'
-      ]
-    : [
-        'Non-Payment',
-        'Scope Creep',
-        'Unprofessional Behavior',
-        'Communication Issues',
-        'Fraudulent Activity',
-        'Contract Violation',
-        'Harassment',
-        'Other'
-      ];
+  // All values exactly match the backend ReportType enum
+  const complaintTypes: Array<{ value: string; label: string }> = [
+    { value: 'MissedDeadline',         label: 'Missed Deadline' },
+    { value: 'PoorQuality',            label: 'Poor Quality' },
+    { value: 'UnprofessionalBehavior', label: 'Unprofessional Behavior' },
+    { value: 'NonPayment',             label: 'Non-Payment' },
+    { value: 'ScopeCreep',             label: 'Scope Creep' },
+    { value: 'Unresponsive',           label: 'Unresponsive' },
+    { value: 'Harassment',             label: 'Harassment' },
+    { value: 'UnclearRequirements',    label: 'Unclear Requirements' },
+    { value: 'Fraud',                  label: 'Fraud' },
+    { value: 'Other',                  label: 'Other' },
+  ];
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -149,7 +141,7 @@ const ComplaintModal = ({ isOpen, onClose, targetName, targetAvatar, targetType 
                 >
                   <option value="" className={optionBg}>Select complaint type</option>
                   {complaintTypes.map(type => (
-                    <option key={type} value={type} className={optionBg}>{type}</option>
+                    <option key={type.value} value={type.value} className={optionBg}>{type.label}</option>
                   ))}
                 </select>
               </div>

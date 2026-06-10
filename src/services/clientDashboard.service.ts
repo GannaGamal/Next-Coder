@@ -107,6 +107,11 @@ export type ReportType =
   | 'MissedDeadline'
   | 'PoorQuality'
   | 'UnprofessionalBehavior'
+  | 'NonPayment'
+  | 'ScopeCreep'
+  | 'Unresponsive'
+  | 'Harassment'
+  | 'UnclearRequirements'
   | 'Fraud'
   | 'Other';
 
