@@ -236,6 +236,9 @@ const ComplaintsManagement = () => {
   const [resolveLoading, setResolveLoading] = useState(false);
   const [resolveError, setResolveError] = useState<string | null>(null);
 
+  // Increment this to force-refresh the complaints list + summary after an action
+  const [refreshKey, setRefreshKey] = useState(0);
+
   // API state — summary
   const [complaintSummary, setComplaintSummary] = useState<AdminComplaintSummary | null>(null);
 
@@ -288,7 +291,7 @@ const ComplaintsManagement = () => {
     return () => { active = false; };
   }, []);
 
-  // Load list when filters or page changes
+  // Load list when filters, page, or refreshKey changes
   useEffect(() => {
     let active = true;
     const prev = prevFilterRef.current;
@@ -327,7 +330,8 @@ const ComplaintsManagement = () => {
       .finally(() => { if (active) setListLoading(false); });
 
     return () => { active = false; };
-  }, [debouncedSearch, statusFilter, roleFilter, typeFilter, pageNumber]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, statusFilter, roleFilter, typeFilter, pageNumber, refreshKey]);
 
   // Map API items → UI Complaint shape
   const complaints = apiComplaints.map(toComplaint);
@@ -422,8 +426,11 @@ const ComplaintsManagement = () => {
         setShowResolutionFlow(false);
         setSelectedComplaint(null);
         setConfirmAction(null);
-        // Refresh the complaint list to reflect the new status
-        setPageNumber((p) => p);
+        // Re-fetch the list and summary so the UI reflects the new status immediately
+        setRefreshKey((k) => k + 1);
+        getAdminComplaintSummary()
+          .then((data) => setComplaintSummary(data))
+          .catch(() => {});
       })
       .catch((err) => {
         setResolveError(err instanceof Error ? err.message : 'Failed to submit resolution.');
