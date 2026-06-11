@@ -296,21 +296,10 @@ const JobOffers = () => {
           SortBy: mapSortToApi(sortBy),
         });
 
-        const jobsWithRealCounts = await Promise.all(
-          result.items.map(async (item) => {
-            try {
-              const details = await getJobPostDetails(item.id);
-              const realCount = Number(details.counts?.all ?? details.applicants?.length ?? item.jobSeekersCount ?? 0);
-
-              return {
-                ...item,
-                jobSeekersCount: Number.isFinite(realCount) && realCount >= 0 ? realCount : (item.jobSeekersCount ?? 0),
-              };
-            } catch {
-              return item;
-            }
-          })
-        );
+        const jobsWithRealCounts = result.items.map((item) => ({
+          ...item,
+          jobSeekersCount: item.jobSeekersCount ?? 0,
+        }));
 
         setJobsFromApi(jobsWithRealCounts.map(mapApiJobToUi));
       } catch (err: unknown) {

@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useViewAs } from '../../../contexts/ViewAsContext';
+import { useAuth } from '../../../contexts/AuthContext';
 import type { UserRole } from '../../../types';
 
 interface RoleOption {
@@ -17,8 +18,11 @@ interface RoleOption {
 const ViewAsRole = () => {
   const navigate = useNavigate();
   const { setViewingAs, viewingAs } = useViewAs();
+  const { impersonate } = useAuth();
   const [selectedRole, setSelectedRole] = useState<RoleOption | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [isImpersonating, setIsImpersonating] = useState(false);
+  const [error, setError] = useState('');
 
   const roleOptions: RoleOption[] = [
     {
@@ -102,11 +106,25 @@ const ViewAsRole = () => {
     setShowConfirmModal(true);
   };
 
-  const confirmViewAs = () => {
+  const confirmViewAs = async () => {
     if (selectedRole) {
-      setViewingAs(selectedRole.id);
-      setShowConfirmModal(false);
-      navigate(selectedRole.defaultPage);
+      setIsImpersonating(true);
+      setError('');
+      try {
+        const roleForApi = selectedRole.id === 'applicant' ? 'JobSeeker' : 
+                          selectedRole.id.charAt(0).toUpperCase() + selectedRole.id.slice(1);
+        
+        await impersonate(roleForApi);
+        
+        setViewingAs(selectedRole.id);
+        setShowConfirmModal(false);
+        navigate(selectedRole.defaultPage);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to impersonate role. Please try again.');
+        setShowConfirmModal(false);
+      } finally {
+        setIsImpersonating(false);
+      }
     }
   };
 
@@ -130,6 +148,14 @@ const ViewAsRole = () => {
           </div>
         </div>
       </div>
+
+      {/* Error Message */}
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-center gap-3">
+          <i className="ri-error-warning-line text-red-400 text-xl"></i>
+          <p className="text-red-400 text-sm font-medium">{error}</p>
+        </div>
+      )}
 
       {/* Current Status */}
       {viewingAs && (
@@ -322,10 +348,20 @@ const ViewAsRole = () => {
               </button>
               <button
                 onClick={confirmViewAs}
-                className={`flex-1 py-3 bg-gradient-to-r ${selectedRole.color} text-white font-semibold rounded-xl hover:shadow-lg transition-all cursor-pointer whitespace-nowrap`}
+                disabled={isImpersonating}
+                className={`flex-1 py-3 bg-gradient-to-r ${selectedRole.color} text-white font-semibold rounded-xl hover:shadow-lg transition-all cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed`}
               >
-                <i className="ri-eye-line mr-2"></i>
-                Start Viewing
+                {isImpersonating ? (
+                  <>
+                    <i className="ri-loader-4-line animate-spin mr-2"></i>
+                    Starting...
+                  </>
+                ) : (
+                  <>
+                    <i className="ri-eye-line mr-2"></i>
+                    Start Viewing
+                  </>
+                )}
               </button>
             </div>
           </div>

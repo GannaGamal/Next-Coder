@@ -277,3 +277,96 @@ export const revokeToken = async (accessToken: string, refreshToken: string): Pr
     // Silently ignore — logout must always succeed on the client
   }
 };
+
+// ─────────────────────────────────────────────
+// Impersonate Role
+// ─────────────────────────────────────────────
+
+/**
+ * POST /Admin/impersonate/{role}
+ * Returns AuthResponse on success.
+ * Throws an error string on failure.
+ */
+export const impersonateRole = async (role: string): Promise<AuthResponse> => {
+  const token = localStorage.getItem('authToken') ?? '';
+  const response = await fetch(`${API_BASE}/Admin/impersonate/${role}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const message = await parseApiError(response);
+    throw new Error(message);
+  }
+
+  const rawText = await response.text();
+  try {
+    const parsed = JSON.parse(rawText);
+    
+    // Debug log for troubleshooting (can be removed later)
+    console.log('[Impersonate] Raw response parsed:', parsed);
+
+    // The endpoint returns { success: true, data: { ...AuthResponse fields... } }
+    const authData = parsed?.data ? parsed.data : parsed;
+
+    if (!authData?.isAuthenticated || !authData?.token) {
+      console.error('[Impersonate] Missing token in authData:', authData);
+      throw new Error('Impersonation response is missing authentication token.');
+    }
+
+    return authData as AuthResponse;
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('missing authentication token')) {
+      throw err;
+    }
+    console.error('[Impersonate] Parsing error:', err, 'Raw text:', rawText);
+    throw new Error('Impersonation failed: invalid response from server. Please try again.');
+  }
+};
+
+// ─────────────────────────────────────────────
+// Exit Impersonation
+// ─────────────────────────────────────────────
+
+/**
+ * POST /Admin/exitImpersonation
+ * Returns AuthResponse on success.
+ * Throws an error string on failure.
+ */
+export const exitImpersonationApi = async (): Promise<AuthResponse> => {
+  const token = localStorage.getItem('authToken') ?? '';
+  const response = await fetch(`${API_BASE}/Admin/exitImpersonation`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const message = await parseApiError(response);
+    throw new Error(message);
+  }
+
+  const rawText = await response.text();
+  try {
+    const parsed = JSON.parse(rawText);
+    
+    const authData = parsed?.data ? parsed.data : parsed;
+
+    if (!authData?.isAuthenticated || !authData?.token) {
+      throw new Error('Exit impersonation response is missing authentication token.');
+    }
+
+    return authData as AuthResponse;
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('missing authentication token')) {
+      throw err;
+    }
+    console.error('[ExitImpersonation] Parsing error:', err, 'Raw text:', rawText);
+    throw new Error('Exit impersonation failed: invalid response from server. Please try again.');
+  }
+};

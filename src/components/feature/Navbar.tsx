@@ -96,7 +96,7 @@ const Navbar = () => {
   const [showGuestPrefs, setShowGuestPrefs] = useState(false);
   const [publicRoleOptions, setPublicRoleOptions] = useState<PublicRoleOption[]>([]);
   const [publicRolesLoaded, setPublicRolesLoaded] = useState(false);
-  const { user, logout, isAuthenticated, addRole, removeRole } = useAuth();
+  const { user, logout, isAuthenticated, addRole, removeRole, exitImpersonation } = useAuth();
   const { viewingAs, isViewingAs, exitViewAs } = useViewAs();
   const navigate = useNavigate();
   const location = useLocation();
@@ -119,6 +119,8 @@ const Navbar = () => {
   const [portfolioFileError, setPortfolioFileError] = useState("");
   const [addRoleError, setAddRoleError] = useState("");
   const [isAddingRole, setIsAddingRole] = useState(false);
+  const [isExitingViewAs, setIsExitingViewAs] = useState(false);
+  const [exitViewAsError, setExitViewAsError] = useState("");
   const portfolioCategories = DEFAULT_PORTFOLIO_CATEGORIES;
   const portfolioCategoryOptions = portfolioCategories.map((category) => ({
     value: category,
@@ -548,16 +550,32 @@ const Navbar = () => {
                 <span className="font-bold capitalize">{viewingAs}</span> -{" "}
                 {t("nav.howTheySeePlatform", { role: viewingAs })}
               </span>
+              {exitViewAsError && (
+                <span className="text-xs bg-red-500/80 px-2 py-0.5 rounded text-white ml-2">
+                  {exitViewAsError}
+                </span>
+              )}
             </div>
             <button
-              onClick={() => {
-                exitViewAs();
-                navigate("/admin");
+              disabled={isExitingViewAs}
+              onClick={async () => {
+                try {
+                  setIsExitingViewAs(true);
+                  setExitViewAsError("");
+                  await exitImpersonation();
+                  exitViewAs();
+                  navigate("/admin");
+                } catch (err: unknown) {
+                  console.error(err);
+                  setExitViewAsError(err instanceof Error ? err.message : 'Failed to exit impersonation mode.');
+                } finally {
+                  setIsExitingViewAs(false);
+                }
               }}
-              className="flex items-center gap-2 px-4 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-semibold transition-all cursor-pointer whitespace-nowrap"
+              className="flex items-center gap-2 px-4 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-semibold transition-all cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <i className="ri-arrow-left-line"></i>
-              {t("nav.exitViewMode")}
+              <i className={isExitingViewAs ? "ri-loader-4-line animate-spin" : "ri-arrow-left-line"}></i>
+              {isExitingViewAs ? "Exiting..." : t("nav.exitViewMode")}
             </button>
           </div>
         </div>

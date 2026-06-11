@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import type { User, UserRole } from '../types';
-import { loginUser, refreshToken, revokeToken } from '../services/auth.service';
+import { loginUser, refreshToken, revokeToken, impersonateRole, exitImpersonationApi } from '../services/auth.service';
 import type { AuthResponse } from '../services/auth.service';
 import { buildImageUrl } from '../services/user.image.service';
 import { AUTH_EXPIRED_EVENT } from '../services/api.utils';
@@ -13,6 +13,8 @@ interface AuthContextType {
   user: User | null;
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   loginDirectly: (user: User) => void;
+  impersonate: (role: string) => Promise<void>;
+  exitImpersonation: () => Promise<void>;
   logout: () => Promise<void>;
   register: (email: string, password: string, name: string, roles: UserRole[]) => Promise<void>;
   updateUser: (updates: Partial<User>) => void;
@@ -85,6 +87,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
    */
   const scheduleTokenRefresh = (expiration: string) => {
     clearRefreshTimer();
+
+    if (!expiration || expiration.startsWith('0001-01-01')) {
+      // Ignore default/empty C# DateTime values which indicate no refresh token
+      return;
+    }
+
     const expiresAt = new Date(expiration).getTime();
     if (!Number.isFinite(expiresAt)) {
       // Ignore malformed expiration values instead of triggering immediate logout.
@@ -212,6 +220,98 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       id: data.userId || String(Date.now()),
       email: data.email || email,
       name: data.fullName || email.split('@')[0],
+      roles: normalizedRoles,
+      avatar: avatarUrl,
+      createdAt: new Date().toISOString(),
+      jobSeekerId: data.jobSeekerId,
+      employerId: data.employerId,
+      learnerId: data.learnerId,
+      clientId: data.clientId,
+      freeLancerId: data.freeLancerId,
+      refreshTokenExpiration: data.refreshTokenExpiration,
+      refreshToken: data.refreshToken ?? null,
+    };
+
+    localStorage.setItem('user', JSON.stringify(loggedInUser));
+    setUser(loggedInUser);
+
+    // Schedule token auto-refresh
+    if (data.refreshTokenExpiration) {
+      scheduleTokenRefresh(data.refreshTokenExpiration);
+    }
+  };
+
+  // ── Impersonate ────────────────────────────────────────────────────────────
+
+  const impersonate = async (role: string) => {
+    const data: AuthResponse = await impersonateRole(role);
+
+    if (!data.isAuthenticated || !data.token) {
+      throw new Error('Impersonation failed: missing or invalid authentication token from server.');
+    }
+
+    if (data.token) localStorage.setItem('authToken', data.token);
+    if (data.refreshToken) localStorage.setItem('refreshToken', data.refreshToken);
+
+    const normalizeRole = (r: string): UserRole => {
+      const lower = r.toLowerCase().trim();
+      if (lower === 'job seeker' || lower === 'job-seeker') return 'applicant';
+      return lower as UserRole;
+    };
+    const normalizedRoles = (data.roles ?? []).map(normalizeRole);
+
+    const avatarUrl = data.imageUrl ? buildImageUrl(data.imageUrl) : '';
+
+    const loggedInUser: User = {
+      id: data.userId || String(Date.now()),
+      email: data.email || '',
+      name: data.fullName || data.email?.split('@')[0] || '',
+      roles: normalizedRoles,
+      avatar: avatarUrl,
+      createdAt: new Date().toISOString(),
+      jobSeekerId: data.jobSeekerId,
+      employerId: data.employerId,
+      learnerId: data.learnerId,
+      clientId: data.clientId,
+      freeLancerId: data.freeLancerId,
+      refreshTokenExpiration: data.refreshTokenExpiration,
+      refreshToken: data.refreshToken ?? null,
+    };
+
+    localStorage.setItem('user', JSON.stringify(loggedInUser));
+    setUser(loggedInUser);
+
+    // Schedule token auto-refresh
+    if (data.refreshTokenExpiration) {
+      scheduleTokenRefresh(data.refreshTokenExpiration);
+    }
+  };
+
+  // ── Exit Impersonation ─────────────────────────────────────────────────────
+
+  const exitImpersonation = async () => {
+    const data: AuthResponse = await exitImpersonationApi();
+
+    if (!data.isAuthenticated || !data.token) {
+      throw new Error('Exit impersonation failed: missing or invalid authentication token from server.');
+    }
+
+    if (data.token) localStorage.setItem('authToken', data.token);
+    if (data.refreshToken) localStorage.setItem('refreshToken', data.refreshToken);
+
+    const normalizeRole = (r: string): UserRole => {
+      const lower = r.toLowerCase().trim();
+      if (lower === 'job seeker' || lower === 'job-seeker') return 'applicant';
+      return lower as UserRole;
+    };
+    const normalizedRoles = (data.roles ?? []).map(normalizeRole);
+
+    const avatarUrl = data.imageUrl ? buildImageUrl(data.imageUrl) : '';
+
+    const loggedInUser: User = {
+      id: data.userId || String(Date.now()),
+      email: data.email || '',
+      name: data.fullName || data.email?.split('@')[0] || '',
       roles: normalizedRoles,
       avatar: avatarUrl,
       createdAt: new Date().toISOString(),
@@ -368,7 +468,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <AuthContext.Provider
-      value={{ user, login, loginDirectly, logout, register, updateUser, addRole, removeRole, isAuthenticated: !!user && hasValidToken(), isAuthReady }}
+      value={{ user, login, loginDirectly, impersonate, exitImpersonation, logout, register, updateUser, addRole, removeRole, isAuthenticated: !!user && hasValidToken(), isAuthReady }}
     >
       {children}
     </AuthContext.Provider>
