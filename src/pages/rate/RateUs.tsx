@@ -1,41 +1,61 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
 import Navbar from '../../components/feature/Navbar';
 import Footer from '../../components/feature/Footer';
-import { submitRateUsForm } from '../../services/form.service';
+import { submitReview, getReviews, getReviewSummary } from '../../services/Home.service.ts';
+import type { Review, ReviewSummary } from '../../services/Home.service.ts';
+
+const IMAGE_BASE = 'https://nextcoder.runasp.net/';
 
 const RateUs: React.FC = () => {
   const { t } = useTranslation();
   const [rating, setRating] = useState(0);
   const [hoverRating, setHoverRating] = useState(0);
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
   const [comment, setComment] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [reviewsLoading, setReviewsLoading] = useState(true);
+  const [summary, setSummary] = useState<ReviewSummary | null>(null);
+
   const ratingLabels = ['', t('rateUs.ratingPoor'), t('rateUs.ratingFair'), t('rateUs.ratingGood'), t('rateUs.ratingVeryGood'), t('rateUs.ratingExcellent')];
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      setReviewsLoading(true);
+      try {
+        const [reviewsData, summaryData] = await Promise.all([getReviews(), getReviewSummary()]);
+        if (!active) return;
+        setReviews(reviewsData);
+        setSummary(summaryData);
+      } catch {
+        // fail silently — reviews are non-critical
+      } finally {
+        if (active) setReviewsLoading(false);
+      }
+    };
+    load();
+    return () => { active = false; };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
     if (rating === 0) { setError(t('rateUs.errorSelectRating')); return; }
-    if (!name.trim()) { setError(t('rateUs.errorEnterName')); return; }
-    if (!email.trim()) { setError(t('rateUs.errorEnterEmail')); return; }
     if (!comment.trim()) { setError(t('rateUs.errorWriteComment')); return; }
     if (comment.length > 500) { setError(t('rateUs.errorCommentLength')); return; }
 
     setSubmitting(true);
     try {
-      await submitRateUsForm({
-        rating: rating.toString(),
-        name,
-        email,
-        comment,
-      });
+      await submitReview({ rating, comment });
       setSubmitted(true);
+      // refresh reviews and summary after submission
+      const [reviewsData, summaryData] = await Promise.all([getReviews(), getReviewSummary()]);
+      setReviews(reviewsData);
+      setSummary(summaryData);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'We could not submit your feedback right now. Please try again.');
     } finally {
@@ -43,48 +63,22 @@ const RateUs: React.FC = () => {
     }
   };
 
-  const existingReviews = [
-    {
-      name: 'Sarah Johnson',
-      avatar:
-        'https://readdy.ai/api/search-image?query=professional%20female%20designer%20portrait%20smiling%20confident%20in%20creative%20workspace%20with%20clean%20bright%20background%20modern%20casual%20attire&width=100&height=100&seq=rev1&orientation=squarish',
-      rating: 5,
-      comment:
-        'Next Coder completely changed my freelance career. The platform is intuitive, the milestone system is fair, and I love the career roadmaps!',
-      date: '2 days ago',
-    },
-    {
-      name: 'Michael Chen',
-      avatar:
-        'https://readdy.ai/api/search-image?query=professional%20male%20software%20engineer%20portrait%20friendly%20smile%20in%20tech%20office%20environment%20clean%20background%20business%20casual&width=100&height=100&seq=rev2&orientation=squarish',
-      rating: 5,
-      comment:
-        'Found my dream job through the platform. The CV matching feature is incredibly accurate. Highly recommend for any job seeker.',
-      date: '1 week ago',
-    },
-    {
-      name: 'Emily Rodriguez',
-      avatar:
-        'https://readdy.ai/api/search-image?query=professional%20female%20marketing%20manager%20portrait%20confident%20smile%20in%20modern%20office%20clean%20white%20background%20professional%20attire&width=100&height=100&seq=rev3&orientation=squarish',
-      rating: 4,
-      comment:
-        'Great platform for hiring. The filtering system saves hours of screening time. Would love to see more analytics features in the future.',
-      date: '2 weeks ago',
-    },
-    {
-      name: 'David Kim',
-      avatar:
-        'https://readdy.ai/api/search-image?query=professional%20male%20developer%20portrait%20approachable%20smile%20clean%20background%20casual%20tech%20attire%20modern%20headshot&width=100&height=100&seq=rev4&orientation=squarish',
-      rating: 5,
-      comment:
-        'The learning roadmaps are fantastic. I went from zero to landing a full-stack developer role in 6 months. The community achievements page is very motivating!',
-      date: '3 weeks ago',
-    },
-  ];
+  const formatDate = (iso: string) => {
+    try {
+      return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    } catch {
+      return iso;
+    }
+  };
 
-  const avgRating = (
-    existingReviews.reduce((acc, r) => acc + r.rating, 0) / existingReviews.length
-  ).toFixed(1);
+  const resolveAvatar = (userImage: string) => {
+    if (!userImage) return '';
+    if (userImage.startsWith('http')) return userImage;
+    return `${IMAGE_BASE}${userImage}`;
+  };
+
+  const avgRating = summary ? summary.averageRating.toFixed(1) : '—';
+  const totalReviews = summary ? summary.totalReviews : 0;
 
   return (
     <div className="min-h-screen bg-[#0f1225]">
@@ -113,11 +107,11 @@ const RateUs: React.FC = () => {
             <div>
               <div className="flex gap-1 mb-1">
                 {[1, 2, 3, 4, 5].map((star) => (
-                  <i key={star} className={`ri-star-fill text-xl ${star <= Math.round(Number(avgRating)) ? 'text-yellow-400' : 'text-white/20'}`}></i>
+                  <i key={star} className={`ri-star-fill text-xl ${summary && star <= Math.round(summary.averageRating) ? 'text-yellow-400' : 'text-white/20'}`}></i>
                 ))}
               </div>
               <div className="text-sm text-white/50">
-                {t('rateUs.basedOn')} {existingReviews.length} {t('rateUs.reviews')}
+                {t('rateUs.basedOn')} {totalReviews} {t('rateUs.reviews')}
               </div>
             </div>
           </div>
@@ -138,7 +132,7 @@ const RateUs: React.FC = () => {
                     <h3 className="text-xl font-bold text-white mb-2">{t('rateUs.thankYouTitle')}</h3>
                     <p className="text-white/60 text-sm mb-6">{t('rateUs.thankYouMsg')}</p>
                     <button
-                      onClick={() => { setSubmitted(false); setRating(0); setName(''); setEmail(''); setComment(''); }}
+                      onClick={() => { setSubmitted(false); setRating(0); setComment(''); }}
                       className="px-6 py-2.5 bg-purple-500 text-white rounded-xl font-semibold hover:bg-purple-600 transition-all cursor-pointer whitespace-nowrap text-sm"
                     >
                       {t('rateUs.submitAnother')}
@@ -194,18 +188,6 @@ const RateUs: React.FC = () => {
                         <input type="hidden" name="rating" value={rating} />
                       </div>
 
-                      {/* Name */}
-                      <div>
-                        <label htmlFor="rate-name" className="block text-sm font-medium text-white/80 mb-2">{t('rateUs.name')}</label>
-                        <input type="text" id="rate-name" name="name" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('rateUs.namePlaceholder')} className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-yellow-500/50 focus:border-yellow-500/50" required />
-                      </div>
-
-                      {/* Email */}
-                      <div>
-                        <label htmlFor="rate-email" className="block text-sm font-medium text-white/80 mb-2">{t('rateUs.email')}</label>
-                        <input type="email" id="rate-email" name="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t('rateUs.emailPlaceholder')} className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-yellow-500/50 focus:border-yellow-500/50" required />
-                      </div>
-
                       {/* Comment */}
                       <div>
                         <label htmlFor="rate-comment" className="block text-sm font-medium text-white/80 mb-2">{t('rateUs.comment')}</label>
@@ -233,37 +215,66 @@ const RateUs: React.FC = () => {
             <div className="lg:col-span-3">
               <h3 className="text-lg font-bold text-white mb-4">{t('rateUs.recentReviews')}</h3>
               <div className="space-y-4">
-                {existingReviews.map((review, index) => (
-                  <div
-                    key={index}
-                    className="bg-white/5 rounded-2xl border border-white/10 p-5 hover:border-white/20 transition-all"
-                  >
-                    <div className="flex items-start gap-4">
-                      <img
-                        src={review.avatar}
-                        alt={review.name}
-                        className="w-10 h-10 rounded-full object-cover flex-shrink-0"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="font-semibold text-white">{review.name}</span>
-                          <span className="text-xs text-white/40">{review.date}</span>
+                {reviewsLoading ? (
+                  Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="bg-white/5 rounded-2xl border border-white/10 p-5 animate-pulse">
+                      <div className="flex items-start gap-4">
+                        <div className="w-10 h-10 rounded-full bg-white/10 flex-shrink-0" />
+                        <div className="flex-1 space-y-2">
+                          <div className="h-4 bg-white/10 rounded w-1/3" />
+                          <div className="h-3 bg-white/10 rounded w-1/4" />
+                          <div className="h-12 bg-white/10 rounded" />
                         </div>
-                        <div className="flex gap-0.5 mb-3">
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <i
-                              key={star}
-                              className={`ri-star-fill text-sm ${
-                                star <= review.rating ? 'text-yellow-400' : 'text-white/20'
-                              }`}
-                            ></i>
-                          ))}
-                        </div>
-                        <p className="text-white/60 text-sm leading-relaxed">{review.comment}</p>
                       </div>
                     </div>
+                  ))
+                ) : reviews.length === 0 ? (
+                  <div className="bg-white/5 rounded-2xl border border-white/10 p-8 text-center">
+                    <i className="ri-chat-3-line text-4xl text-white/20 mb-2 block"></i>
+                    <p className="text-white/40 text-sm">No reviews yet. Be the first!</p>
                   </div>
-                ))}
+                ) : (
+                  reviews.map((review, index) => (
+                    <div
+                      key={index}
+                      className="bg-white/5 rounded-2xl border border-white/10 p-5 hover:border-white/20 transition-all"
+                    >
+                      <div className="flex items-start gap-4">
+                        {review.userImage ? (
+                          <img
+                            src={resolveAvatar(review.userImage)}
+                            alt={review.userName}
+                            className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-yellow-500 to-orange-500 flex items-center justify-center flex-shrink-0">
+                            <span className="text-white text-sm font-bold">
+                              {review.userName.charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-semibold text-white truncate">{review.userName}</span>
+                            <span className="text-xs text-white/40 flex-shrink-0 ml-2">{formatDate(review.createdAt)}</span>
+                          </div>
+                          <div className="flex gap-0.5 mb-3">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <i
+                                key={star}
+                                className={`ri-star-fill text-sm ${star <= review.rating ? 'text-yellow-400' : 'text-white/20'}`}
+                              ></i>
+                            ))}
+                          </div>
+                          <p className="text-white/60 text-sm leading-relaxed">{review.comment}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>

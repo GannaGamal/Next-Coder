@@ -716,7 +716,7 @@ const FreelancerProfile = () => {
                     className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-lg text-purple-300 text-xs font-medium transition-colors cursor-pointer whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <i className="ri-edit-line"></i>
-                    Edit Contact
+                    Edit
                   </button>
                 </div>
                 <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-6">
@@ -885,14 +885,7 @@ const FreelancerProfile = () => {
               <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 sm:p-6 lg:p-8 border border-white/10">
                 <div className="flex items-center justify-between mb-3 sm:mb-4">
                   <h2 className="text-xl sm:text-2xl font-bold text-white">About Me</h2>
-                  <button
-                    onClick={() => setShowContactModal(true)}
-                    disabled={profileLoading || Boolean(profileError)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-lg text-purple-300 text-xs font-medium transition-colors cursor-pointer whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    <i className="ri-edit-line"></i>
-                    Edit
-                  </button>
+                  
                 </div>
                 {freelancerProfile.bio ? (
                   <p className="text-sm sm:text-base text-gray-300 leading-relaxed">{freelancerProfile.bio}</p>
@@ -1030,14 +1023,7 @@ const FreelancerProfile = () => {
               <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 sm:p-6 lg:p-8 border border-white/10">
                 <div className="flex items-center justify-between mb-3 sm:mb-4">
                   <h2 className="text-xl sm:text-2xl font-bold text-white">Hourly Rate</h2>
-                  <button
-                    onClick={() => setShowContactModal(true)}
-                    disabled={profileLoading || Boolean(profileError)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-lg text-purple-300 text-xs font-medium transition-colors cursor-pointer whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    <i className="ri-edit-line"></i>
-                    Edit
-                  </button>
+                  
                 </div>
                 <div className="flex items-end gap-2">
                   <span className="text-3xl sm:text-4xl font-bold text-white">${freelancerProfile.hourlyRate}</span>

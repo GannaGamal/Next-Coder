@@ -469,7 +469,7 @@ const ApplicantProfile = () => {
                       className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-pink-500/20 hover:bg-pink-500/30 border border-pink-500/30 rounded-lg text-pink-300 text-xs font-medium transition-colors cursor-pointer whitespace-nowrap"
                     >
                       <i className="ri-edit-line"></i>
-                      Edit Contact
+                      Edit
                     </button>
                   )}
                 </div>
@@ -665,15 +665,7 @@ const ApplicantProfile = () => {
             <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 sm:p-6 lg:p-8 border border-white/10">
               <div className="flex items-center justify-between mb-3 sm:mb-4">
                 <h2 className="text-xl sm:text-2xl font-bold text-white">Experience</h2>
-                {canEditProfile && (
-                  <button
-                    onClick={() => setShowContactModal(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-pink-500/20 hover:bg-pink-500/30 border border-pink-500/30 rounded-lg text-pink-300 text-xs font-medium transition-colors cursor-pointer whitespace-nowrap"
-                  >
-                    <i className="ri-edit-line"></i>
-                    Edit
-                  </button>
-                )}
+                
               </div>
               {contactInfo.experience.trim().length > 0 ? (
                 <p className="text-sm sm:text-base text-gray-300 leading-relaxed whitespace-pre-line">{contactInfo.experience}</p>
@@ -684,15 +676,7 @@ const ApplicantProfile = () => {
             <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 sm:p-6 lg:p-8 border border-white/10">
               <div className="flex items-center justify-between mb-3 sm:mb-4">
                 <h2 className="text-xl sm:text-2xl font-bold text-white">Education</h2>
-                {canEditProfile && (
-                  <button
-                    onClick={() => setShowContactModal(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-pink-500/20 hover:bg-pink-500/30 border border-pink-500/30 rounded-lg text-pink-300 text-xs font-medium transition-colors cursor-pointer whitespace-nowrap"
-                  >
-                    <i className="ri-edit-line"></i>
-                    Edit
-                  </button>
-                )}
+                
               </div>
               {contactInfo.education.trim().length > 0 ? (
                 <p className="text-sm sm:text-base text-gray-300 leading-relaxed whitespace-pre-line">{contactInfo.education}</p>

@@ -82,6 +82,33 @@ const CATEGORY_MAPPING: Record<string, { name: string; icon: string; tracks: str
   },
 };
 
+const normalizeCategoryName = (value?: string | null) =>
+  (value ?? '').toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '');
+
+const getTrackCategoryMeta = (track: RoadmapTrack) => {
+  const categoryDisplayName = track.categoryDisplayName?.trim();
+  const normalizedDisplayName = normalizeCategoryName(categoryDisplayName);
+
+  const byDisplayName = Object.values(CATEGORY_MAPPING).find(
+    (category) => normalizeCategoryName(category.name) === normalizedDisplayName
+  );
+  if (byDisplayName) {
+    return {
+      name: categoryDisplayName || byDisplayName.name,
+      icon: byDisplayName.icon,
+    };
+  }
+
+  const byTrackName = Object.values(CATEGORY_MAPPING).find((category) =>
+    category.tracks.some((name) => name.toLowerCase() === track.trackName.toLowerCase())
+  );
+
+  return {
+    name: categoryDisplayName || byTrackName?.name || 'Roadmap',
+    icon: byTrackName?.icon || 'ri-road-map-line',
+  };
+};
+
 // ─── Skeleton ────────────────────────────────────────────────────────────────
 
 const TrackCardSkeleton = () => (
@@ -160,16 +187,7 @@ const BrowsePaths = ({ onRequireRole }: BrowsePathsProps) => {
         setEnrollCounts(enrollCountMap);
       } else {
         const result = await fetchRoadmapTracksWithPagination(pageNumber, pageSize, searchQuery);
-        if (searchQuery.trim()) {
-          let newTracks: RoadmapTrack[] | undefined;
-          for (const track of result.tracks) {
-            const curr = await fetchRoadmapTrackbyname(track.trackName);
-            newTracks = [...(newTracks ?? []), curr];
-          }
-          setTracks(newTracks ?? []);
-        } else {
-          setTracks(result.tracks);
-        }
+        setTracks(result.tracks);
         setHasNext(result.hasNext);
         setHasPrev(result.hasPrev);
         setTotalPages(result.totalPages);
@@ -372,6 +390,7 @@ const BrowsePaths = ({ onRequireRole }: BrowsePathsProps) => {
                   const isEnrolling   = enrollingSet.has(track.trackName);
                   const isEnrolled    = enrolledSet.has(track.trackName);
                   const enrollErr     = enrollErrors.get(track.trackName);
+                  const categoryMeta  = getTrackCategoryMeta(track);
 
                   return (
                     <div
@@ -382,17 +401,21 @@ const BrowsePaths = ({ onRequireRole }: BrowsePathsProps) => {
                       {/* Header row: icon + name + enrollment pill */}
                       <div className="flex items-start gap-3 mb-3">
                         <div className={`w-10 h-10 flex items-center justify-center ${accent.badge} rounded-xl flex-shrink-0`}>
-                          <i className={`${track.imageUrl || 'ri-road-map-line'} text-xl ${accent.icon}`}></i>
+                          <i className={`${categoryMeta.icon} text-xl ${accent.icon}`}></i>
                         </div>
                         <div className="flex-1 min-w-0">
                           <h3 className="text-white font-bold text-base leading-snug">{track.displayName}</h3>
-                        <div className="mt-1 h-4">
-                            {typeof countVal === 'number' && (
-                              <span className="text-xs text-white/50 flex items-center gap-1">
-                                <i className="ri-user-follow-line"></i>
-                                <strong className="text-white/70">{countVal.toLocaleString()}</strong> enrolled
-                              </span>
-                            )}
+                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                            <span className="text-xs text-white/60 flex items-center gap-1">
+                              <i className={categoryMeta.icon}></i>
+                              {categoryMeta.name}
+                            </span>
+                              {typeof countVal === 'number' && (
+                                <span className="text-xs text-white/50 flex items-center gap-1">
+                                  <i className="ri-user-follow-line"></i>
+                                  <strong className="text-white/70">{countVal.toLocaleString()}</strong> enrolled
+                                </span>
+                              )}
                           </div>
                         </div>
                       </div>

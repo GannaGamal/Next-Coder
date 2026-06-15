@@ -862,7 +862,7 @@ const PublicProfile = () => {
                         <i className="ri-briefcase-line text-2xl text-orange-400"></i>
                       </div>
                       <div>
-                        <p className="text-gray-400 text-xs">Active Projects</p>
+                        <p className="text-gray-400 text-xs">Posted Projects</p>
                         <p className="text-2xl font-bold text-white">{profileUser.activeProjects || 0}</p>
                       </div>
                     </div>
@@ -932,43 +932,33 @@ const PublicProfile = () => {
                 {profileUser.portfolio.map((item) => (
                   item && item.id ? (
                     <div key={item.id} className="bg-white/5 backdrop-blur-sm rounded-2xl overflow-hidden border border-white/10 hover:border-purple-500/50 transition-all">
-                      <div className="w-full h-40 sm:h-48 bg-gradient-to-br from-purple-500/10 to-pink-500/10 border-b border-white/10 overflow-hidden relative">
-                        {item.coverImageUrl || item.portfolioUrl ? (
-                          <img
-                            src={item.coverImageUrl || item.portfolioUrl}
-                            alt={item.title || 'Portfolio item'}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <div className="w-16 h-16 flex items-center justify-center rounded-2xl bg-purple-500/20 border border-purple-500/30">
-                              <i className="ri-image-line text-4xl text-purple-400"></i>
-                            </div>
-                          </div>
-                        )}
-                        {(item.portfolioUrl || item.coverImageUrl) && (
-                          <a
-                            href={item.portfolioUrl || item.coverImageUrl || '#'}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 hover:bg-purple-500/30 border border-white/10 hover:border-purple-500/40 text-gray-300 hover:text-purple-300 transition-all cursor-pointer"
-                            title="Open portfolio image"
-                          >
-                             <i className="ri-external-link-line text-sm"></i>
-                          </a>
-                        )}
+                    {/* PDF Preview Area */}
+                    <div className="w-full h-40 sm:h-48 bg-gradient-to-br from-purple-500/10 to-pink-500/10 border-b border-white/10 flex flex-col items-center justify-center gap-3 relative">
+                      <div className="w-16 h-16 flex items-center justify-center rounded-2xl bg-purple-500/20 border border-purple-500/30">
+                        <i className="ri-file-pdf-line text-4xl text-purple-400"></i>
                       </div>
+                      
+                      <button
+                        type="button"
+                        onClick={() => item.portfolioUrl && window.open(item.portfolioUrl, '_blank', 'noopener,noreferrer')}
+                        className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 hover:bg-purple-500/30 border border-white/10 hover:border-purple-500/40 text-gray-300 hover:text-purple-300 transition-all cursor-pointer"
+                        title="Download PDF"
+                      >
+                        <i className="ri-download-line text-sm"></i>
+                      </button>
+                      
+                    </div>
 
                     {/* Card Info */}
                     <div className="p-4 sm:p-5 lg:p-6">
                       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0 mb-3">
                         <span className="px-3 py-1 bg-purple-500/20 border border-purple-500/30 rounded-lg text-purple-300 text-xs sm:text-sm font-medium">
-                          {item.jobTitleName || item.categoryName || 'Uncategorized'}
+                          {item.jobTitleName}
                         </span>
-                        <span className="text-gray-400 text-xs sm:text-sm">{item.uploadedAt}</span>
+                        <span className="text-gray-400 text-xs sm:text-sm"> {new Date(item.uploadedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
                       </div>
                       <h3 className="text-lg sm:text-xl font-bold text-white mb-2">{item.title}</h3>
-                      <p className="text-sm sm:text-base text-gray-400">{item.bio || item.description}</p>
+                      <p className="text-sm sm:text-base text-gray-400">{item.description}</p>
                     </div>
                   </div>
                   ) : null

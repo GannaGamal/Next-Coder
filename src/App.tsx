@@ -5,9 +5,13 @@ import { ViewAsProvider } from './contexts/ViewAsContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 
+const routerBasename = import.meta.env.BASE_URL === '/'
+  ? undefined
+  : import.meta.env.BASE_URL.replace(/\/$/, '');
+
 function App() {
   return (
-    <BrowserRouter basename="/Next-Coder/">
+    <BrowserRouter basename={routerBasename}>
       <ThemeProvider>
         <AuthProvider>
           <ViewAsProvider>

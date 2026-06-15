@@ -185,9 +185,13 @@ const TrackLearning = () => {
 
   // ── Derived stats ──────────────────────────────────────────────────────────
 
-   const completedCount = enrollment?.completedTopics ?? track?.topics.length ?? 0;
-
-  const totalTopics = enrollment?.totalTopics ?? track?.topics.length ?? 0;
+  const topicNodeIds = track
+    ? track.topics.map((topic, index) => topic.nodeId || String(index))
+    : [];
+  const completedCount = track
+    ? topicNodeIds.filter((nodeId) => completedNodeIds.includes(nodeId)).length
+    : enrollment?.completedTopics ?? 0;
+  const totalTopics = track?.topics.length ?? enrollment?.totalTopics ?? 0;
   const progressPct = totalTopics > 0 ? Math.round((completedCount / totalTopics) * 100) : 0;
   const isCompleted = totalTopics > 0 && completedCount >= totalTopics;
 

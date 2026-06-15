@@ -526,7 +526,6 @@ const Navbar = () => {
   const isActive = (path: string) => location.pathname === path;
 
   const navLinks = [
-    { path: "/", label: t("nav.home"), show: true },
     { path: "/roadmaps", label: t("nav.roadmaps"), show: showRoadmaps },
     { path: "/marketplace", label: t("nav.freelance"), show: showMarketplace },
     { path: "/portfolios", label: t("nav.portfolios"), show: showMarketplace },

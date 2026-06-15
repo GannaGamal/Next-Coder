@@ -25,6 +25,19 @@ export interface UpdateClientProfilePayload {
   bio: string;
 }
 
+export interface ClientReport {
+  reportId: number;
+  reportType: string;
+  complaintAgainst: string;
+  reportedBy: string;
+  description: string;
+  status: string;
+  createdAt: string;
+  resolvedAt: string | null;
+  resolutionNote: string | null;
+  actions: string[];
+}
+
 const toNullableString = (value: unknown): string | null => {
   if (value === null || value === undefined) return null;
   const text = String(value).trim();
@@ -140,4 +153,38 @@ export const updateClientProfile = async (
     averageRating: toNumber(data.averageRating ?? data.AverageRating),
     totalReviews: toNumber(data.totalReviews ?? data.TotalReviews),
   };
+};
+
+/**
+ * GET /api/Client/my-reports
+ * Returns reports filed against the authenticated client.
+ */
+export const getClientReports = async (): Promise<ClientReport[]> => {
+  const token = localStorage.getItem('authToken') ?? '';
+  if (!token) {
+    throw new Error('You must be signed in to view your reports.');
+  }
+
+  const response = await fetch(`${API_BASE}/Client/my-reports`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+
+  const rawText = await response.text();
+  if (!rawText.trim()) return [];
+
+  try {
+    const parsed = JSON.parse(rawText) as Record<string, unknown>;
+    const data = parsed?.data ?? parsed;
+    return Array.isArray(data) ? (data as ClientReport[]) : [];
+  } catch {
+    return [];
+  }
 };

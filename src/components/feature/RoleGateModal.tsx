@@ -1,8 +1,10 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import type { UserRole } from '../../types';
+import { assignNewRole, getPublicRoles } from '../../services/role.service';
+import { normalizeUserRole } from '../../utils/dashboard';
 
 interface RoleGateModalProps {
   isOpen: boolean;
@@ -13,16 +15,19 @@ interface RoleGateModalProps {
   onRoleAdded?: () => void;
 }
 
-interface UploadedFile {
-  name: string;
-  size: number;
-  type: string;
+interface PortfolioItem {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  file: File | null;
 }
 
 interface Company {
+  id: string;
   name: string;
-  position: string;
-  documents: UploadedFile[];
+  industry: string;
+  documents: File[];
 }
 
 const roleColors: Record<UserRole, { bg: string; border: string; text: string; btn: string; btnHover: string; iconBg: string; uploadHover: string }> = {
@@ -71,6 +76,15 @@ const roleColors: Record<UserRole, { bg: string; border: string; text: string; b
     iconBg: 'bg-amber-500/20',
     uploadHover: 'hover:border-amber-500/50 hover:bg-amber-500/5',
   },
+  admin: {
+    bg: 'bg-blue-500/10',
+    border: 'border-blue-500/30',
+    text: 'text-blue-400',
+    btn: 'bg-blue-500',
+    btnHover: 'hover:bg-blue-600',
+    iconBg: 'bg-blue-500/20',
+    uploadHover: 'hover:border-blue-500/50 hover:bg-blue-500/5',
+  }
 };
 
 const roleIcons: Record<UserRole, string> = {
@@ -79,15 +93,76 @@ const roleIcons: Record<UserRole, string> = {
   employer: 'ri-building-line',
   applicant: 'ri-file-user-line',
   learner: 'ri-graduation-cap-line',
+  admin: 'ri-shield-line',
 };
 
-const requiresUpload: Record<UserRole, boolean> = {
+const requiresSetup: Record<UserRole, boolean> = {
   freelancer: true,
-  client: false,
+  client: true,
   employer: true,
   applicant: true,
   learner: false,
+  admin: false,
 };
+
+const PORTFOLIO_ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+const PORTFOLIO_MAX_SIZE_MB = 10;
+const portfolioCategories = [
+  'webDevelopment',
+  'mobileDevelopment',
+  'uiUX',
+  'dataScience',
+  'machineLearning',
+  'devOps',
+  'cyberSecurity',
+  'gameDevelopment',
+  'graphicDesign',
+  'contentWriting',
+  'digitalMarketing',
+  'videoEditing',
+  'other',
+];
+
+const portfolioCategoryLabels: Record<string, string> = {
+  webDevelopment: 'Web Development',
+  mobileDevelopment: 'Mobile Development',
+  uiUX: 'UI/UX',
+  dataScience: 'Data Science',
+  machineLearning: 'Machine Learning',
+  devOps: 'DevOps',
+  cyberSecurity: 'Cyber Security',
+  gameDevelopment: 'Game Development',
+  graphicDesign: 'Graphic Design',
+  contentWriting: 'Content Writing',
+  digitalMarketing: 'Digital Marketing',
+  videoEditing: 'Video Editing',
+  other: 'Other',
+};
+
+const ModalShell = ({
+  children,
+  onClose,
+  wide = false,
+  scrollable = false,
+}: {
+  children: React.ReactNode;
+  onClose: () => void;
+  wide?: boolean;
+  scrollable?: boolean;
+}) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose}></div>
+    <div className={`relative bg-[#252b42] rounded-2xl border border-white/10 p-6 sm:p-8 w-full ${wide ? 'max-w-lg' : 'max-w-md'} animate-[fadeInScale_0.2s_ease-out] ${scrollable ? 'max-h-[90vh] overflow-y-auto' : ''}`}>
+      {children}
+    </div>
+  </div>
+);
+
+const CloseButton = ({ onClose }: { onClose: () => void }) => (
+  <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white cursor-pointer transition-colors">
+    <i className="ri-close-line text-xl"></i>
+  </button>
+);
 
 const RoleGateModal = ({ isOpen, onClose, requiredRole, roleLabel, actionLabel, onRoleAdded }: RoleGateModalProps) => {
   const { user, isAuthenticated, addRole } = useAuth();
@@ -95,22 +170,49 @@ const RoleGateModal = ({ isOpen, onClose, requiredRole, roleLabel, actionLabel, 
   const { t } = useTranslation();
   const [step, setStep] = useState<'check' | 'confirm' | 'upload' | 'success'>('check');
 
-  const [portfolioFiles, setPortfolioFiles] = useState<UploadedFile[]>([]);
-  const [freelancerDocuments, setFreelancerDocuments] = useState<UploadedFile[]>([]);
-  const portfolioInputRef = useRef<HTMLInputElement>(null);
-  const freelancerDocsInputRef = useRef<HTMLInputElement>(null);
+  const [portfolioItems, setPortfolioItems] = useState<PortfolioItem[]>([]);
 
-  const [cvFile, setCvFile] = useState<UploadedFile | null>(null);
+  const [cvFile, setCvFile] = useState<File | null>(null);
   const cvInputRef = useRef<HTMLInputElement>(null);
 
-  const [companies, setCompanies] = useState<Company[]>([{ name: '', position: '', documents: [] }]);
-  const [activeCompanyIndex, setActiveCompanyIndex] = useState(0);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [country, setCountry] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [hourlyRate, setHourlyRate] = useState('');
+  const [portfolioFileError, setPortfolioFileError] = useState('');
+  const [addRoleError, setAddRoleError] = useState('');
+  const [isAddingRole, setIsAddingRole] = useState(false);
+  const [publicRoleApiNames, setPublicRoleApiNames] = useState<Record<UserRole, string>>({} as Record<UserRole, string>);
+
+  useEffect(() => {
+    if (!isOpen || !isAuthenticated) {
+      return;
+    }
+
+    const loadPublicRoles = async () => {
+      try {
+        const roles = await getPublicRoles();
+        const mapped = roles.reduce((acc, roleName) => {
+          const normalized = normalizeUserRole(roleName);
+          if (normalized) {
+            acc[normalized] = roleName;
+          }
+          return acc;
+        }, {} as Record<UserRole, string>);
+        setPublicRoleApiNames(mapped);
+      } catch (err) {
+        console.warn('Failed to load public roles for role gate', err);
+      }
+    };
+
+    void loadPublicRoles();
+  }, [isAuthenticated, isOpen]);
 
   if (!isOpen) return null;
 
   const colors = roleColors[requiredRole];
   const roleIcon = roleIcons[requiredRole];
-  const needsUpload = requiresUpload[requiredRole];
+  const needsSetup = requiresSetup[requiredRole];
   const needsLogin = !isAuthenticated;
   const hasRole = user?.roles.includes(requiredRole);
 
@@ -118,21 +220,118 @@ const RoleGateModal = ({ isOpen, onClose, requiredRole, roleLabel, actionLabel, 
 
   const resetState = () => {
     setStep('check');
-    setPortfolioFiles([]);
-    setFreelancerDocuments([]);
+    setPortfolioItems([]);
     setCvFile(null);
-    setCompanies([{ name: '', position: '', documents: [] }]);
-    setActiveCompanyIndex(0);
+    setCompanies([]);
+    setCountry('');
+    setPhoneNumber('');
+    setHourlyRate('');
+    setPortfolioFileError('');
+    setAddRoleError('');
+    setIsAddingRole(false);
   };
 
   const handleAddRole = () => {
-    if (needsUpload) { setStep('upload'); } else { completeRoleAddition(); }
+    if (needsSetup) { setStep('upload'); } else { void completeRoleAddition(); }
   };
 
   const completeRoleAddition = async () => {
-    await addRole(requiredRole);
-    setStep('success');
-    setTimeout(() => { resetState(); onClose(); if (onRoleAdded) onRoleAdded(); }, 1500);
+    setAddRoleError('');
+
+    if (requiredRole === 'freelancer') {
+      if (!country.trim() || !phoneNumber.trim() || !hourlyRate.trim()) {
+        setAddRoleError('Please complete all required freelancer fields');
+        return;
+      }
+
+      if (portfolioItems.length === 0) {
+        setAddRoleError('Please add at least one portfolio item');
+        return;
+      }
+
+      const incompleteItem = portfolioItems.find(
+        (item) => !item.title.trim() || !item.description.trim() || !item.category.trim() || !item.file,
+      );
+      if (incompleteItem) {
+        setAddRoleError('Please complete all portfolio fields and upload a file');
+        return;
+      }
+
+      const invalidItem = portfolioItems.find((item) => validatePortfolioFile(item.file ?? undefined));
+      if (invalidItem) {
+        const error = validatePortfolioFile(invalidItem.file ?? undefined);
+        setPortfolioFileError(error);
+        setAddRoleError(error);
+        return;
+      }
+    }
+
+    if (requiredRole === 'client' && (!country.trim() || !phoneNumber.trim())) {
+      setAddRoleError('Please enter your country and phone number');
+      return;
+    }
+
+    if (requiredRole === 'applicant' && !cvFile) {
+      setAddRoleError('Please upload your CV');
+      return;
+    }
+
+    if (requiredRole === 'employer' && companies.length === 0) {
+      setAddRoleError('Please add at least one company');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('RoleName', getRoleApiName(requiredRole));
+
+    if (requiredRole === 'applicant' && cvFile) {
+      formData.append('CvFile', cvFile);
+    }
+
+    if (requiredRole === 'client') {
+      formData.append('country', country.trim());
+      formData.append('phoneNumber', phoneNumber.trim());
+    }
+
+    if (requiredRole === 'freelancer') {
+      formData.append('country', country.trim());
+      formData.append('phoneNumber', phoneNumber.trim());
+      formData.append('hourlyRate', hourlyRate.trim());
+
+      const portfolioItem = portfolioItems.find((item) => item.file instanceof File);
+      if (portfolioItem?.file) {
+        formData.append('portfolioFile.title', portfolioItem.title.trim());
+        formData.append('portfolioFile.description', portfolioItem.description.trim());
+        formData.append('portfolioFile.category', portfolioItem.category.trim());
+        formData.append('portfolioFile.file', portfolioItem.file);
+      }
+    }
+
+    if (requiredRole === 'employer') {
+      const payload = companies.map((company) => ({
+        name: company.name,
+        industry: company.industry,
+        logoUrl: '',
+        documents: company.documents.map((doc) => doc.name),
+      }));
+      formData.append('Companies', JSON.stringify(payload));
+    }
+
+    try {
+      setIsAddingRole(true);
+      await assignNewRole(formData);
+      await addRole(requiredRole);
+      setStep('success');
+      setTimeout(() => { resetState(); onClose(); if (onRoleAdded) onRoleAdded(); }, 1500);
+    } catch (err) {
+      setAddRoleError(
+        err instanceof Error
+          ? err.message
+          : 'We could not add this role right now. Please try again.',
+      );
+    } finally {
+      setIsAddingRole(false);
+    }
   };
 
   const handleClose = () => { resetState(); onClose(); };
@@ -143,32 +342,18 @@ const RoleGateModal = ({ isOpen, onClose, requiredRole, roleLabel, actionLabel, 
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, setter: React.Dispatch<React.SetStateAction<UploadedFile[]>>) => {
-    const files = e.target.files;
-    if (files) {
-      const newFiles: UploadedFile[] = Array.from(files).map(f => ({ name: f.name, size: f.size, type: f.type }));
-      setter(prev => [...prev, ...newFiles]);
-    }
-    e.target.value = '';
-  };
-
   const handleSingleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) setCvFile({ name: file.name, size: file.size, type: file.type });
+    if (file) setCvFile(file);
     e.target.value = '';
   };
 
   const handleCompanyDocUpload = (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
     const files = e.target.files;
     if (files) {
-      const newFiles: UploadedFile[] = Array.from(files).map(f => ({ name: f.name, size: f.size, type: f.type }));
-      setCompanies(prev => prev.map((c, i) => i === index ? { ...c, documents: [...c.documents, ...newFiles] } : c));
+      setCompanies(prev => prev.map((c, i) => i === index ? { ...c, documents: [...c.documents, ...Array.from(files)] } : c));
     }
     e.target.value = '';
-  };
-
-  const removeFile = (index: number, setter: React.Dispatch<React.SetStateAction<UploadedFile[]>>) => {
-    setter(prev => prev.filter((_, i) => i !== index));
   };
 
   const removeCompanyDoc = (companyIndex: number, docIndex: number) => {
@@ -178,51 +363,71 @@ const RoleGateModal = ({ isOpen, onClose, requiredRole, roleLabel, actionLabel, 
   };
 
   const addCompany = () => {
-    setCompanies(prev => [...prev, { name: '', position: '', documents: [] }]);
-    setActiveCompanyIndex(companies.length);
+    setCompanies(prev => [...prev, { id: Date.now().toString(), name: '', industry: '', documents: [] }]);
   };
 
   const removeCompany = (index: number) => {
     if (companies.length > 1) {
       setCompanies(prev => prev.filter((_, i) => i !== index));
-      if (activeCompanyIndex >= index && activeCompanyIndex > 0) setActiveCompanyIndex(activeCompanyIndex - 1);
     }
   };
 
-  const updateCompany = (index: number, field: 'name' | 'position', value: string) => {
+  const updateCompany = (index: number, field: 'name' | 'industry', value: string) => {
     setCompanies(prev => prev.map((c, i) => i === index ? { ...c, [field]: value } : c));
   };
 
+  const addPortfolioItem = () => {
+    setPortfolioItems(prev => [
+      ...prev,
+      { id: Date.now().toString(), title: '', description: '', category: '', file: null },
+    ]);
+  };
+
+  const updatePortfolioItem = (id: string, field: keyof PortfolioItem, value: string | File | null) => {
+    setPortfolioItems(prev => prev.map((item) => item.id === id ? { ...item, [field]: value } : item));
+  };
+
+  const removePortfolioItem = (id: string) => {
+    setPortfolioItems(prev => prev.filter((item) => item.id !== id));
+  };
+
+  const validatePortfolioFile = (file: File | undefined): string => {
+    if (!file) return 'Portfolio file is required.';
+    if (!PORTFOLIO_ALLOWED_TYPES.includes(file.type)) {
+      return 'Portfolio file must be JPG, PNG, WEBP, or PDF.';
+    }
+    const maxBytes = PORTFOLIO_MAX_SIZE_MB * 1024 * 1024;
+    if (file.size > maxBytes) {
+      return `Portfolio file must be ${PORTFOLIO_MAX_SIZE_MB}MB or less.`;
+    }
+    return '';
+  };
+
   const canSubmitUpload = () => {
-    if (requiredRole === 'freelancer') return portfolioFiles.length > 0 && freelancerDocuments.length > 0;
+    if (requiredRole === 'freelancer') return portfolioItems.length > 0 && country.trim() && phoneNumber.trim() && hourlyRate.trim();
+    if (requiredRole === 'client') return country.trim() && phoneNumber.trim();
     if (requiredRole === 'applicant') return cvFile !== null;
-    if (requiredRole === 'employer') return companies.every(c => c.name.trim() && c.position.trim() && c.documents.length > 0);
+    if (requiredRole === 'employer') return companies.length > 0;
     return true;
   };
 
   const getRoleDescription = (role: UserRole): string => t(`roleGate.${role}Desc`);
 
-  // ─── Shared modal shell ────────────────────────────────────────────────────
-  const Shell = ({ children, wide = false, scrollable = false }: { children: React.ReactNode; wide?: boolean; scrollable?: boolean }) => (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={handleClose}></div>
-      <div className={`relative bg-[#252b42] rounded-2xl border border-white/10 p-6 sm:p-8 w-full ${wide ? 'max-w-lg' : 'max-w-md'} animate-[fadeInScale_0.2s_ease-out] ${scrollable ? 'max-h-[90vh] overflow-y-auto' : ''}`}>
-        {children}
-      </div>
-    </div>
-  );
-
-  const CloseBtn = () => (
-    <button onClick={handleClose} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white cursor-pointer transition-colors">
-      <i className="ri-close-line text-xl"></i>
-    </button>
-  );
+  const getRoleApiName = (role: UserRole): string => {
+    if (publicRoleApiNames[role]) {
+      return publicRoleApiNames[role];
+    }
+    if (role === 'applicant') {
+      return 'Job Seeker';
+    }
+    return role.charAt(0).toUpperCase() + role.slice(1);
+  };
 
   // ─── Not logged in ─────────────────────────────────────────────────────────
   if (needsLogin) {
     return (
-      <Shell>
-        <CloseBtn />
+      <ModalShell onClose={handleClose}>
+        <CloseButton onClose={handleClose} />
         <div className="text-center">
           <div className="w-16 h-16 flex items-center justify-center rounded-full bg-amber-500/20 mx-auto mb-4">
             <i className="ri-lock-line text-3xl text-amber-400"></i>
@@ -247,7 +452,7 @@ const RoleGateModal = ({ isOpen, onClose, requiredRole, roleLabel, actionLabel, 
             </a>
           </p>
         </div>
-      </Shell>
+      </ModalShell>
     );
   }
 
@@ -276,8 +481,8 @@ const RoleGateModal = ({ isOpen, onClose, requiredRole, roleLabel, actionLabel, 
   // ─── Upload step ───────────────────────────────────────────────────────────
   if (step === 'upload') {
     return (
-      <Shell wide scrollable>
-        <CloseBtn />
+      <ModalShell onClose={handleClose} wide scrollable>
+        <CloseButton onClose={handleClose} />
         <div className="mb-6">
           <div className="flex items-center gap-3 mb-2">
             <div className={`w-10 h-10 flex items-center justify-center rounded-full ${colors.iconBg}`}>
@@ -290,65 +495,146 @@ const RoleGateModal = ({ isOpen, onClose, requiredRole, roleLabel, actionLabel, 
           </div>
         </div>
 
-        {/* Freelancer Upload */}
+        {addRoleError && (
+          <div className="mb-4 p-3 rounded-lg text-sm border bg-red-500/10 border-red-500/30 text-red-300">
+            {addRoleError}
+          </div>
+        )}
+
+        {/* Client Contact Details */}
+        {requiredRole === 'client' && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <input
+                type="text"
+                placeholder="Country"
+                value={country}
+                onChange={(e) => setCountry(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-pink-500/50"
+              />
+              <input
+                type="tel"
+                placeholder="Phone number"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-pink-500/50"
+              />
+            </div>
+            <p className="text-gray-500 text-xs">Add your contact details to enable the client role.</p>
+          </div>
+        )}
+
+        {/* Freelancer Setup */}
         {requiredRole === 'freelancer' && (
           <div className="space-y-5">
-            <div>
-              <label className="block text-sm font-medium text-white mb-2">
-                <i className={`ri-folder-image-line mr-1 ${colors.text}`}></i>
-                {t('roleGate.portfolioFiles')} <span className="text-red-400">*</span>
-              </label>
-              <p className="text-gray-500 text-xs mb-3">{t('roleGate.portfolioUploadDesc')}</p>
-              <input ref={portfolioInputRef} type="file" multiple accept="image/*,.pdf,.doc,.docx" className="hidden" onChange={(e) => handleFileUpload(e, setPortfolioFiles)} />
-              <div onClick={() => portfolioInputRef.current?.click()} className={`border-2 border-dashed border-white/20 rounded-xl p-4 text-center cursor-pointer ${colors.uploadHover} transition-all`}>
-                <i className="ri-upload-cloud-2-line text-2xl text-gray-400 mb-1"></i>
-                <p className="text-sm text-gray-400">{t('roleGate.clickToUploadPortfolio')}</p>
-              </div>
-              {portfolioFiles.length > 0 && (
-                <div className="mt-3 space-y-2">
-                  {portfolioFiles.map((file, index) => (
-                    <div key={index} className="flex items-center justify-between bg-white/5 rounded-lg px-3 py-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <i className={`ri-file-line ${colors.text}`}></i>
-                        <span className="text-sm text-white truncate">{file.name}</span>
-                        <span className="text-xs text-gray-500">({formatFileSize(file.size)})</span>
-                      </div>
-                      <button onClick={() => removeFile(index, setPortfolioFiles)} className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-red-400 cursor-pointer">
-                        <i className="ri-close-line"></i>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <input
+                type="text"
+                placeholder="Country"
+                value={country}
+                onChange={(e) => setCountry(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500/50"
+              />
+              <input
+                type="tel"
+                placeholder="Phone number"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500/50"
+              />
+              <input
+                type="number"
+                min="0"
+                placeholder="Hourly rate"
+                value={hourlyRate}
+                onChange={(e) => setHourlyRate(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500/50"
+              />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-white mb-2">
-                <i className={`ri-file-text-line mr-1 ${colors.text}`}></i>
-                {t('roleGate.verificationDocuments')} <span className="text-red-400">*</span>
-              </label>
-              <p className="text-gray-500 text-xs mb-3">{t('roleGate.verificationUploadDesc')}</p>
-              <input ref={freelancerDocsInputRef} type="file" multiple accept="image/*,.pdf,.doc,.docx" className="hidden" onChange={(e) => handleFileUpload(e, setFreelancerDocuments)} />
-              <div onClick={() => freelancerDocsInputRef.current?.click()} className={`border-2 border-dashed border-white/20 rounded-xl p-4 text-center cursor-pointer ${colors.uploadHover} transition-all`}>
-                <i className="ri-upload-cloud-2-line text-2xl text-gray-400 mb-1"></i>
-                <p className="text-sm text-gray-400">{t('roleGate.clickToUploadDocs')}</p>
+              <div className="flex items-center justify-between mb-3">
+                <label className="block text-sm font-medium text-white">
+                  <i className={`ri-folder-image-line mr-1 ${colors.text}`}></i>
+                  Portfolio items <span className="text-red-400">*</span>
+                </label>
+                <button onClick={addPortfolioItem} className={`text-xs ${colors.text} cursor-pointer flex items-center gap-1 hover:opacity-80`}>
+                  <i className="ri-add-line"></i> Add item
+                </button>
               </div>
-              {freelancerDocuments.length > 0 && (
-                <div className="mt-3 space-y-2">
-                  {freelancerDocuments.map((file, index) => (
-                    <div key={index} className="flex items-center justify-between bg-white/5 rounded-lg px-3 py-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <i className={`ri-file-text-line ${colors.text}`}></i>
-                        <span className="text-sm text-white truncate">{file.name}</span>
-                        <span className="text-xs text-gray-500">({formatFileSize(file.size)})</span>
-                      </div>
-                      <button onClick={() => removeFile(index, setFreelancerDocuments)} className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-red-400 cursor-pointer">
-                        <i className="ri-close-line"></i>
+
+              <div className="space-y-4">
+                {portfolioItems.map((item, index) => (
+                  <div key={item.id} className="bg-white/5 rounded-xl p-4 border border-white/10">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className={`text-sm font-medium ${colors.text}`}>Portfolio Item {index + 1}</span>
+                      <button onClick={() => removePortfolioItem(item.id)} className="text-xs text-red-400 hover:text-red-300 cursor-pointer">
+                        <i className="ri-delete-bin-line mr-1"></i>Remove
                       </button>
                     </div>
-                  ))}
-                </div>
-              )}
+                    <input
+                      type="text"
+                      placeholder="Project title"
+                      value={item.title}
+                      onChange={(e) => updatePortfolioItem(item.id, 'title', e.target.value)}
+                      className="w-full mb-3 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500/50"
+                    />
+                    <textarea
+                      placeholder="Project description"
+                      value={item.description}
+                      onChange={(e) => updatePortfolioItem(item.id, 'description', e.target.value)}
+                      rows={3}
+                      className="w-full mb-3 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500/50 resize-none"
+                    />
+                    <select
+                      value={item.category}
+                      onChange={(e) => updatePortfolioItem(item.id, 'category', e.target.value)}
+                      className="w-full mb-3 bg-[#252b42] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500/50"
+                    >
+                      <option value="">Select category</option>
+                      {portfolioCategories.map((category) => (
+                        <option key={category} value={category}>
+                          {portfolioCategoryLabels[category] ?? category}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="file"
+                      id={`role-gate-portfolio-${item.id}`}
+                      accept=".jpg,.jpeg,.png,.webp,.pdf"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] ?? null;
+                        const validation = validatePortfolioFile(file ?? undefined);
+                        setPortfolioFileError(validation);
+                        if (!validation) {
+                          updatePortfolioItem(item.id, 'file', file);
+                        }
+                      }}
+                    />
+                    <label
+                      htmlFor={`role-gate-portfolio-${item.id}`}
+                      className={`flex items-center justify-center w-full border border-dashed border-white/20 rounded-lg p-3 cursor-pointer ${colors.uploadHover} transition-all`}
+                    >
+                      <span className="text-xs text-gray-400">
+                        <i className="ri-upload-line mr-1"></i>
+                        {item.file ? `${item.file.name} (${formatFileSize(item.file.size)})` : 'Upload file'}
+                      </span>
+                    </label>
+                    {portfolioFileError && (
+                      <p className="text-xs text-red-400 flex items-center gap-1 mt-2">
+                        <i className="ri-error-warning-line"></i>
+                        {portfolioFileError}
+                      </p>
+                    )}
+                  </div>
+                ))}
+                {portfolioItems.length === 0 && (
+                  <div className="text-center py-6 text-gray-500 text-sm border border-dashed border-white/10 rounded-xl">
+                    No portfolio items added yet.
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -404,7 +690,7 @@ const RoleGateModal = ({ isOpen, onClose, requiredRole, roleLabel, actionLabel, 
             <p className="text-gray-500 text-xs mb-3">{t('roleGate.companiesDesc')}</p>
             <div className="space-y-4">
               {companies.map((company, index) => (
-                <div key={index} className="bg-white/5 rounded-xl p-4 border border-white/10">
+                <div key={company.id} className="bg-white/5 rounded-xl p-4 border border-white/10">
                   <div className="flex items-center justify-between mb-3">
                     <span className={`text-sm font-medium ${colors.text}`}>{t('roleGate.company')} {index + 1}</span>
                     {companies.length > 1 && (
@@ -421,18 +707,17 @@ const RoleGateModal = ({ isOpen, onClose, requiredRole, roleLabel, actionLabel, 
                         className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-teal-500/50" />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">{t('roleGate.yourPosition')}</label>
-                      <input type="text" value={company.position} onChange={(e) => updateCompany(index, 'position', e.target.value)}
-                        placeholder={t('roleGate.positionPlaceholder')}
+                      <label className="block text-xs text-gray-400 mb-1">Industry</label>
+                      <input type="text" value={company.industry} onChange={(e) => updateCompany(index, 'industry', e.target.value)}
+                        placeholder="Company industry"
                         className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-teal-500/50" />
                     </div>
                     <div>
                       <label className="block text-xs text-gray-400 mb-1">{t('roleGate.verificationDocs')}</label>
                       <div onClick={() => {
-                        setActiveCompanyIndex(index);
                         setTimeout(() => {
                           const input = document.createElement('input');
-                          input.type = 'file'; input.multiple = true; input.accept = 'image/*,.pdf,.doc,.docx';
+                          input.type = 'file'; input.multiple = true; input.accept = '.pdf,.doc,.docx';
                           input.onchange = (e) => handleCompanyDocUpload(e as unknown as React.ChangeEvent<HTMLInputElement>, index);
                           input.click();
                         }, 0);
@@ -467,19 +752,20 @@ const RoleGateModal = ({ isOpen, onClose, requiredRole, roleLabel, actionLabel, 
           <button onClick={() => setStep('confirm')} className="flex-1 px-5 py-3 bg-white/5 text-white font-semibold rounded-lg hover:bg-white/10 transition-colors whitespace-nowrap cursor-pointer">
             <i className="ri-arrow-left-line mr-1"></i>{t('roleGate.back')}
           </button>
-          <button onClick={completeRoleAddition} disabled={!canSubmitUpload()}
+          <button onClick={() => void completeRoleAddition()} disabled={!canSubmitUpload() || isAddingRole}
             className={`flex-1 px-5 py-3 ${colors.btn} text-white font-semibold rounded-lg ${colors.btnHover} transition-colors whitespace-nowrap cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed`}>
-            <i className="ri-check-line mr-1"></i>{t('roleGate.completeSetup')}
+            <i className={isAddingRole ? 'ri-loader-4-line animate-spin mr-1' : 'ri-check-line mr-1'}></i>
+            {isAddingRole ? 'Saving...' : t('roleGate.completeSetup')}
           </button>
         </div>
-      </Shell>
+      </ModalShell>
     );
   }
 
   // ─── Role confirmation ─────────────────────────────────────────────────────
   return (
-    <Shell>
-      <CloseBtn />
+    <ModalShell onClose={handleClose}>
+      <CloseButton onClose={handleClose} />
       <div className="text-center">
         <div className={`w-16 h-16 flex items-center justify-center rounded-full ${colors.iconBg} mx-auto mb-4`}>
           <i className={`${roleIcon} text-3xl ${colors.text}`}></i>
@@ -498,16 +784,21 @@ const RoleGateModal = ({ isOpen, onClose, requiredRole, roleLabel, actionLabel, 
           </p>
         </div>
 
-        {needsUpload && (
+        {needsSetup && (
           <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-4 text-left">
             <p className="text-xs font-medium text-white mb-2">
-              <i className="ri-upload-cloud-line mr-1 text-amber-400"></i>
-              {t('roleGate.requiredDocuments')}
+              <i className="ri-list-check-3 mr-1 text-amber-400"></i>
+              Required setup
             </p>
             {requiredRole === 'freelancer' && (
               <ul className="text-xs text-gray-400 space-y-1">
-                <li><i className={`ri-checkbox-circle-line ${colors.text} mr-1`}></i>{t('roleGate.portfolioFilesReq')}</li>
-                <li><i className={`ri-checkbox-circle-line ${colors.text} mr-1`}></i>{t('roleGate.verificationDocsReq')}</li>
+                <li><i className={`ri-checkbox-circle-line ${colors.text} mr-1`}></i>Country, phone number, and hourly rate</li>
+                <li><i className={`ri-checkbox-circle-line ${colors.text} mr-1`}></i>At least one portfolio item with title, description, category, and file</li>
+              </ul>
+            )}
+            {requiredRole === 'client' && (
+              <ul className="text-xs text-gray-400 space-y-1">
+                <li><i className={`ri-checkbox-circle-line ${colors.text} mr-1`}></i>Country and phone number</li>
               </ul>
             )}
             {requiredRole === 'applicant' && (
@@ -535,7 +826,7 @@ const RoleGateModal = ({ isOpen, onClose, requiredRole, roleLabel, actionLabel, 
             {t('roleGate.cancel')}
           </button>
           <button onClick={handleAddRole} className={`flex-1 px-5 py-3 ${colors.btn} text-white font-semibold rounded-lg ${colors.btnHover} transition-colors whitespace-nowrap cursor-pointer`}>
-            {needsUpload ? (
+            {needsSetup ? (
               <><i className="ri-arrow-right-line mr-1"></i>{t('roleGate.continue')}</>
             ) : (
               <><i className="ri-add-line mr-1"></i>{t('roleGate.addRole')}</>
@@ -543,7 +834,7 @@ const RoleGateModal = ({ isOpen, onClose, requiredRole, roleLabel, actionLabel, 
           </button>
         </div>
       </div>
-    </Shell>
+    </ModalShell>
   );
 };
 

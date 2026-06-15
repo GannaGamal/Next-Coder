@@ -536,7 +536,7 @@ const ClientDashboard = () => {
                 </div>
                 <div>
                   {/* proposalCount replaces applicants array length */}
-                  <span className={`${textSec} text-sm`}>{t('clientDashboard.applicants')}</span>
+                  <span className={`${textSec} text-sm`}>Freelancers</span>
                   <p className={`${textPrimary} font-bold text-lg`}>{project.proposalCount}</p>
                 </div>
               </div>

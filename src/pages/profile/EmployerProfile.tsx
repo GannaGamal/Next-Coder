@@ -490,7 +490,7 @@ const EmployerProfile = () => {
                     className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-violet-500/20 hover:bg-violet-500/30 border border-violet-500/30 rounded-lg text-violet-300 text-xs font-medium transition-colors cursor-pointer whitespace-nowrap"
                   >
                     <i className="ri-edit-line"></i>
-                    Edit Contact
+                    Edit
                   </button>
                 </div>
                 <p className="text-sm sm:text-base text-gray-400 mb-2 break-all">{user?.email}</p>

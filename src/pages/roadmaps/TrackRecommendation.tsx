@@ -445,8 +445,8 @@ const TrackRecommendation = () => {
               <div className="max-w-4xl mx-auto">
                 <div className="bg-white/5 rounded-2xl border border-white/10 p-8 md:p-10">
                   <div className="mb-8 pb-4 border-b border-white/10">
-                    <p className="text-white/60 text-sm font-medium">📊 Skills &amp; Experience (Rate from 0 to 9)</p>
-                    <p className="text-white/40 text-xs mt-1">Drag each slider to reflect your current level — 0 means no experience, 9 means expert.</p>
+                    <p className="text-white/60 text-sm font-medium">📊 Fields of Interest (Rate from 0 to 9)</p>
+                    <p className="text-white/40 text-xs mt-1">Drag each slider to reflect how excited you are about this field — 0 means no interest at all, 9 means you are highly passionate.</p>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-8">

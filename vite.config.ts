@@ -3,7 +3,7 @@ import react from "@vitejs/plugin-react-swc";
 import { resolve } from "node:path";
 import AutoImport from "unplugin-auto-import/vite";
 
-const base = process.env.BASE_PATH || "/";
+const base = process.env.BASE_PATH || "/Next-Coder/";
 const isPreview = process.env.IS_PREVIEW ? true : false;
 // https://vite.dev/config/
 export default defineConfig({
@@ -65,7 +65,7 @@ export default defineConfig({
       dts: true,
     }),
   ],
-  base: '/Next-Coder/',
+  base,
   build: {
     sourcemap: true,
     outDir: "out",
