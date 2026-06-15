@@ -407,7 +407,6 @@ const BrowsePaths = ({ onRequireRole }: BrowsePathsProps) => {
                           <h3 className="text-white font-bold text-base leading-snug">{track.displayName}</h3>
                           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
                             <span className="text-xs text-white/60 flex items-center gap-1">
-                              <i className={categoryMeta.icon}></i>
                               {categoryMeta.name}
                             </span>
                               {typeof countVal === 'number' && (
