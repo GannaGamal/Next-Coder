@@ -953,7 +953,7 @@ const PublicProfile = () => {
                     <div className="p-4 sm:p-5 lg:p-6">
                       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0 mb-3">
                         <span className="px-3 py-1 bg-purple-500/20 border border-purple-500/30 rounded-lg text-purple-300 text-xs sm:text-sm font-medium">
-                          {item.jobTitleName}
+                          {item.categoryName}
                         </span>
                         <span className="text-gray-400 text-xs sm:text-sm"> {new Date(item.uploadedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
                       </div>
