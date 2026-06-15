@@ -719,7 +719,7 @@ const Navbar = () => {
                                   ></i>
                                 </div>
                                 <span className="text-sm text-white/80 group-hover:text-white whitespace-nowrap capitalize">
-                                  {role} {t("nav.profile")}
+                                  {role == 'applicant' ? 'Job Seeker' : role} {t("nav.profile")}
                                 </span>
                               </Link>
                             ))}
@@ -990,7 +990,7 @@ const Navbar = () => {
                               ></i>
                             </div>
                             <span className="text-white font-medium capitalize">
-                              {role}
+                              {role == 'applicant' ? 'Job Seeker' : role}
                             </span>
                           </div>
                           {userRoles.length > 1 && (
