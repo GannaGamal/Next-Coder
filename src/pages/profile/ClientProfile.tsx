@@ -302,7 +302,7 @@ const ClientProfile = () => {
                 }`}
             >
               <i className="ri-shield-user-line mr-2"></i>
-              Reports Against Me
+              Reports
             </button>
           </div>
 
@@ -325,7 +325,7 @@ const ClientProfile = () => {
                 <div>
                   <h2 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-3">
                     <i className="ri-shield-user-line text-red-400"></i>
-                    Reports Against Me
+                    Reports
                   </h2>
                   <p className="text-sm text-gray-400 mt-1">Only you can see this section</p>
                 </div>
@@ -356,7 +356,6 @@ const ClientProfile = () => {
                     <i className="ri-shield-check-line text-3xl text-green-400"></i>
                   </div>
                   <h3 className="text-lg text-white font-semibold mb-2">No Reports Found</h3>
-                  <p className="text-gray-500 text-sm">You have no reports filed against your account.</p>
                 </div>
               )}
 
@@ -398,6 +397,8 @@ const ClientProfile = () => {
                           <div className="flex items-center gap-2 text-sm text-gray-400">
                             <i className="ri-user-line text-orange-400"></i>
                             <span>Reported by <span className="text-white font-medium">{report.reportedBy}</span></span>
+                            <i className="ri-arrow-right-s-line text-gray-500"></i>
+                            <span>Complaint against <span className="text-white font-medium">{report.complaintAgainst}</span></span>
                           </div>
 
                           <button

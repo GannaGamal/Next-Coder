@@ -584,14 +584,7 @@ const Portfolios = () => {
                   </div>
 
                   <div>
-                    <label className="block text-white text-sm font-medium mb-2">Skill</label>
-                    <input
-                      type="text"
-                      value={selectedSkill}
-                      onChange={(event) => handleSkillChange(event.target.value)}
-                      placeholder="Filter by skill"
-                      className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 text-sm"
-                    />
+                    
                     {skillOptions.length > 0 && (
                       <div className="mt-3 flex flex-wrap gap-1.5 max-h-48 overflow-y-auto pr-1">
                         {skillOptions.slice(0, 20).map((skill) => (

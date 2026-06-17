@@ -56,6 +56,7 @@ export interface Proposal {
   id: number;
   freelancerName: string;
   freelancerImageUrl: string;
+  freelancerAppUserId: number;
   coverLetter: string;
   totalAmount: number;
   status: string;

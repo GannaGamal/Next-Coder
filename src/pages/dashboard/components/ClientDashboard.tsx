@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReportModal from '../../../components/feature/ReportModal';
 import { useTheme } from '../../../contexts/ThemeContext';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   getDashboardSummary,
   getPostedProjects,
@@ -192,21 +193,27 @@ const ClientDashboard = () => {
   };
 
   /** Accept a freelancer proposal. */
-  const handleAcceptProposal = async (proposalId: number) => {
-    if (!selectedPostedProject) return;
-    setActionLoading(true);
-    try {
-      await acceptProposal(selectedPostedProject.id, proposalId);
-      setShowApplicantsModal(false);
-      // Refresh posted projects so proposal counts/statuses are up to date.
-      const updated = await getPostedProjects();
-      setPostedProjects(updated);
-    } catch (e) {
-      setActionError(e instanceof Error ? e.message : 'Failed to accept proposal');
-    } finally {
-      setActionLoading(false);
-    }
-  };
+/** Accept a freelancer proposal. */
+const handleAcceptProposal = async (proposalId: number) => {
+  if (!selectedPostedProject) return;
+  setActionLoading(true);
+  try {
+    await acceptProposal(selectedPostedProject.id, proposalId);
+    setShowApplicantsModal(false);
+    // Refresh both lists in parallel so the new active project appears immediately
+    const [updatedPosted, updatedActive] = await Promise.all([
+      getPostedProjects(),
+      getActiveProjects(),
+    ]);
+    setPostedProjects(updatedPosted);
+    setActiveProjects(updatedActive);
+    setActiveTab('active');
+  } catch (e) {
+    setActionError(e instanceof Error ? e.message : 'Failed to accept proposal');
+  } finally {
+    setActionLoading(false);
+  }
+};
 
   /** Delete (remove) a posted project. */
   const handleDeleteProject = async () => {
@@ -982,11 +989,13 @@ const ClientDashboard = () => {
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex items-start gap-4">
                           {proposal.freelancerImageUrl ? (
-                            <img
-                              src={`https://nextcoder.runasp.net/${proposal.freelancerImageUrl}`}
-                              alt={proposal.freelancerName}
-                              className="w-16 h-16 rounded-lg object-cover"
-                            />
+                            <Link to={`/user/${proposal.freelancerAppUserId}`} className="block w-12 h-12 sm:w-16 sm:h-16 rounded-xl overflow-hidden hover:ring-2 hover:ring-purple-500 transition-all cursor-pointer">
+                              <img
+                                src={`https://nextcoder.runasp.net/${proposal.freelancerImageUrl}`}
+                                alt={proposal.freelancerName}
+                                className="w-16 h-16 rounded-lg object-cover"
+                              />
+                            </Link>
                           ) : (
                             <img
                               src={generalAvatar}
@@ -995,7 +1004,9 @@ const ClientDashboard = () => {
                             />
                           )}
                           <div>
-                            <h4 className={`text-xl font-bold ${textPrimary}`}>{proposal.freelancerName}</h4>
+                            <Link to={`/user/${proposal.freelancerAppUserId}`} className={`hover:underline ${textPrimary} font-bold text-xl transition-colors`}>
+                              {proposal.freelancerName}
+                            </Link>
                             <div className="flex flex-wrap items-center gap-2 mt-1 text-xs">
                               <span className={`px-2 py-0.5 rounded-full ${isLightMode ? 'bg-teal-500/10 text-teal-600' : 'bg-teal-500/15 text-teal-400'} capitalize`}>
                                 {proposal.status}
