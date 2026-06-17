@@ -299,7 +299,7 @@ export async function getFreelancerPublicProfile(freelancerId: string): Promise<
   returnData.documents = ((returnData.documents ?? []) as Record<string, unknown>[]).map((document: Record<string, unknown>, index: number) => ({
     id: valueAsString(document.id ?? document.Id) || String(index),
     title: valueAsString(document.title ?? document.Title) || null,
-    fileName: valueAsString(document.fileName ?? document.FileName ?? document.name ?? document.Name) || null,
+    fileName: valueAsString(document.documentName) || null,
     documentUrl: buildAbsoluteUrl(document.documentUrl ?? document.DocumentUrl ?? document.fileUrl ?? document.FileUrl ?? document.filePath ?? document.FilePath),
     fileUrl: buildAbsoluteUrl(document.fileUrl ?? document.FileUrl ?? document.documentUrl ?? document.DocumentUrl ?? document.filePath ?? document.FilePath),
     uploadedAt: valueAsString(document.uploadedAt ?? document.UploadedAt ?? document.createdAt ?? document.CreatedAt) || null,

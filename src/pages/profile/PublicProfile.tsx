@@ -1044,34 +1044,33 @@ const PublicProfile = () => {
             <>
               {isLoading && renderLoadingGrid(2)}
               {!isLoading && Array.isArray(profileUser.documents) && profileUser.documents.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 overflow-hidden">
               {profileUser.documents.map(document => (
                 document && document.id ? (
-                  <div key={document.id} className="bg-white/5 backdrop-blur-sm rounded-2xl overflow-hidden border border-white/10 hover:border-cyan-500/30 transition-all">
-                    <div className="w-full h-40 sm:h-48 bg-gradient-to-br from-cyan-500/10 to-blue-500/10 border-b border-white/10 flex flex-col items-center justify-center gap-3 relative">
-                      <div className="w-16 h-16 flex items-center justify-center rounded-2xl bg-cyan-500/20 border border-cyan-500/30">
-                        <i className="ri-file-text-line text-4xl text-cyan-400"></i>
+                  <div
+                      key={document.id}
+                      className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 p-4 sm:p-5 lg:p-6
+                        }`}
+                    >
+                      <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto">
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-lg bg-purple-500/20 flex-shrink-0">
+                          <i className="ri-file-text-line text-xl sm:text-2xl text-purple-400"></i>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-sm sm:text-base text-white font-semibold truncate">{document.fileName}</h3>
+                          <p className="text-xs sm:text-sm text-gray-400">Uploaded on  {new Date(document.uploadedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</p>
+                        </div>
                       </div>
-                      <div className="text-center px-4">
-                        <p className="text-white text-sm font-medium truncate max-w-xs">{document.title || document.fileName || 'Document'}</p>
-                      </div>
-                      {document.documentUrl && (
-                        <a
-                          href={document.documentUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 hover:bg-cyan-500/30 border border-white/10 hover:border-cyan-500/40 text-gray-300 hover:text-cyan-300 transition-all cursor-pointer"
-                          title="Download Document"
+                      <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+                        <button
+                          className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
+                          onClick={() => document.documentUrl && window.open(document.documentUrl, '_blank', 'noopener,noreferrer')}
                         >
-                          <i className="ri-external-link-line text-sm"></i>
-                        </a>
-                      )}
+                          <i className="ri-download-line text-lg sm:text-xl text-white"></i>
+                        </button>
+                        
+                      </div>
                     </div>
-                    <div className="p-4 sm:p-5 lg:p-6">
-                      <h3 className="text-lg sm:text-xl font-bold text-white mb-2">{document.title || document.fileName}</h3>
-                      <p className="text-xs sm:text-sm text-gray-400">{document.uploadedAt ? new Date(document.uploadedAt).toLocaleDateString() : 'Date not available'}</p>
-                    </div>
-                  </div>
                 ) : null
               ))}
             </div>
