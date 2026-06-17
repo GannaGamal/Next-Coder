@@ -9,7 +9,7 @@ import { normalizeUserRole } from "../../utils/dashboard";
 import { assignNewRole, getPublicRoles, unassignRole } from "../../services/role.service";
 import NotificationDropdown from "./NotificationDropdown";
 import LanguageSwitcher from "./LanguageSwitcher";
-import rocketImage from "../../assets/sparkle-rocket.png";
+import rocketImage from "../../assets/space-rocket.png";
 import CustomSelect from "../base/CustomSelect";
 
 interface PortfolioItem {

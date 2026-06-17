@@ -297,17 +297,7 @@ const HomePage = () => {
                   <div className="absolute -top-3 -right-3 w-10 h-10 flex items-center justify-center bg-gradient-to-br from-pink-500 to-rose-500 rounded-xl shadow-lg animate-bounce">
                     <i className="ri-sparkling-line text-white text-base"></i>
                   </div>
-                  <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1">
-                    <div className="w-2 h-6 bg-gradient-to-b from-orange-400/80 to-transparent rounded-full animate-pulse"></div>
-                    <div
-                      className="w-1.5 h-4 bg-gradient-to-b from-amber-400/60 to-transparent rounded-full animate-pulse"
-                      style={{ animationDelay: "0.2s" }}
-                    ></div>
-                    <div
-                      className="w-1 h-3 bg-gradient-to-b from-yellow-400/40 to-transparent rounded-full animate-pulse"
-                      style={{ animationDelay: "0.4s" }}
-                    ></div>
-                  </div>
+                  
                 </div>
                 <div
                   className="absolute -right-8 top-8 bg-navy-800/90 backdrop-blur-sm border border-white/10 rounded-xl px-3 py-2 shadow-lg animate-float-slow"
