@@ -989,7 +989,10 @@ const handleAcceptProposal = async (proposalId: number) => {
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex items-start gap-4">
                           {proposal.freelancerImageUrl ? (
-                            <Link to={`/user/${proposal.freelancerAppUserId}`} className="block w-12 h-12 sm:w-16 sm:h-16 rounded-xl overflow-hidden hover:ring-2 hover:ring-purple-500 transition-all cursor-pointer">
+                            <Link
+                              to={`/user/${proposal.freelancerAppUserId}`}
+                              className="block w-12 h-12 sm:w-16 sm:h-16 rounded-xl overflow-hidden hover:ring-2 hover:ring-purple-500 transition-all cursor-pointer"
+                            >
                               <img
                                 src={`https://nextcoder.runasp.net/${proposal.freelancerImageUrl}`}
                                 alt={proposal.freelancerName}

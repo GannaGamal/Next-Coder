@@ -6,6 +6,7 @@ import { closeJobPost, deleteJobPost, getEmployerDashboard, getJobPostDetails, r
 
 interface Applicant {
   id: string;
+  appUserId: string;
   jobSeekerId?: string;
   name: string;
   avatar: string;
@@ -355,6 +356,7 @@ const EmployerDashboard = () => {
 
       const mappedApplicants: Applicant[] = details.applicants.map((applicant) => ({
         id: String(applicant.id),
+        appUserId : applicant.appUserId,
         jobSeekerId: typeof applicant.jobSeekerId === 'number' && applicant.jobSeekerId > 0 ? String(applicant.jobSeekerId) : undefined,
         name: applicant.name,
         avatar: applicant.avatar,
@@ -605,13 +607,15 @@ const EmployerDashboard = () => {
                   <div key={applicant.id} className={`rounded-lg p-4 border transition-all ${isLightMode ? 'bg-gray-50 border-gray-200 hover:border-violet-400' : 'bg-white/5 border-white/10 hover:border-violet-500/50'}`}>
                     <div className="flex items-center gap-4">
                       <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0">
-                        <img src={applicant.avatar} alt={applicant.name} className="w-full h-full object-cover" />
+                        <Link to={`/user/${applicant.appUserId}`}>
+                          <img src={applicant.avatar} alt={applicant.name} className="w-full h-full object-cover" />
+                        </Link>
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           {applicant.jobSeekerId ? (
                             <Link
-                              to={`/profile/job-seeker/${encodeURIComponent(applicant.jobSeekerId)}`}
+                              to={`/user/${applicant.appUserId}`}
                               className={`font-semibold truncate hover:underline ${isLightMode ? 'text-gray-900 hover:text-violet-600' : 'text-white hover:text-violet-300'}`}
                               title={`Open ${applicant.name}'s profile`}
                             >
@@ -653,7 +657,7 @@ const EmployerDashboard = () => {
                         <div className="flex items-center gap-2">
                           {applicant.jobSeekerId ? (
                             <Link
-                              to={`/profile/job-seeker/${encodeURIComponent(applicant.jobSeekerId)}`}
+                              to={`/user/${applicant.appUserId}`}
                               onClick={(e) => e.stopPropagation()}
                               className="w-10 h-10 flex items-center justify-center rounded-lg bg-violet-500/20 text-violet-400 hover:bg-violet-500/30 transition-colors cursor-pointer"
                               title={`View ${applicant.name}'s profile`}

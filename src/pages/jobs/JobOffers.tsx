@@ -244,12 +244,7 @@ const JobOffers = () => {
 
   useEffect(() => {
     const loadSkills = async () => {
-      if (!isAuthenticated) {
-        setApiSkills([]);
-        setSkillsLoadError('');
-        return;
-      }
-
+     
       try {
         const skills = await getJobSkills();
         setApiSkills(skills);
@@ -261,14 +256,9 @@ const JobOffers = () => {
     };
 
     loadSkills();
-  }, [isAuthenticated]);
+  }, []);
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      setJobsFromApi([]);
-      setJobsError('Please sign in to view available jobs.');
-      return;
-    }
 
     const timeoutId = window.setTimeout(async () => {
       setJobsLoading(true);
@@ -776,7 +766,7 @@ const JobOffers = () => {
                       <div key={job.id} className={`backdrop-blur-sm rounded-xl border p-4 sm:p-5 transition-all group ${isLightMode ? 'bg-amber-50 border-amber-200 hover:border-amber-400' : 'bg-gradient-to-r from-amber-500/10 to-orange-500/10 border-amber-500/30 hover:border-amber-500/50'}`}>
                         <div className="flex flex-col sm:flex-row gap-4 sm:gap-5">
                           <div className="flex-shrink-0 mx-auto sm:mx-0 relative">
-                            <Link to={`/user/${job.employerId}`} className={`block w-12 h-12 sm:w-16 sm:h-16 rounded-xl overflow-hidden hover:ring-2 hover:ring-amber-500 transition-all cursor-pointer ${isLightMode ? 'bg-gray-100' : 'bg-white/10'}`}>
+                            <div className={`block w-12 h-12 sm:w-16 sm:h-16 rounded-xl overflow-hidden hover:ring-2 hover:ring-amber-500 transition-all ${isLightMode ? 'bg-gray-100' : 'bg-white/10'}`}>
                               <img
                                 src={job.companyLogo}
                                 alt={`${job.company} logo`}
@@ -788,7 +778,7 @@ const JobOffers = () => {
                                   event.currentTarget.src = DEFAULT_COMPANY_LOGO;
                                 }}
                               />
-                            </Link>
+                            </div>
                             <button onClick={() => handleOpenReport(job.company, job.companyLogo)} className={`absolute -top-1 -right-1 w-6 h-6 flex items-center justify-center border rounded-full text-gray-400 hover:text-red-400 hover:border-red-500/50 transition-all cursor-pointer opacity-0 group-hover:opacity-100 ${isLightMode ? 'bg-white border-gray-200' : 'bg-[#1a1f37] border-white/10'}`} title={t('common.report')}>
                               <i className="ri-flag-line text-xs"></i>
                             </button>
@@ -800,7 +790,7 @@ const JobOffers = () => {
                                   <h3 className={`text-lg sm:text-xl font-bold group-hover:text-amber-500 transition-colors ${headingCls}`}>{job.title}</h3>
                                   <span className={`px-2 py-0.5 text-xs font-medium rounded ${isLightMode ? 'bg-amber-100 text-amber-600' : 'bg-amber-500/20 text-amber-400'}`}>{t('common.featured')}</span>
                                 </div>
-                                <Link to={`/user/${job.employerId}`} className="text-teal-500 hover:text-teal-400 font-medium text-sm hover:underline transition-colors cursor-pointer">{job.company}</Link>
+                                <div  className="text-teal-500 hover:text-teal-400 font-medium text-sm hover:underline transition-colors">{job.company}</div>
                               </div>
                               <div className={`px-2 sm:px-2.5 py-1 rounded-lg text-xs font-medium border ${getTypeColor(job.type)} mx-auto sm:mx-0`}>{job.type}</div>
                             </div>
@@ -842,7 +832,7 @@ const JobOffers = () => {
                   <div key={job.id} className={`backdrop-blur-sm rounded-xl border p-4 sm:p-5 transition-all group ${isLightMode ? 'bg-white border-gray-200 hover:border-teal-400' : 'bg-white/5 border-white/10 hover:border-teal-500/50'}`}>
                     <div className="flex flex-col sm:flex-row gap-4 sm:gap-5">
                       <div className="flex-shrink-0 mx-auto sm:mx-0 relative">
-                        <Link to={`/user/${job.employerId}`} className={`block w-12 h-12 sm:w-16 sm:h-16 rounded-xl overflow-hidden hover:ring-2 hover:ring-teal-500 transition-all cursor-pointer ${isLightMode ? 'bg-gray-100' : 'bg-white/10'}`}>
+                        <div className={`block w-12 h-12 sm:w-16 sm:h-16 rounded-xl overflow-hidden hover:ring-2 hover:ring-teal-500 transition-all ${isLightMode ? 'bg-gray-100' : 'bg-white/10'}`}>
                           <img
                             src={job.companyLogo}
                             alt={`${job.company} logo`}
@@ -854,7 +844,7 @@ const JobOffers = () => {
                               event.currentTarget.src = DEFAULT_COMPANY_LOGO;
                             }}
                           />
-                        </Link>
+                        </div>
                         <button onClick={() => handleOpenReport(job.company, job.companyLogo)} className={`absolute -top-1 -right-1 w-6 h-6 flex items-center justify-center border rounded-full text-gray-400 hover:text-red-400 hover:border-red-500/50 transition-all cursor-pointer opacity-0 group-hover:opacity-100 ${isLightMode ? 'bg-white border-gray-200' : 'bg-[#1a1f37] border-white/10'}`} title={t('common.report')}>
                           <i className="ri-flag-line text-xs"></i>
                         </button>
@@ -863,7 +853,7 @@ const JobOffers = () => {
                         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
                           <div className="text-center sm:text-left">
                             <h3 className={`text-lg sm:text-xl font-bold group-hover:text-teal-500 transition-colors ${headingCls}`}>{job.title}</h3>
-                            <Link to={`/user/${job.employerId}`} className="text-teal-500 hover:text-teal-400 font-medium text-sm hover:underline transition-colors cursor-pointer">{job.company}</Link>
+                            <div className="text-teal-500 hover:text-teal-400 font-medium text-sm hover:underline transition-colors">{job.company}</div>
                           </div>
                           <div className={`px-2 sm:px-2.5 py-1 rounded-lg text-xs font-medium border ${getTypeColor(job.type)} mx-auto sm:mx-0`}>{job.type}</div>
                         </div>

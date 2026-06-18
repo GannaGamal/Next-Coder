@@ -277,8 +277,7 @@ export async function getFreelancerPublicProfile(freelancerId: string): Promise<
     ? returnData.documents ?? returnData.Documents
     : [];
   returnData.completedProjects = Array.isArray(returnData.completedProjects ?? returnData.CompletedProjects)
-    ? returnData.completedProjects ?? returnData.CompletedProjects
-    : [];
+    ? returnData.completedProjects ?? returnData.CompletedProjects    : [];
 
   for (const portfolio of returnData.portfolios as Record<string, unknown>[]) {
     portfolio.id = valueAsString(portfolio.id ?? portfolio.Id);

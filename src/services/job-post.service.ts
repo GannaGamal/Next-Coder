@@ -81,6 +81,7 @@ export type EmployerJobApplicationStatus = 'pending' | 'reviewed' | 'shortlisted
 
 export interface EmployerJobApplicantItem {
   id: number;
+  appUserId: string;
   jobSeekerId?: number;
   name: string;
   avatar: string;
@@ -144,9 +145,13 @@ const mapApplicantStatus = (status: unknown): EmployerJobApplicationStatus => {
   return 'pending';
 };
 
-const getDefaultAvatar = (name: string): string => {
-  const normalized = encodeURIComponent(name || 'User');
-  return `https://ui-avatars.com/api/?name=${normalized}&background=6366f1&color=ffffff&size=100`;
+const getDefaultAvatar = (name: string,url: string | null): string => {
+  if (url == null || url == undefined || url.trim() === '' || url == '/')
+  {
+    const normalized = encodeURIComponent(name || 'User');
+    return `https://ui-avatars.com/api/?name=${normalized}&background=6366f1&color=ffffff&size=100`;
+  }
+  return 'https://nextcoder.runasp.net/' + url;
 };
 
 const toArray = (value: unknown): unknown[] => {
@@ -431,7 +436,8 @@ export const getJobPostDetails = async (jobPostId: number): Promise<EmployerJobP
     .map((item: unknown) => {
       const raw = item as Record<string, unknown>;
       const id = Number(raw.id ?? raw.jobApplicationId ?? raw.applicationId ?? raw.Id ?? raw.JobApplicationId ?? 0);
-        const jobSeekerId = Number(raw.jobSeekerId ?? raw.JobSeekerId ?? raw.seekerId ?? raw.SeekerId ?? raw.applicantId ?? raw.ApplicantId ?? 0);
+      const jobSeekerId = Number(raw.jobSeekerId ?? raw.JobSeekerId ?? raw.seekerId ?? raw.SeekerId ?? raw.applicantId ?? raw.ApplicantId ?? 0);
+      const appUserId = String(raw.appUserId ?? raw.AppUserId ?? '');
       const score = Number(raw.matchPercentage ?? raw.MatchPercentage ?? raw.matchScore ?? raw.MatchScore);
       const years = Number(raw.yearsOfExperience ?? raw.yearsofExperience ?? raw.YearsOfExperience ?? raw.YearsofExperience);
       const interviewAtRaw = raw.interviewScheduledAt ?? raw.InterviewScheduledAt;
@@ -442,6 +448,7 @@ export const getJobPostDetails = async (jobPostId: number): Promise<EmployerJobP
       return {
         id,
           jobSeekerId: Number.isFinite(jobSeekerId) && jobSeekerId > 0 ? jobSeekerId : undefined,
+        appUserId,
         name,
         avatar: (() => {
           const raw_url = String(
@@ -450,7 +457,7 @@ export const getJobPostDetails = async (jobPostId: number): Promise<EmployerJobP
             raw.Avatar ?? raw.ProfileImageUrl ?? raw.ImageUrl ?? ''
           );
           // treat '/' or empty string as missing — fall back to generated avatar
-          return raw_url && raw_url !== '/' ? raw_url : getDefaultAvatar(name);
+          return getDefaultAvatar(name,raw_url);
         })(),
         title: String(raw.title ?? raw.seekerTitle ?? raw.jobTitle ?? raw.Title ?? raw.SeekerTitle ?? 'Job Seeker'),
         experience: Number.isFinite(years) ? `${years} years` : String(raw.experience ?? raw.Experience ?? 'Not specified'),
