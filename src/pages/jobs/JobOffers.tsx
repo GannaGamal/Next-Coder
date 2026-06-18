@@ -56,6 +56,32 @@ const buildCompanyLogoUrl = (logoUrl: string | null | undefined): string => {
   return `${COMPANY_ASSET_BASE_URL}/${encodeURI(slashNormalizedPath)}`;
 };
 
+const JobDescription = ({ description, subTextCls, isLightMode, t }: { description: string; subTextCls: string; isLightMode: boolean; t: any }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const maxLength = 180;
+  const isLong = description.length > maxLength || (description.match(/\n/g) || []).length > 2;
+
+  return (
+    <div className="mb-3 text-center sm:text-left flex flex-col items-center sm:items-start">
+      <p className={`text-sm w-full ${subTextCls} ${!isExpanded && isLong ? 'line-clamp-2' : 'whitespace-pre-wrap break-words'}`}>
+        {description}
+      </p>
+      {isLong && (
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsExpanded(!isExpanded);
+          }}
+          className={`text-xs font-medium mt-1 cursor-pointer hover:underline focus:outline-none ${isLightMode ? 'text-teal-600 hover:text-teal-700' : 'text-teal-400 hover:text-teal-300'}`}
+        >
+          {isExpanded ? t('jobs.viewLess', 'View Less') : t('jobs.viewMore', 'View More')}
+        </button>
+      )}
+    </div>
+  );
+};
+
 const JobOffers = () => {
   const { user, isAuthenticated } = useAuth();
   const { isLightMode } = useTheme();
@@ -807,7 +833,7 @@ const JobOffers = () => {
                               <span className="flex items-center gap-1"><i className="ri-time-line"></i>{job.postedDate}</span>
                               <span className="flex items-center gap-1"><i className="ri-user-line"></i>{job.applicants} {t('jobs.applicants')}</span>
                             </div>
-                            <p className={`text-sm mb-3 line-clamp-2 text-center sm:text-left ${subTextCls}`}>{job.description}</p>
+                            <JobDescription description={job.description} subTextCls={subTextCls} isLightMode={isLightMode} t={t} />
                             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
                               <div className="flex flex-wrap justify-center sm:justify-start gap-1.5 flex-1">
                                 {job.skills.slice(0, 5).map(skill => (
@@ -870,7 +896,7 @@ const JobOffers = () => {
                           <span className="flex items-center gap-1"><i className="ri-time-line"></i>{job.postedDate}</span>
                           <span className="flex items-center gap-1"><i className="ri-user-line"></i>{job.applicants} {t('jobs.applicants')}</span>
                         </div>
-                        <p className={`text-sm mb-3 line-clamp-2 text-center sm:text-left ${subTextCls}`}>{job.description}</p>
+                        <JobDescription description={job.description} subTextCls={subTextCls} isLightMode={isLightMode} t={t} />
                         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
                           <div className="flex flex-wrap justify-center sm:justify-start gap-1.5 flex-1">
                             {job.skills.slice(0, 5).map(skill => (
