@@ -574,11 +574,12 @@ const EmployerDashboard = () => {
 
 
             <div>
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
-                <h4 className={`text-lg font-semibold flex items-center gap-2 ${isLightMode ? 'text-gray-900' : 'text-white'}`}>
-                  <i className="ri-bar-chart-grouped-line text-violet-400"></i>{t('employerDashboard.matchingScores')}
-                </h4>
-                <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-col gap-4 mb-4">
+                {/* Row 1: Title and Action */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <h4 className={`text-lg font-semibold flex items-center gap-2 ${isLightMode ? 'text-gray-900' : 'text-white'}`}>
+                    <i className="ri-bar-chart-grouped-line text-violet-400"></i>{t('employerDashboard.matchingScores')}
+                  </h4>
                   <button
                     onClick={() => { handleCalculateMatching(); }}
                     disabled={showMatchScores}
@@ -586,15 +587,19 @@ const EmployerDashboard = () => {
                   >
                     <><i className="ri-calculator-line"></i>{t('employerDashboard.calculateMatching')}</>
                   </button>
+                </div>
+
+                {/* Row 2: Status Filters */}
+                <div className="flex flex-wrap items-center gap-2">
                   {(() => {
                     const counts = getApplicantCounts(selectedJob.applicants);
                     return (
                       <>
-                        <button onClick={() => setApplicantFilter('all')} className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${applicantFilter === 'all' ? 'bg-violet-500 text-white' : isLightMode ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>{t('employerDashboard.allCount')} ({counts.all})</button>
-                        <button onClick={() => setApplicantFilter('pending')} className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${applicantFilter === 'pending' ? 'bg-amber-500 text-white' : isLightMode ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>{t('employerDashboard.pending')} ({counts.pending})</button>
-                        <button onClick={() => setApplicantFilter('shortlisted')} className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${applicantFilter === 'shortlisted' ? 'bg-emerald-500 text-white' : isLightMode ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>{t('employerDashboard.shortlisted')} ({counts.shortlisted})</button>
-                        <button onClick={() => setApplicantFilter('interview_scheduled')} className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${applicantFilter === 'interview_scheduled' ? 'bg-sky-500 text-white' : isLightMode ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>{t('employerDashboard.interviewScheduled')} ({counts.interview_scheduled})</button>
-                        <button onClick={() => setApplicantFilter('rejected')} className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${applicantFilter === 'rejected' ? 'bg-red-500 text-white' : isLightMode ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>{t('employerDashboard.rejected')} ({counts.rejected})</button>
+                        <button onClick={() => setApplicantFilter('all')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${applicantFilter === 'all' ? 'bg-violet-500 text-white' : isLightMode ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>{t('employerDashboard.allCount')} ({counts.all})</button>
+                        <button onClick={() => setApplicantFilter('pending')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${applicantFilter === 'pending' ? 'bg-amber-500 text-white' : isLightMode ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>{t('employerDashboard.pending')} ({counts.pending})</button>
+                        <button onClick={() => setApplicantFilter('shortlisted')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${applicantFilter === 'shortlisted' ? 'bg-emerald-500 text-white' : isLightMode ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>{t('employerDashboard.shortlisted')} ({counts.shortlisted})</button>
+                        <button onClick={() => setApplicantFilter('interview_scheduled')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${applicantFilter === 'interview_scheduled' ? 'bg-sky-500 text-white' : isLightMode ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>{t('employerDashboard.interviewScheduled')} ({counts.interview_scheduled})</button>
+                        <button onClick={() => setApplicantFilter('rejected')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${applicantFilter === 'rejected' ? 'bg-red-500 text-white' : isLightMode ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>{t('employerDashboard.rejected')} ({counts.rejected})</button>
                       </>
                     );
                   })()}
