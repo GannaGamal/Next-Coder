@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { closeJobPost, deleteJobPost, getEmployerDashboard, getJobPostDetails, rejectJobApplicant, scheduleInterviewForApplicant, type EmployerDashboardJobPostItem } from '../../../services/job-post.service';
-import { calculateMatchScore } from '../../../services/recruitment-ai.service';
 
 interface Applicant {
   id: string;
@@ -32,7 +31,6 @@ interface Job {
   status: 'active' | 'closed' | 'draft';
   applicantsCount: number;
   applicants: Applicant[];
-  matchingCalculated: boolean;
 }
 
 const EmployerDashboard = () => {
@@ -76,7 +74,6 @@ const EmployerDashboard = () => {
       status: mapStatusToUi(item.status),
       applicantsCount: item.jobSeekersCount ?? 0,
       applicants: [],
-      matchingCalculated: false,
     };
   };
 
@@ -138,8 +135,7 @@ const EmployerDashboard = () => {
   const [rejectingApplicantId, setRejectingApplicantId] = useState<string | null>(null);
   const [scheduleInterviewError, setScheduleInterviewError] = useState('');
   const [schedulingApplicantId, setSchedulingApplicantId] = useState<string | null>(null);
-  const [calculatingMatchJobId, setCalculatingMatchJobId] = useState<string | null>(null);
-  const [calculateMatchError, setCalculateMatchError] = useState('');
+  const [showMatchScores, setShowMatchScores] = useState(false);
 
   const getTodayLocalDate = (): string => {
     const now = new Date();
@@ -209,70 +205,8 @@ const EmployerDashboard = () => {
     rejected: applicants.filter(a => a.status === 'rejected').length,
   });
 
-  const handleCalculateMatching = async (jobId: string) => {
-    const job = jobs.find((j) => j.id === jobId);
-    if (!job) return;
-
-    // Only proceed if there are applicants with a jobSeekerId
-    const applicantsToScore = job.applicants.filter((a) => a.jobSeekerId);
-    if (applicantsToScore.length === 0) return;
-
-    setCalculateMatchError('');
-    setCalculatingMatchJobId(jobId);
-
-    try {
-      const results = await Promise.allSettled(
-        applicantsToScore.map((applicant) =>
-          calculateMatchScore({
-            jobSeekerId: Number(applicant.jobSeekerId),
-            jobPostId: Number(jobId),
-          })
-        )
-      );
-
-      // Build a map: jobSeekerId -> score
-      const scoreMap = new Map<string, number>();
-      results.forEach((result, index) => {
-        const applicant = applicantsToScore[index];
-        if (result.status === 'fulfilled' && applicant?.jobSeekerId) {
-          scoreMap.set(applicant.jobSeekerId, result.value.score);
-        }
-      });
-
-      const updatedApplicants = job.applicants.map((applicant) => ({
-        ...applicant,
-        matchScore:
-          applicant.jobSeekerId && scoreMap.has(applicant.jobSeekerId)
-            ? scoreMap.get(applicant.jobSeekerId)!
-            : applicant.matchScore,
-      }));
-
-      const hasMatching = updatedApplicants.some((a) => a.matchScore !== null);
-
-      setJobs((prev) =>
-        prev.map((j) =>
-          j.id === jobId
-            ? { ...j, matchingCalculated: hasMatching, applicants: updatedApplicants }
-            : j
-        )
-      );
-
-      if (selectedJob?.id === jobId) {
-        setSelectedJob((prev) =>
-          prev
-            ? { ...prev, matchingCalculated: hasMatching, applicants: updatedApplicants }
-            : prev
-        );
-      }
-    } catch (err: unknown) {
-      setCalculateMatchError(
-        err instanceof Error
-          ? err.message
-          : 'We could not calculate match scores right now. Please try again.'
-      );
-    } finally {
-      setCalculatingMatchJobId(null);
-    }
+  const handleCalculateMatching = () => {
+    setShowMatchScores(true);
   };
 
   const handleScheduleInterview = async () => {
@@ -411,6 +345,7 @@ const EmployerDashboard = () => {
 
   const openJobDetails = async (job: Job) => {
     setApplicantFilter('all');
+    setShowMatchScores(false);
     setSelectedJob(job);
     setJobDetailsError('');
     setIsLoadingJobDetails(true);
@@ -434,7 +369,6 @@ const EmployerDashboard = () => {
       }));
 
       const nextApplicantsCount = details.counts.all;
-      const hasMatching = mappedApplicants.some((applicant) => applicant.matchScore !== null);
 
       setJobs((prev) => prev.map((item) => (
         item.id === job.id
@@ -442,7 +376,6 @@ const EmployerDashboard = () => {
             ...item,
             applicants: mappedApplicants,
             applicantsCount: nextApplicantsCount,
-            matchingCalculated: hasMatching,
           }
           : item
       )));
@@ -453,7 +386,6 @@ const EmployerDashboard = () => {
           ...prev,
           applicants: mappedApplicants,
           applicantsCount: nextApplicantsCount,
-          matchingCalculated: hasMatching,
         };
       });
 
@@ -588,9 +520,7 @@ const EmployerDashboard = () => {
                       {closingJobId === job.id ? 'Closing...' : t('common.close')}
                     </button>
                   )}
-                  <div className={`w-10 h-10 flex items-center justify-center rounded-lg ${job.matchingCalculated ? 'bg-emerald-500/20' : 'bg-amber-500/20'}`}>
-                    <i className={`text-xl ${job.matchingCalculated ? 'ri-check-line text-emerald-400' : 'ri-time-line text-amber-400'}`}></i>
-                  </div>
+
                   <button onClick={(e) => { e.stopPropagation(); setJobToDelete(job); }} className="w-9 h-9 flex items-center justify-center rounded-lg bg-red-500/15 text-red-400 hover:bg-red-500/30 transition-colors cursor-pointer flex-shrink-0" title={t('employerDashboard.removeJob')}>
                     <i className="ri-delete-bin-line text-base"></i>
                   </button>
@@ -640,163 +570,131 @@ const EmployerDashboard = () => {
               </div>
             )}
 
-            {selectedJob.matchingCalculated ? (
-              <div>
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
-                  <h4 className={`text-lg font-semibold flex items-center gap-2 ${isLightMode ? 'text-gray-900' : 'text-white'}`}>
-                    <i className="ri-bar-chart-grouped-line text-violet-400"></i>{t('employerDashboard.matchingScores')}
-                  </h4>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {(() => {
-                      const counts = getApplicantCounts(selectedJob.applicants);
-                      return (
-                        <>
-                          <button onClick={() => setApplicantFilter('all')} className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${applicantFilter === 'all' ? 'bg-violet-500 text-white' : isLightMode ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>{t('employerDashboard.allCount')} ({counts.all})</button>
-                          <button onClick={() => setApplicantFilter('pending')} className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${applicantFilter === 'pending' ? 'bg-amber-500 text-white' : isLightMode ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>{t('employerDashboard.pending')} ({counts.pending})</button>
-                          <button onClick={() => setApplicantFilter('shortlisted')} className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${applicantFilter === 'shortlisted' ? 'bg-emerald-500 text-white' : isLightMode ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>{t('employerDashboard.shortlisted')} ({counts.shortlisted})</button>
-                          <button onClick={() => setApplicantFilter('interview_scheduled')} className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${applicantFilter === 'interview_scheduled' ? 'bg-sky-500 text-white' : isLightMode ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>{t('employerDashboard.interviewScheduled')} ({counts.interview_scheduled})</button>
-                          <button onClick={() => setApplicantFilter('rejected')} className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${applicantFilter === 'rejected' ? 'bg-red-500 text-white' : isLightMode ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>{t('employerDashboard.rejected')} ({counts.rejected})</button>
-                        </>
-                      );
-                    })()}
-                  </div>
+
+            <div>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
+                <h4 className={`text-lg font-semibold flex items-center gap-2 ${isLightMode ? 'text-gray-900' : 'text-white'}`}>
+                  <i className="ri-bar-chart-grouped-line text-violet-400"></i>{t('employerDashboard.matchingScores')}
+                </h4>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => { handleCalculateMatching(); }}
+                    disabled={showMatchScores}
+                    className="px-4 py-2 bg-violet-500 text-white text-sm font-semibold rounded-lg hover:bg-violet-600 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    <><i className="ri-calculator-line"></i>{t('employerDashboard.calculateMatching')}</>
+                  </button>
+                  {(() => {
+                    const counts = getApplicantCounts(selectedJob.applicants);
+                    return (
+                      <>
+                        <button onClick={() => setApplicantFilter('all')} className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${applicantFilter === 'all' ? 'bg-violet-500 text-white' : isLightMode ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>{t('employerDashboard.allCount')} ({counts.all})</button>
+                        <button onClick={() => setApplicantFilter('pending')} className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${applicantFilter === 'pending' ? 'bg-amber-500 text-white' : isLightMode ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>{t('employerDashboard.pending')} ({counts.pending})</button>
+                        <button onClick={() => setApplicantFilter('shortlisted')} className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${applicantFilter === 'shortlisted' ? 'bg-emerald-500 text-white' : isLightMode ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>{t('employerDashboard.shortlisted')} ({counts.shortlisted})</button>
+                        <button onClick={() => setApplicantFilter('interview_scheduled')} className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${applicantFilter === 'interview_scheduled' ? 'bg-sky-500 text-white' : isLightMode ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>{t('employerDashboard.interviewScheduled')} ({counts.interview_scheduled})</button>
+                        <button onClick={() => setApplicantFilter('rejected')} className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${applicantFilter === 'rejected' ? 'bg-red-500 text-white' : isLightMode ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>{t('employerDashboard.rejected')} ({counts.rejected})</button>
+                      </>
+                    );
+                  })()}
                 </div>
-                <div className="space-y-3">
-                  {getFilteredApplicants(selectedJob.applicants).sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0)).map(applicant => (
-                    <div key={applicant.id} className={`rounded-lg p-4 border transition-all ${isLightMode ? 'bg-gray-50 border-gray-200 hover:border-violet-400' : 'bg-white/5 border-white/10 hover:border-violet-500/50'}`}>
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0">
-                          <img src={applicant.avatar} alt={applicant.name} className="w-full h-full object-cover" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            {applicant.jobSeekerId ? (
-                              <Link
-                                to={`/profile/job-seeker/${encodeURIComponent(applicant.jobSeekerId)}`}
-                                className={`font-semibold truncate hover:underline ${isLightMode ? 'text-gray-900 hover:text-violet-600' : 'text-white hover:text-violet-300'}`}
-                                title={`Open ${applicant.name}'s profile`}
-                              >
-                                {applicant.name}
-                              </Link>
-                            ) : (
-                              <h5 className={`font-semibold truncate ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{applicant.name}</h5>
-                            )}
-                            <span className={`px-2 py-0.5 rounded text-xs font-medium border ${getApplicantStatusColor(applicant.status)}`}>{getApplicantStatusLabel(applicant.status)}</span>
-                          </div>
-                          <p className={`text-sm ${isLightMode ? 'text-gray-500' : 'text-gray-400'}`}>{applicant.title} • {applicant.experience}</p>
-                          {applicant.status === 'interview_scheduled' && applicant.interviewDate && (
-                            <div className="mt-2 flex items-center gap-2 text-sky-500 text-sm">
-                              <i className="ri-calendar-check-line"></i>
-                              <span>{applicant.interviewDate} at {applicant.interviewTime}</span>
-                            </div>
+              </div>
+              <div className="space-y-3">
+                {getFilteredApplicants(selectedJob.applicants)
+                  .sort((a, b) => showMatchScores ? (b.matchScore || 0) - (a.matchScore || 0) : 0)
+                  .map(applicant => (
+                  <div key={applicant.id} className={`rounded-lg p-4 border transition-all ${isLightMode ? 'bg-gray-50 border-gray-200 hover:border-violet-400' : 'bg-white/5 border-white/10 hover:border-violet-500/50'}`}>
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0">
+                        <img src={applicant.avatar} alt={applicant.name} className="w-full h-full object-cover" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          {applicant.jobSeekerId ? (
+                            <Link
+                              to={`/profile/job-seeker/${encodeURIComponent(applicant.jobSeekerId)}`}
+                              className={`font-semibold truncate hover:underline ${isLightMode ? 'text-gray-900 hover:text-violet-600' : 'text-white hover:text-violet-300'}`}
+                              title={`Open ${applicant.name}'s profile`}
+                            >
+                              {applicant.name}
+                            </Link>
+                          ) : (
+                            <h5 className={`font-semibold truncate ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{applicant.name}</h5>
                           )}
-                          {applicant.status === 'rejected' && applicant.rejectionReason && (
-                            <div className="mt-2 flex items-start gap-2 text-red-400 text-sm">
-                              <i className="ri-information-line mt-0.5"></i>
-                              <span>{t('employerDashboard.reasonLabel')} {applicant.rejectionReason}</span>
-                            </div>
+                          <span className={`px-2 py-0.5 rounded text-xs font-medium border ${getApplicantStatusColor(applicant.status)}`}>{getApplicantStatusLabel(applicant.status)}</span>
+                        </div>
+                        <p className={`text-sm ${isLightMode ? 'text-gray-500' : 'text-gray-400'}`}>{applicant.title} • {applicant.experience}</p>
+                        {applicant.status === 'interview_scheduled' && applicant.interviewDate && (
+                          <div className="mt-2 flex items-center gap-2 text-sky-500 text-sm">
+                            <i className="ri-calendar-check-line"></i>
+                            <span>{applicant.interviewDate} at {applicant.interviewTime}</span>
+                          </div>
+                        )}
+                        {applicant.status === 'rejected' && applicant.rejectionReason && (
+                          <div className="mt-2 flex items-start gap-2 text-red-400 text-sm">
+                            <i className="ri-information-line mt-0.5"></i>
+                            <span>{t('employerDashboard.reasonLabel')} {applicant.rejectionReason}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          {showMatchScores && applicant.matchScore !== null ? (
+                            <>
+                              <div className={`text-2xl font-bold bg-gradient-to-r ${getMatchScoreColor(applicant.matchScore || 0)} bg-clip-text text-transparent`}>{applicant.matchScore}%</div>
+                              <div className={`text-xs ${isLightMode ? 'text-gray-400' : 'text-gray-500'}`}>{t('common.match')}</div>
+                            </>
+                          ) : (
+                            <>
+                              <div className={`text-sm ${isLightMode ? 'text-gray-400' : 'text-gray-500'}`}>{t('employerDashboard.appliedDate')}</div>
+                              <div className={`text-sm ${isLightMode ? 'text-gray-600' : 'text-gray-400'}`}>{applicant.appliedDate}</div>
+                            </>
                           )}
                         </div>
-                        <div className="flex items-center gap-3">
-                          <div className="text-right">
-                            <div className={`text-2xl font-bold bg-gradient-to-r ${getMatchScoreColor(applicant.matchScore || 0)} bg-clip-text text-transparent`}>{applicant.matchScore}%</div>
-                            <div className={`text-xs ${isLightMode ? 'text-gray-400' : 'text-gray-500'}`}>{t('common.match')}</div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button className="w-10 h-10 flex items-center justify-center rounded-lg bg-violet-500/20 text-violet-400 hover:bg-violet-500/30 transition-colors cursor-pointer"><i className="ri-eye-line"></i></button>
-                            {applicant.status !== 'rejected' && applicant.status !== 'interview_scheduled' && (
-                              <>
-                                <button onClick={(e) => { e.stopPropagation(); setSelectedApplicant(applicant); setShowInterviewModal(true); }} className="w-10 h-10 flex items-center justify-center rounded-lg bg-sky-500/20 text-sky-400 hover:bg-sky-500/30 transition-colors cursor-pointer" title={t('employerDashboard.scheduleInterview')}><i className="ri-calendar-schedule-line"></i></button>
-                                <button onClick={(e) => { e.stopPropagation(); setSelectedApplicant(applicant); setShowRejectModal(true); }} className="w-10 h-10 flex items-center justify-center rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors cursor-pointer" title={t('employerDashboard.reject')}><i className="ri-close-circle-line"></i></button>
-                              </>
-                            )}
-                          </div>
+                        <div className="flex items-center gap-2">
+                          {applicant.jobSeekerId ? (
+                            <Link
+                              to={`/profile/job-seeker/${encodeURIComponent(applicant.jobSeekerId)}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-10 h-10 flex items-center justify-center rounded-lg bg-violet-500/20 text-violet-400 hover:bg-violet-500/30 transition-colors cursor-pointer"
+                              title={`View ${applicant.name}'s profile`}
+                            >
+                              <i className="ri-eye-line"></i>
+                            </Link>
+                          ) : (
+                            <button
+                              disabled
+                              className="w-10 h-10 flex items-center justify-center rounded-lg bg-violet-500/10 text-violet-400/40 cursor-not-allowed"
+                              title="Profile not available"
+                            >
+                              <i className="ri-eye-line"></i>
+                            </button>
+                          )}
+                          {applicant.status !== 'rejected' && applicant.status !== 'interview_scheduled' && (
+                            <>
+                              <button onClick={(e) => { e.stopPropagation(); setSelectedApplicant(applicant); setShowInterviewModal(true); }} className="w-10 h-10 flex items-center justify-center rounded-lg bg-sky-500/20 text-sky-400 hover:bg-sky-500/30 transition-colors cursor-pointer" title={t('employerDashboard.scheduleInterview')}><i className="ri-calendar-schedule-line"></i></button>
+                              <button onClick={(e) => { e.stopPropagation(); setSelectedApplicant(applicant); setShowRejectModal(true); }} className="w-10 h-10 flex items-center justify-center rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors cursor-pointer" title={t('employerDashboard.reject')}><i className="ri-close-circle-line"></i></button>
+                            </>
+                          )}
                         </div>
                       </div>
+                    </div>
+                    {showMatchScores && applicant.matchScore !== null && (
                       <div className="mt-3">
                         <div className={`h-2 rounded-full overflow-hidden ${isLightMode ? 'bg-gray-200' : 'bg-white/10'}`}>
                           <div className={`h-full bg-gradient-to-r ${getMatchScoreColor(applicant.matchScore || 0)} rounded-full transition-all`} style={{ width: `${applicant.matchScore}%` }}></div>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                  {getFilteredApplicants(selectedJob.applicants).length === 0 && (
-                    <div className={`text-center py-8 border-2 border-dashed rounded-lg ${isLightMode ? 'border-gray-200' : 'border-white/20'}`}>
-                      <i className={`ri-user-search-line text-4xl mb-3 ${isLightMode ? 'text-gray-300' : 'text-gray-400'}`}></i>
-                      <p className={isLightMode ? 'text-gray-400' : 'text-gray-400'}>{t('employerDashboard.noApplicants')}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div>
-                {calculateMatchError && (
-                  <div className={`rounded-lg p-3 text-sm border mb-4 ${isLightMode ? 'bg-red-50 border-red-200 text-red-700' : 'bg-red-500/10 border-red-500/30 text-red-300'}`}>
-                    {calculateMatchError}
+                    )}
+                  </div>
+                ))}
+                {getFilteredApplicants(selectedJob.applicants).length === 0 && (
+                  <div className={`text-center py-8 border-2 border-dashed rounded-lg ${isLightMode ? 'border-gray-200' : 'border-white/20'}`}>
+                    <i className={`ri-user-search-line text-4xl mb-3 ${isLightMode ? 'text-gray-300' : 'text-gray-400'}`}></i>
+                    <p className={isLightMode ? 'text-gray-400' : 'text-gray-400'}>{t('employerDashboard.noApplicants')}</p>
                   </div>
                 )}
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className={`text-lg font-semibold flex items-center gap-2 ${isLightMode ? 'text-gray-900' : 'text-white'}`}>
-                    <i className="ri-user-line text-violet-400"></i>{t('employerDashboard.appliedApplicants')}
-                  </h4>
-                  <button
-                    onClick={() => { void handleCalculateMatching(selectedJob.id); }}
-                    disabled={calculatingMatchJobId === selectedJob.id}
-                    className="px-4 py-2 bg-violet-500 text-white text-sm font-semibold rounded-lg hover:bg-violet-600 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
-                  >
-                    {calculatingMatchJobId === selectedJob.id ? (
-                      <><i className="ri-loader-4-line animate-spin"></i>Calculating...</>
-                    ) : (
-                      <><i className="ri-calculator-line"></i>{t('employerDashboard.calculateMatching')}</>
-                    )}
-                  </button>
-                </div>
-                <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4 mb-4">
-                  <div className="flex items-start gap-3">
-                    <i className="ri-information-line text-amber-400 text-xl mt-0.5"></i>
-                    <div>
-                      <p className="text-amber-400 font-medium">{t('employerDashboard.matchingNotCalculated')}</p>
-                      <p className={`text-sm mt-1 ${isLightMode ? 'text-gray-500' : 'text-gray-400'}`}>{t('employerDashboard.matchingNotCalcDesc')}</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  {selectedJob.applicants.map(applicant => (
-                    <div key={applicant.id} className={`rounded-lg p-4 border transition-all ${isLightMode ? 'bg-gray-50 border-gray-200 hover:border-violet-400' : 'bg-white/5 border-white/10 hover:border-violet-500/50'}`}>
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0">
-                          <img src={applicant.avatar} alt={applicant.name} className="w-full h-full object-cover" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            {applicant.jobSeekerId ? (
-                              <Link
-                                to={`/profile/job-seeker/${encodeURIComponent(applicant.jobSeekerId)}`}
-                                className={`font-semibold truncate hover:underline ${isLightMode ? 'text-gray-900 hover:text-violet-600' : 'text-white hover:text-violet-300'}`}
-                                title={`Open ${applicant.name}'s profile`}
-                              >
-                                {applicant.name}
-                              </Link>
-                            ) : (
-                              <h5 className={`font-semibold truncate ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{applicant.name}</h5>
-                            )}
-                            <span className={`px-2 py-0.5 rounded text-xs font-medium border ${getApplicantStatusColor(applicant.status)}`}>{getApplicantStatusLabel(applicant.status)}</span>
-                          </div>
-                          <p className={`text-sm ${isLightMode ? 'text-gray-500' : 'text-gray-400'}`}>{applicant.title} • {applicant.experience}</p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <div className="text-right">
-                            <div className={`text-sm ${isLightMode ? 'text-gray-400' : 'text-gray-500'}`}>{t('employerDashboard.appliedDate')}</div>
-                            <div className={`text-sm ${isLightMode ? 'text-gray-600' : 'text-gray-400'}`}>{applicant.appliedDate}</div>
-                          </div>
-                          <button className="w-10 h-10 flex items-center justify-center rounded-lg bg-violet-500/20 text-violet-400 hover:bg-violet-500/30 transition-colors cursor-pointer"><i className="ri-eye-line"></i></button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
               </div>
-            )}
+            </div>
           </div>
         </div>
       )}

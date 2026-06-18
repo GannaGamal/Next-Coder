@@ -61,6 +61,9 @@ const ApplicantProfile = () => {
   const [cvSuccessMessage, setCvSuccessMessage] = useState('');
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
+  const [showCvPublicModal, setShowCvPublicModal] = useState(false);
+  const [cvPublicJobTitle, setCvPublicJobTitle] = useState('');
+  const [cvPublicJobTitleError, setCvPublicJobTitleError] = useState('');
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState('');
   const [profileSuccessMessage, setProfileSuccessMessage] = useState('');
@@ -362,35 +365,55 @@ const ApplicantProfile = () => {
     setCvSuccessMessage('');
 
     const isCurrentlyPublic = Boolean(cvInfo.isPublic);
-    let jobTitle: string | null | undefined = cvInfo.jobTitle ?? '';
 
     if (!isCurrentlyPublic) {
-      const promptValue = window.prompt('Enter the job title for this CV:', jobTitle ?? '');
-      if (!promptValue || !promptValue.trim()) {
-        setCvError('Job title is required to make the CV public.');
-        return;
-      }
-      jobTitle = promptValue.trim();
-    } else {
-      jobTitle = undefined;
+      // Open the modal — the actual API call happens in handleConfirmMakePublic
+      setCvPublicJobTitle(cvInfo.jobTitle ?? '');
+      setCvPublicJobTitleError('');
+      setShowCvPublicModal(true);
+      return;
     }
 
+    // Making private — no input needed, proceed directly
     setCvPrivacyUpdating(true);
 
     try {
-      const updatedCv = await toggleCvPrivacy(cvInfo.id, jobTitle);
-      const nextIsPublic = !isCurrentlyPublic;
+      const updatedCv = await toggleCvPrivacy(cvInfo.id, undefined);
       setCvInfo((prev) => {
-        if (!prev) {
-          return prev;
-        }
-        return updatedCv ?? {
-          ...prev,
-          isPublic: nextIsPublic,
-          jobTitle: nextIsPublic ? (jobTitle ?? prev.jobTitle ?? null) : prev.jobTitle ?? null,
-        };
+        if (!prev) return prev;
+        return updatedCv ?? { ...prev, isPublic: false };
       });
-      setCvSuccessMessage(nextIsPublic ? 'CV is now public.' : 'CV is now private.');
+      setCvSuccessMessage('CV is now private.');
+      window.dispatchEvent(new Event('public-cv-updated'));
+    } catch (err: unknown) {
+      setCvError(err instanceof Error ? err.message : 'We could not update CV privacy right now. Please try again.');
+    } finally {
+      setCvPrivacyUpdating(false);
+    }
+  };
+
+  const handleConfirmMakePublic = async () => {
+    const trimmedTitle = cvPublicJobTitle.trim();
+    if (!trimmedTitle) {
+      setCvPublicJobTitleError('Job title is required to make the CV public.');
+      return;
+    }
+
+    if (!cvInfo?.id) return;
+
+    setShowCvPublicModal(false);
+    setCvPublicJobTitleError('');
+    setCvPrivacyUpdating(true);
+    setCvError('');
+    setCvSuccessMessage('');
+
+    try {
+      const updatedCv = await toggleCvPrivacy(cvInfo.id, trimmedTitle);
+      setCvInfo((prev) => {
+        if (!prev) return prev;
+        return updatedCv ?? { ...prev, isPublic: true, jobTitle: trimmedTitle };
+      });
+      setCvSuccessMessage('CV is now public.');
       window.dispatchEvent(new Event('public-cv-updated'));
     } catch (err: unknown) {
       setCvError(err instanceof Error ? err.message : 'We could not update CV privacy right now. Please try again.');
@@ -709,6 +732,72 @@ const ApplicantProfile = () => {
         onSave={handleSaveContact}
         accentColor="pink"
       />
+
+      {/* Make CV Public Modal */}
+      {showCvPublicModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => { setShowCvPublicModal(false); setCvPublicJobTitleError(''); }}
+          />
+          <div className="relative bg-[#0f1629] border border-white/10 rounded-2xl p-6 sm:p-8 w-full max-w-md shadow-2xl">
+            <button
+              onClick={() => { setShowCvPublicModal(false); setCvPublicJobTitleError(''); }}
+              className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white transition-colors cursor-pointer"
+            >
+              <i className="ri-close-line text-xl"></i>
+            </button>
+
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-pink-500/20">
+                <i className="ri-eye-line text-xl text-pink-400"></i>
+              </div>
+              <h3 className="text-xl font-bold text-white">Make CV Public</h3>
+            </div>
+            <p className="text-sm text-gray-400 mb-6">
+              Please enter a job title for this CV. It will be visible to employers browsing public CVs.
+            </p>
+
+            {cvPublicJobTitleError && (
+              <div className="mb-4 p-3 rounded-lg text-sm border bg-red-500/10 border-red-500/30 text-red-300">
+                {cvPublicJobTitleError}
+              </div>
+            )}
+
+            <div className="mb-6">
+              <label className="block text-sm text-gray-400 mb-2">Job Title <span className="text-pink-400">*</span></label>
+              <input
+                type="text"
+                value={cvPublicJobTitle}
+                onChange={(e) => { setCvPublicJobTitle(e.target.value); if (cvPublicJobTitleError) setCvPublicJobTitleError(''); }}
+                onKeyDown={(e) => e.key === 'Enter' && void handleConfirmMakePublic()}
+                placeholder="e.g. Frontend Developer"
+                maxLength={100}
+                autoFocus
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-pink-500 transition-colors"
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setShowCvPublicModal(false); setCvPublicJobTitleError(''); }}
+                disabled={cvPrivacyUpdating}
+                className="flex-1 px-4 py-3 bg-white/5 text-white font-semibold rounded-lg hover:bg-white/10 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => void handleConfirmMakePublic()}
+                disabled={cvPrivacyUpdating}
+                className="flex-1 px-4 py-3 bg-pink-500 text-white font-semibold rounded-lg hover:bg-pink-600 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                <i className="ri-eye-line"></i>
+                Make Public
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

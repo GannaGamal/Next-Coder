@@ -397,22 +397,42 @@ export const getJobPostDetails = async (jobPostId: number): Promise<EmployerJobP
 
   const data = await response.json();
   const container = (data?.data ?? data?.result ?? data?.value ?? data) as Record<string, unknown>;
-  const rawApplicants: unknown[] = toArray(data)
-    .concat(toArray(container?.applicants))
-    .concat(toArray(container?.Applicants))
-    .concat(toArray(container?.jobApplications))
-    .concat(toArray(container?.JobApplications))
-    .concat(toArray(container?.applications))
-    .concat(toArray(container?.Applications))
-    .concat(toArray(container?.items))
-    .concat(toArray(container?.Items));
+  // Build the applicant list from whatever shape the API returns.
+  // We collect all candidate arrays, flatten, then deduplicate by id
+  // to prevent the same applicant appearing multiple times.
+  const candidateArrays: unknown[][] = [
+    toArray(container?.applicants),
+    toArray(container?.Applicants),
+    toArray(container?.jobApplications),
+    toArray(container?.JobApplications),
+    toArray(container?.applications),
+    toArray(container?.Applications),
+    toArray(container?.items),
+    toArray(container?.Items),
+  ];
+  // If none of the nested keys yielded results, fall back to treating the
+  // top-level response as a direct array.
+  const hasNested = candidateArrays.some((arr) => arr.length > 0);
+  const rawFlat: unknown[] = hasNested
+    ? candidateArrays.flat()
+    : toArray(data);
+
+  // Deduplicate by raw id so no applicant is mapped twice.
+  const seenIds = new Set<unknown>();
+  const rawApplicants: unknown[] = rawFlat.filter((item) => {
+    const raw = item as Record<string, unknown>;
+    const rawId = raw.id ?? raw.jobApplicationId ?? raw.applicationId ?? raw.Id ?? raw.JobApplicationId;
+    if (rawId === undefined || rawId === null || seenIds.has(rawId)) return false;
+    seenIds.add(rawId);
+    return true;
+  });
 
   const applicants: EmployerJobApplicantItem[] = rawApplicants
     .map((item: unknown) => {
       const raw = item as Record<string, unknown>;
       const id = Number(raw.id ?? raw.jobApplicationId ?? raw.applicationId ?? raw.Id ?? raw.JobApplicationId ?? 0);
         const jobSeekerId = Number(raw.jobSeekerId ?? raw.JobSeekerId ?? raw.seekerId ?? raw.SeekerId ?? raw.applicantId ?? raw.ApplicantId ?? 0);
-      const score = Number(raw.matchScore ?? raw.MatchScore);
+      const score = Number(raw.matchPercentage ?? raw.MatchPercentage ?? raw.matchScore ?? raw.MatchScore);
       const years = Number(raw.yearsOfExperience ?? raw.yearsofExperience ?? raw.YearsOfExperience ?? raw.YearsofExperience);
       const interviewAtRaw = raw.interviewScheduledAt ?? raw.InterviewScheduledAt;
       const interviewDateObj = interviewAtRaw ? new Date(String(interviewAtRaw)) : null;
@@ -423,7 +443,15 @@ export const getJobPostDetails = async (jobPostId: number): Promise<EmployerJobP
         id,
           jobSeekerId: Number.isFinite(jobSeekerId) && jobSeekerId > 0 ? jobSeekerId : undefined,
         name,
-        avatar: String(raw.avatar ?? raw.profileImageUrl ?? raw.imageUrl ?? raw.Avatar ?? raw.ProfileImageUrl ?? raw.ImageUrl ?? getDefaultAvatar(name)),
+        avatar: (() => {
+          const raw_url = String(
+            raw.profilePictureUrl ?? raw.ProfilePictureUrl ??
+            raw.avatar ?? raw.profileImageUrl ?? raw.imageUrl ??
+            raw.Avatar ?? raw.ProfileImageUrl ?? raw.ImageUrl ?? ''
+          );
+          // treat '/' or empty string as missing — fall back to generated avatar
+          return raw_url && raw_url !== '/' ? raw_url : getDefaultAvatar(name);
+        })(),
         title: String(raw.title ?? raw.seekerTitle ?? raw.jobTitle ?? raw.Title ?? raw.SeekerTitle ?? 'Job Seeker'),
         experience: Number.isFinite(years) ? `${years} years` : String(raw.experience ?? raw.Experience ?? 'Not specified'),
         matchScore: Number.isFinite(score) ? Math.max(0, Math.min(100, score)) : null,
