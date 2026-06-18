@@ -1179,8 +1179,12 @@ const FreelancerProfile = () => {
                 {portfolio.map((item) => (
                   <div key={item.id} className="bg-white/5 backdrop-blur-sm rounded-2xl overflow-hidden border border-white/10 hover:border-purple-500/50 transition-all">
                     {/* PDF Preview Area */}
-                    <div className="w-full h-40 sm:h-48 bg-gradient-to-br from-purple-500/10 to-pink-500/10 border-b border-white/10 flex flex-col items-center justify-center gap-3 relative">
-                      <div className="w-16 h-16 flex items-center justify-center rounded-2xl bg-purple-500/20 border border-purple-500/30">
+                    <div 
+                      className="w-full h-40 sm:h-48 bg-gradient-to-br from-purple-500/10 to-pink-500/10 border-b border-white/10 flex flex-col items-center justify-center gap-3 relative cursor-pointer hover:from-purple-500/20 hover:to-pink-500/20 transition-all group"
+                      onClick={() => item.pdfUrl && window.open(item.pdfUrl, '_blank', 'noopener,noreferrer')}
+                      title="Click to view portfolio"
+                    >
+                      <div className="w-16 h-16 flex items-center justify-center rounded-2xl bg-purple-500/20 border border-purple-500/30 group-hover:scale-110 transition-transform">
                         <i className="ri-file-pdf-line text-4xl text-purple-400"></i>
                       </div>
                       <div className="text-center px-4">
@@ -1189,17 +1193,27 @@ const FreelancerProfile = () => {
                           <p className="text-gray-500 text-xs mt-0.5">{item.pdfSize} MB</p>
                         )}
                       </div>
+                      <div className="absolute top-3 right-3 flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); item.pdfUrl && window.open(item.pdfUrl, '_blank', 'noopener,noreferrer'); }}
+                          className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 hover:bg-purple-500/30 border border-white/10 hover:border-purple-500/40 text-gray-300 hover:text-purple-300 transition-all cursor-pointer"
+                          title="View PDF"
+                        >
+                          <i className="ri-eye-line text-sm"></i>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); item.pdfUrl && window.open(item.pdfUrl, '_blank', 'noopener,noreferrer'); }}
+                          className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 hover:bg-purple-500/30 border border-white/10 hover:border-purple-500/40 text-gray-300 hover:text-purple-300 transition-all cursor-pointer"
+                          title="Download PDF"
+                        >
+                          <i className="ri-download-line text-sm"></i>
+                        </button>
+                      </div>
                       <button
                         type="button"
-                        onClick={() => item.pdfUrl && window.open(item.pdfUrl, '_blank', 'noopener,noreferrer')}
-                        className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 hover:bg-purple-500/30 border border-white/10 hover:border-purple-500/40 text-gray-300 hover:text-purple-300 transition-all cursor-pointer"
-                        title="Download PDF"
-                      >
-                        <i className="ri-download-line text-sm"></i>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeletePortfolio(item.id)}
+                        onClick={(e) => { e.stopPropagation(); handleDeletePortfolio(item.id); }}
                         disabled={deletingPortfolioId === item.id}
                         className="absolute top-3 left-3 w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 hover:bg-red-500/30 border border-white/10 hover:border-red-500/40 text-gray-300 hover:text-red-300 transition-all cursor-pointer disabled:opacity-60"
                         title="Delete Portfolio"
@@ -1220,7 +1234,13 @@ const FreelancerProfile = () => {
                         </span>
                         <span className="text-gray-400 text-xs sm:text-sm">{item.completedDate}</span>
                       </div>
-                      <h3 className="text-lg sm:text-xl font-bold text-white mb-2">{item.title}</h3>
+                      <h3 
+                        className="text-lg sm:text-xl font-bold text-white mb-2 cursor-pointer hover:text-purple-300 transition-colors"
+                        onClick={() => item.pdfUrl && window.open(item.pdfUrl, '_blank', 'noopener,noreferrer')}
+                        title="Click to view portfolio"
+                      >
+                        {item.title}
+                      </h3>
                       <p className="text-sm sm:text-base text-gray-400">{item.description}</p>
                     </div>
                   </div>
@@ -1411,29 +1431,40 @@ const FreelancerProfile = () => {
                   {documents.map((doc, index) => (
                     <div
                       key={doc.id}
-                      className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 p-4 sm:p-5 lg:p-6 ${index !== documents.length - 1 ? 'border-b border-white/10' : ''
+                      className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 p-4 sm:p-5 lg:p-6 hover:bg-white/5 transition-colors cursor-pointer group ${index !== documents.length - 1 ? 'border-b border-white/10' : ''
                         }`}
+                      onClick={() => doc.url && window.open(doc.url, '_blank', 'noopener,noreferrer')}
+                      title="Click to view document"
                     >
                       <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto">
-                        <div className="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-lg bg-purple-500/20 flex-shrink-0">
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-lg bg-purple-500/20 flex-shrink-0 group-hover:scale-110 transition-transform">
                           <i className="ri-file-text-line text-xl sm:text-2xl text-purple-400"></i>
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-sm sm:text-base text-white font-semibold truncate">{doc.name}</h3>
+                          <h3 className="text-sm sm:text-base text-white font-semibold truncate group-hover:text-purple-300 transition-colors">{doc.name}</h3>
                           <p className="text-xs sm:text-sm text-gray-400">Uploaded on {doc.uploadedAt}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
                         <button
-                          className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
-                          onClick={() => doc.url && window.open(doc.url, '_blank', 'noopener,noreferrer')}
+                          className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg bg-white/5 hover:bg-purple-500/30 transition-colors cursor-pointer text-white hover:text-purple-300"
+                          onClick={(e) => { e.stopPropagation(); doc.url && window.open(doc.url, '_blank', 'noopener,noreferrer'); }}
+                          title="View Document"
                         >
-                          <i className="ri-download-line text-lg sm:text-xl text-white"></i>
+                          <i className="ri-eye-line text-lg sm:text-xl"></i>
+                        </button>
+                        <button
+                          className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 transition-colors cursor-pointer text-white"
+                          onClick={(e) => { e.stopPropagation(); doc.url && window.open(doc.url, '_blank', 'noopener,noreferrer'); }}
+                          title="Download Document"
+                        >
+                          <i className="ri-download-line text-lg sm:text-xl"></i>
                         </button>
                         <button
                           className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg bg-white/5 hover:bg-red-500/20 transition-colors cursor-pointer"
-                          onClick={() => handleDeleteDocument(doc.id)}
+                          onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc.id); }}
                           disabled={deletingDocumentId === doc.id}
+                          title="Delete Document"
                         >
                           {deletingDocumentId === doc.id ? (
                             <i className="ri-loader-4-line animate-spin text-lg sm:text-xl text-white"></i>

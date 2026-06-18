@@ -18,10 +18,23 @@ export interface PortfolioCategoryOption {
 
 const getToken = () => localStorage.getItem('authToken') ?? '';
 
+const API_ORIGIN = API_BASE.replace(/\/api\/?$/i, '');
+
+const buildPortfolioUrl = (url: string | null | undefined): string => {
+  const normalized = String(url ?? '').trim();
+  if (!normalized) return '';
+  if (/^https?:\/\//i.test(normalized)) return normalized;
+
+  const slashNormalized = normalized.replace(/\\/g, '/').replace(/^\/+/, '');
+  if (!slashNormalized) return '';
+
+  return `${API_ORIGIN}/${slashNormalized}`;
+};
+
 const toPortfolioDto = (raw: Record<string, unknown>): FreelancerPortfolioDto | null => {
   const id = Number(raw.id ?? raw.Id);
   const title = String(raw.title ?? raw.Title ?? '').trim();
-  const portfolioUrl = String(raw.portfolioUrl ?? raw.PortfolioUrl ?? '').trim();
+  const portfolioUrlRaw = String(raw.portfolioUrl ?? raw.PortfolioUrl ?? '').trim();
   const categoryId = raw.categoryId ?? raw.CategoryId;
   const categoryName = String(raw.categoryName ?? raw.CategoryName ?? '').trim();
   const description = String(raw.description ?? raw.Description ?? '').trim();
@@ -34,7 +47,7 @@ const toPortfolioDto = (raw: Record<string, unknown>): FreelancerPortfolioDto | 
   return {
     id,
     title,
-    portfolioUrl,
+    portfolioUrl: buildPortfolioUrl(portfolioUrlRaw),
     categoryId: Number.isFinite(Number(categoryId)) ? Number(categoryId) : null,
     categoryName,
     description,
