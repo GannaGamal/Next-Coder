@@ -265,8 +265,8 @@ const FreelancerProfile = () => {
   };
 
   const handleAddPortfolio = async () => {
-    if (!newPortfolio.title.trim() || !newPortfolio.description.trim() || !newPortfolio.category || !newPortfolioPdf) {
-      setPortfolioActionError('Please complete the title, description, category, and file before submitting.');
+    if (!newPortfolio.title.trim() || !newPortfolio.category || !newPortfolioPdf) {
+      setPortfolioActionError('Please complete the title, category, and file before submitting.');
       return;
     }
 
@@ -1086,7 +1086,7 @@ const FreelancerProfile = () => {
                       }}
                       className="w-full bg-white/5 border border-white/10 rounded-lg px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 resize-none"
                       rows={3}
-                      placeholder="Portfolio Description"
+                      placeholder="Portfolio Description (Optional)"
                     />
                     <div className="space-y-2">
                       <CustomSelect

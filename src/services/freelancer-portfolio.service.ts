@@ -27,7 +27,7 @@ const toPortfolioDto = (raw: Record<string, unknown>): FreelancerPortfolioDto | 
   const description = String(raw.description ?? raw.Description ?? '').trim();
   const uploadedAt = String(raw.uploadedAt ?? raw.UploadedAt ?? '').trim();
 
-  if (!Number.isFinite(id) || !title || !portfolioUrl || !description || !uploadedAt) {
+  if (!Number.isFinite(id) || !title) {
     return null;
   }
 
@@ -92,7 +92,10 @@ export const addFreelancerPortfolio = async (payload: {
 
   const formData = new FormData();
   formData.append('title', String(payload.title ?? '').trim());
-  formData.append('description', String(payload.description ?? '').trim());
+  const desc = String(payload.description ?? '').trim();
+  if (desc) {
+    formData.append('description', desc);
+  }
   formData.append('category', String(payload.category ?? '').trim());
   formData.append('file', payload.file);
 
