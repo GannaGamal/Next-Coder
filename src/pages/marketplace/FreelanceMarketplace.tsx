@@ -4,6 +4,7 @@ import Navbar from '../../components/feature/Navbar';
 import Footer from '../../components/feature/Footer';
 
 import RoleGateModal from '../../components/feature/RoleGateModal';
+import ReportModal from '../../components/feature/ReportModal';
 import CustomSelect from '../../components/base/CustomSelect';
 import {
   createFreelanceProject,
@@ -52,6 +53,8 @@ const FreelanceMarketplace = () => {
   const { t } = useTranslation();
   useNavigate();
   const [showRoleGateModal, setShowRoleGateModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportTarget, setReportTarget] = useState<{ name: string; avatar: string; projectId: number }>({ name: '', avatar: '', projectId: 0 });
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [experienceFilter, setExperienceFilter] = useState('all');
@@ -105,6 +108,15 @@ const FreelanceMarketplace = () => {
       return;
     }
     setShowPostModal(true);
+  };
+
+  const handleOpenReport = (clientName: string, clientAvatar: string, projectId: number) => {
+    if (!isAuthenticated) {
+      setShowRoleGateModal(true);
+      return;
+    }
+    setReportTarget({ name: clientName, avatar: clientAvatar, projectId });
+    setShowReportModal(true);
   };
 
   const handleSubmitProject = async (e: React.FormEvent) => {
@@ -355,6 +367,15 @@ const FreelanceMarketplace = () => {
         roleLabel="Client"
         actionLabel={t('marketplace.postProject')}
         onRoleAdded={() => setShowPostModal(true)}
+      />
+
+      <ReportModal
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        targetName={reportTarget.name}
+        targetAvatar={reportTarget.avatar}
+        projectId={reportTarget.projectId}
+        reporterRole="freelancer"
       />
 
       <div className="pt-28 pb-20 px-4 sm:px-6 lg:px-8">
@@ -779,6 +800,7 @@ const FreelanceMarketplace = () => {
                       formatBudget={formatBudget}
                       isLightMode={isLightMode}
                       t={t}
+                      onReport={handleOpenReport}
                     />
                   ))}
                 </div>
@@ -852,16 +874,19 @@ interface ProjectCardProps {
   formatBudget: (budget: Project['budget']) => string;
   isLightMode: boolean;
   t: (key: string) => string;
+  onReport: (name: string, avatar: string, projectId: number) => void;
 }
 
-const ProjectCard = ({ project, selectedSkills, formatBudget, isLightMode, t }: ProjectCardProps) => (
+const ProjectCard = ({ project, selectedSkills, formatBudget, isLightMode, t, onReport }: ProjectCardProps) => (
   <div className={`backdrop-blur-sm rounded-xl border p-4 sm:p-5 transition-all group ${project.featured ? isLightMode ? 'bg-yellow-50 border-yellow-300 hover:border-yellow-400' : 'border-yellow-500/50 bg-gradient-to-r from-yellow-500/5 to-transparent' : isLightMode ? 'bg-white border-gray-200 hover:border-purple-400' : 'bg-white/5 border-white/10 hover:border-purple-500/50'}`}>
     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-4">
-      <div className="flex-shrink-0 mx-auto sm:mx-0 relative">
+      <div className="flex-shrink-0 mx-auto sm:mx-0 relative group/avatar">
         <Link to={`/user/${project.client.appUserId}`} className="block w-12 h-12 sm:w-16 sm:h-16 rounded-xl overflow-hidden hover:ring-2 hover:ring-purple-500 transition-all cursor-pointer">
           <img src={project.client.avatar} alt={project.client.name} className="w-full h-full object-cover" />
         </Link>
-
+        <button onClick={() => onReport(project.client.name, project.client.avatar, Number(project.id))} className={`absolute -top-1 -right-1 w-6 h-6 flex items-center justify-center border rounded-full text-gray-400 hover:text-red-400 hover:border-red-500/50 transition-all cursor-pointer opacity-0 group-hover/avatar:opacity-100 ${isLightMode ? 'bg-white border-gray-200' : 'bg-[#1a1f37] border-white/10'}`} title={t('common.report') ?? 'Report'}>
+          <i className="ri-flag-line text-xs"></i>
+        </button>
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-4 mb-2">

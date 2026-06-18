@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import Navbar from '../../components/feature/Navbar';
 import Footer from '../../components/feature/Footer';
 import RoleGateModal from '../../components/feature/RoleGateModal';
-import ReportModal from '../../components/feature/ReportModal';
 import CustomSelect from '../../components/base/CustomSelect';
 import CompanySelect from '../../components/base/CompanySelect';
 import { useAuth } from '../../contexts/AuthContext';
@@ -87,7 +86,6 @@ const JobOffers = () => {
   const { isLightMode } = useTheme();
   const { t } = useTranslation();
   const [showRoleGateModal, setShowRoleGateModal] = useState(false);
-  const [showReportModal, setShowReportModal] = useState(false);
   const [showPostJobModal, setShowPostJobModal] = useState(false);
   const [selectedEmployer, setSelectedEmployer] = useState<{ name: string; logo: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -363,11 +361,6 @@ const JobOffers = () => {
     setShowPostJobModal(true);
   };
 
-  const handleOpenReport = (companyName: string, companyLogo: string) => {
-    setSelectedEmployer({ name: companyName, logo: companyLogo });
-    setShowReportModal(true);
-  };
-
   const filteredJobs = jobs.filter(job => {
     const normalizedSearch = searchQuery.trim().toLowerCase();
     const matchesSearch = job.title.toLowerCase().includes(normalizedSearch) ||
@@ -454,17 +447,6 @@ const JobOffers = () => {
         actionLabel={t('jobs.postJob')}
         onRoleAdded={() => setShowPostJobModal(true)}
       />
-
-      {/* Report Modal */}
-      {selectedEmployer && (
-        <ReportModal
-          isOpen={showReportModal}
-          onClose={() => { setShowReportModal(false); setSelectedEmployer(null); }}
-          targetName={selectedEmployer.name}
-          targetAvatar={selectedEmployer.logo}
-          reporterRole="freelancer"
-        />
-      )}
 
       {/* ── Post Job Modal ── */}
       {showPostJobModal && (
@@ -805,9 +787,6 @@ const JobOffers = () => {
                                 }}
                               />
                             </div>
-                            <button onClick={() => handleOpenReport(job.company, job.companyLogo)} className={`absolute -top-1 -right-1 w-6 h-6 flex items-center justify-center border rounded-full text-gray-400 hover:text-red-400 hover:border-red-500/50 transition-all cursor-pointer opacity-0 group-hover:opacity-100 ${isLightMode ? 'bg-white border-gray-200' : 'bg-[#1a1f37] border-white/10'}`} title={t('common.report')}>
-                              <i className="ri-flag-line text-xs"></i>
-                            </button>
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
@@ -871,9 +850,6 @@ const JobOffers = () => {
                             }}
                           />
                         </div>
-                        <button onClick={() => handleOpenReport(job.company, job.companyLogo)} className={`absolute -top-1 -right-1 w-6 h-6 flex items-center justify-center border rounded-full text-gray-400 hover:text-red-400 hover:border-red-500/50 transition-all cursor-pointer opacity-0 group-hover:opacity-100 ${isLightMode ? 'bg-white border-gray-200' : 'bg-[#1a1f37] border-white/10'}`} title={t('common.report')}>
-                          <i className="ri-flag-line text-xs"></i>
-                        </button>
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
