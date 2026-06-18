@@ -212,11 +212,6 @@ export const createJobPost = async (payload: CreateJobPostPayload): Promise<void
 };
 
 export const getJobPosts = async (params: GetJobPostsParams = {}): Promise<GetJobPostsResult> => {
-  const token = localStorage.getItem('authToken') ?? '';
-  if (!token) {
-    throw new Error('You must be signed in to view job posts.');
-  }
-
   const query = new URLSearchParams();
   if (params.Title) query.set('Title', params.Title);
   if (params.Location) query.set('Location', params.Location);
@@ -384,11 +379,6 @@ export const deleteJobPost = async (id: number): Promise<void> => {
 };
 
 export const getJobPostDetails = async (jobPostId: number): Promise<EmployerJobPostDetailsResult> => {
-  const token = localStorage.getItem('authToken') ?? '';
-  if (!token) {
-    throw new Error('You must be signed in to view job post details.');
-  }
-
   const response = await fetchWithNetworkError(`${API_BASE}/JobPost/${jobPostId}/jobPostDetails`, {
     method: 'GET',
     headers: {
