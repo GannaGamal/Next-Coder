@@ -347,7 +347,7 @@ const Portfolios = () => {
         </p>
 
         <div className="flex flex-wrap gap-1.5 mb-4">
-          {portfolio.skills.slice(0, 4).map((skill) => (
+          {portfolio.skills.map((skill) => (
             <span
               key={skill}
               className={`px-2 py-0.5 rounded text-xs ${isLightMode ? 'bg-gray-100 border border-gray-200 text-gray-600' : 'bg-white/5 border border-white/10 text-gray-300'}`}
