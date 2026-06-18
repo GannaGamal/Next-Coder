@@ -1,24 +1,26 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import Navbar from "../../components/feature/Navbar";
 import Footer from "../../components/feature/Footer";
-import ReportModal from "../../components/feature/ReportModal";
 import { useTheme } from "../../contexts/ThemeContext";
 import { useTranslation } from "react-i18next";
-import {
-  downloadCvById,
-  getAllPublicCvs,
-  viewCvById,
-  type PublicCvInfo,
-} from "../../services/public-cv.service";
+import { getAllPublicCvs, viewCvById, downloadCvById, type PublicCvInfo } from "../../services/public-cv.service";
+
+// Static asset host — anything returned by the API as a relative path
+// (cvUrl, userImage, etc.) needs this prefix to become a usable URL.
+const ASSET_BASE_URL = "https://nextcoder.runasp.net/";
 
 interface CV {
   id: string;
   jobSeekerId: string;
-  fileName: string;
+  appUserId: string;
+  userImage: string;
   name: string;
-  avatar: string;
+  cvUrl: string;
+  fileUrl: string;
+  fileName: string;
   title?: string;
+  uploadedAt?: string;
 }
 
 const getDisplayValue = (
@@ -29,24 +31,55 @@ const getDisplayValue = (
   return normalized.length > 0 ? normalized : fallback;
 };
 
+const buildAssetUrl = (path: string | null | undefined) => {
+  const value = String(path ?? "").trim();
+  if (!value) return "";
+  if (/^https?:\/\//i.test(value)) return value;
+  return `${ASSET_BASE_URL}${value.startsWith("/") ? value.slice(1) : value}`;
+};
+
+const formatUploadedDate = (value: string | null | undefined) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+};
+
 const mapPublicCvToCard = (cv: PublicCvInfo, index: number): CV => {
-  const raw = cv as unknown as Record<string, unknown>;
+  // Extract name from various possible field names in the API response
   const name = getDisplayValue(
-    (raw.fullName as string | undefined) ?? (raw.name as string | undefined),
+    cv.jobSeekrName ??
+    cv.jobSeekerName ??
+    cv.fullName ??
+    (cv as any)?.name,
     "Job Seeker",
   );
+
   const title = String(cv.jobTitle ?? "").trim();
-  const avatar = getDisplayValue(
-    raw.avatar as string | undefined,
-    `https://readdy.ai/api/search-image?query=professional%20job%20seeker%20portrait%20neutral%20background%20headshot%20modern%20style&width=200&height=200&seq=publiccv${index + 1}&orientation=squarish`,
-  );
+  const appUserId = String(cv.appUserId ?? "").trim();
+
+  // Use userImage from API, fallback to generated avatar
+  const userImage = cv.userImage
+    ? buildAssetUrl(cv.userImage)
+    : `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=7c3aed&color=fff&size=128`;
+
+  // Use fileUrl from service (it's already built with full URL)
+  const fileUrl = cv.fileUrl || "";
 
   return {
-    id: cv.id || `public-cv-${index}`,
-    jobSeekerId: cv.jobSeekerId || "",
-    fileName: getDisplayValue(cv.fileName, "CV.pdf"),
+    id: String(cv.id ?? `public-cv-${index}`),
+    jobSeekerId: String(cv.jobSeekerId ?? ""),
+    appUserId,
+    cvUrl: getDisplayValue(cv.fileName, "CV.pdf"),
+    fileUrl,
     name,
-    avatar,
+    userImage,
+    fileName: String(cv.fileName ?? "CV.pdf"),
+    uploadedAt: formatUploadedDate(cv.uploadedAt),
     ...(title ? { title } : {}),
   };
 };
@@ -54,12 +87,6 @@ const mapPublicCvToCard = (cv: PublicCvInfo, index: number): CV => {
 const PublicCVs = () => {
   const { isLightMode } = useTheme();
   const { t } = useTranslation();
-  const navigate = useNavigate();
-  const [showReportModal, setShowReportModal] = useState(false);
-  const [selectedApplicant, setSelectedApplicant] = useState<{
-    name: string;
-    avatar: string;
-  } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [publicCvs, setPublicCvs] = useState<PublicCvInfo[]>([]);
   const [cvLoading, setCvLoading] = useState(false);
@@ -102,43 +129,22 @@ const PublicCVs = () => {
 
   const cvs = useMemo(() => publicCvs.map(mapPublicCvToCard), [publicCvs]);
 
-  const handleOpenReport = (name: string, avatar: string) => {
-    setSelectedApplicant({ name, avatar });
-    setShowReportModal(true);
-  };
-
   const handleViewCv = async (cvId: string) => {
-    setCvError("");
+    if (!cvId) return;
     try {
       await viewCvById(cvId);
-    } catch (err: unknown) {
-      setCvError(
-        err instanceof Error
-          ? err.message
-          : "We could not open this CV right now.",
-      );
+    } catch (err) {
+      setCvError(err instanceof Error ? err.message : "Failed to view CV");
     }
   };
 
   const handleDownloadCv = async (cvId: string, fileName: string) => {
-    setCvError("");
+    if (!cvId) return;
     try {
       await downloadCvById(cvId, fileName);
-    } catch (err: unknown) {
-      setCvError(
-        err instanceof Error
-          ? err.message
-          : "We could not download this CV right now.",
-      );
+    } catch (err) {
+      setCvError(err instanceof Error ? err.message : "Failed to download CV");
     }
-  };
-
-  const handleViewProfile = (jobSeekerId: string) => {
-    if (!jobSeekerId) {
-      return;
-    }
-
-    navigate(`/profile/job-seeker/${jobSeekerId}`);
   };
 
   return (
@@ -190,99 +196,14 @@ const PublicCVs = () => {
           {/* CV List */}
           <div className="space-y-4">
             {cvs.map((cv) => (
-              <div
+              <PublicCvCard
                 key={cv.id}
-                className={`backdrop-blur-sm rounded-xl border p-4 sm:p-5 transition-all group ${isLightMode ? "bg-white border-gray-200 hover:border-purple-400" : "bg-white/5 border-white/10 hover:border-purple-500/50"}`}
-              >
-                <div className="mb-3 pb-3 border-b border-white/10">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-purple-500/20">
-                        <i className="ri-file-text-line text-purple-400 text-sm"></i>
-                      </div>
-                      <div>
-                        <p
-                          className={`text-sm font-medium ${isLightMode ? "text-gray-900" : "text-white"}`}
-                        >
-                          {cv.fileName}
-                        </p>
-                        {/* <p className={`text-xs ${isLightMode ? 'text-gray-500' : 'text-gray-400'}`}></p> */}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-4 sm:gap-5">
-                  {/* Avatar */}
-
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    {/* Title + Actions in same row */}
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
-                      {/* Title */}
-                      <div className="text-center sm:text-left">
-                        {cv.title && (
-                          <button
-                            type="button"
-                            onClick={() => handleViewCv(cv.id)}
-                            className="cursor-pointer hover:underline"
-                          >
-                            <h3
-                              className={`text-base sm:text-lg font-bold transition-colors ${
-                                isLightMode
-                                  ? "text-gray-900 hover:text-purple-500"
-                                  : "text-white hover:text-purple-400"
-                              }`}
-                            >
-                              {cv.title}
-                            </h3>
-                          </button>
-                        )}
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex items-center gap-2 sm:gap-3">
-                        <button
-                          type="button"
-                          onClick={() => handleViewCv(cv.id)}
-                          className="px-4 py-2 bg-purple-500 text-white text-sm font-semibold rounded-lg hover:bg-purple-600 transition-colors whitespace-nowrap"
-                        >
-                          {t("cvs.viewCV")}
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleDownloadCv(cv.id, cv.fileName)}
-                          className={`px-4 py-2 border text-sm font-semibold rounded-lg transition-colors whitespace-nowrap ${
-                            isLightMode
-                              ? "bg-white border-gray-200 text-gray-700 hover:bg-gray-100"
-                              : "bg-white/5 border-white/10 text-white hover:bg-white/10"
-                          }`}
-                        >
-                          {t("download CV")}
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleViewProfile(cv.jobSeekerId)}
-                          disabled={!cv.jobSeekerId}
-                          className={`px-4 py-2 border text-sm font-semibold rounded-lg transition-colors whitespace-nowrap ${
-                            cv.jobSeekerId
-                              ? isLightMode
-                                ? "border-purple-200 text-purple-600 hover:bg-purple-50"
-                                : "border-purple-500/40 text-purple-200 hover:bg-purple-500/10"
-                              : isLightMode
-                                ? "border-gray-200 text-gray-300 cursor-not-allowed"
-                                : "border-white/10 text-gray-500 cursor-not-allowed"
-                          }`}
-                        >
-                          View Profile
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+                cv={cv}
+                isLightMode={isLightMode}
+                t={t}
+                onView={handleViewCv}
+                onDownload={handleDownloadCv}
+              />
             ))}
           </div>
 
@@ -313,19 +234,116 @@ const PublicCVs = () => {
         </div>
       </div>
       <Footer />
-      {/* Report Modal */}
-      {selectedApplicant && (
-        <ReportModal
-          isOpen={showReportModal}
-          onClose={() => {
-            setShowReportModal(false);
-            setSelectedApplicant(null);
-          }}
-          targetName={selectedApplicant.name}
-          targetAvatar={selectedApplicant.avatar}
-          reporterRole="client"
-        />
-      )}
+    </div>
+  );
+};
+
+interface PublicCvCardProps {
+  cv: CV;
+  isLightMode: boolean;
+  t: (key: string) => string;
+  onView: (cvId: string) => void;
+  onDownload: (cvId: string, fileName: string) => void;
+}
+
+const PublicCvCard = ({ cv, isLightMode, t, onView, onDownload }: PublicCvCardProps) => {
+  const profileHref = cv.appUserId ? `/user/${cv.appUserId}` : undefined;
+  const hasValidCv = Boolean(cv.fileUrl);
+
+  return (
+    <div
+      className={`backdrop-blur-sm rounded-xl border p-4 sm:p-5 transition-all group ${isLightMode ? "bg-white border-gray-200 hover:border-purple-400" : "bg-white/5 border-white/10 hover:border-purple-500/50"}`}
+    >
+      <div className="flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-4">
+        {/* Avatar */}
+        <div className="flex-shrink-0 mx-auto sm:mx-0">
+          {profileHref ? (
+            <Link
+              to={profileHref}
+              className="block w-12 h-12 sm:w-16 sm:h-16 rounded-xl overflow-hidden hover:ring-2 hover:ring-purple-500 transition-all cursor-pointer"
+            >
+              <img
+                src={cv.userImage}
+                alt={cv.name}
+                className="w-full h-full object-cover"
+              />
+            </Link>
+          ) : (
+            <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl overflow-hidden">
+              <img
+                src={cv.userImage}
+                alt={cv.name}
+                className="w-full h-full object-cover"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-4 mb-2">
+            <div className="flex-1 text-center sm:text-left">
+              {profileHref ? (
+                <Link to={profileHref} className="hover:underline">
+                  <h3
+                    className={`text-base sm:text-lg font-bold transition-colors ${isLightMode ? "text-gray-900 hover:text-purple-500" : "text-white hover:text-purple-400"}`}
+                  >
+                    {cv.name}
+                  </h3>
+                </Link>
+              ) : (
+                <h3
+                  className={`text-base sm:text-lg font-bold ${isLightMode ? "text-gray-900" : "text-white"}`}
+                >
+                  {cv.name}
+                </h3>
+              )}
+              {cv.title && (
+                <p
+                  className={`text-xs sm:text-sm mt-0.5 ${isLightMode ? "text-purple-600" : "text-purple-400"}`}
+                >
+                  {cv.title}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div
+            className={`flex flex-wrap items-center justify-center sm:justify-start gap-2 sm:gap-3 text-xs sm:text-sm mb-4 ${isLightMode ? "text-gray-500" : "text-gray-400"}`}
+          >
+            <span className="flex items-center gap-1">
+              <i className="ri-file-text-line"></i>
+              {cv.fileName}
+            </span>
+            {cv.uploadedAt && (
+              <span className="flex items-center gap-1">
+                <i className="ri-calendar-line"></i>
+                {cv.uploadedAt}
+              </span>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={() => onView(cv.id)}
+              disabled={!hasValidCv}
+              className={`px-4 py-2 bg-purple-500 text-white text-sm font-semibold rounded-lg hover:bg-purple-600 transition-colors whitespace-nowrap ${!hasValidCv ? "opacity-50 cursor-not-allowed" : ""}`}
+            >
+              {t("cvs.viewCV")}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onDownload(cv.id, cv.fileName)}
+              disabled={!hasValidCv}
+              className={`px-4 py-2 border text-sm font-semibold rounded-lg transition-colors whitespace-nowrap ${!hasValidCv ? "opacity-50 cursor-not-allowed" : ""} ${isLightMode ? "bg-white border-gray-200 text-gray-700 hover:bg-gray-100" : "bg-white/5 border-white/10 text-white hover:bg-white/10"}`}
+            >
+              Download CV
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

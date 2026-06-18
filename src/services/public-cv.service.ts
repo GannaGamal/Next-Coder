@@ -7,9 +7,16 @@ export interface PublicCvInfo {
   fileName: string;
   filePath: string | null;
   fileUrl: string | null;
+  cvUrl?: string | null;
+  contentType?: string | null;
+  userImage?: string | null;
   uploadedAt: string | null;
   isPublic?: boolean;
   jobTitle?: string | null;
+  appUserId?: string | null;
+  jobSeekrName?: string | null;
+  jobSeekerName?: string | null;
+  fullName?: string | null;
 }
 
 interface StoredUserAuth {
@@ -118,6 +125,9 @@ const parsePublicCvInfo = (raw: Record<string, unknown>): PublicCvInfo | null =>
 
   const uploadedAtRaw = toNonEmptyString(raw.uploadedAt ?? raw.UploadedAt ?? raw.createdAt ?? raw.CreatedAt);
   const jobTitle = toNonEmptyString(raw.jobTitle ?? raw.JobTitle ?? raw.title ?? raw.Title);
+  const jobSeekrName = toNonEmptyString(raw.jobSeekrName ?? raw.JobSeekrName ?? raw.jobSeekerName ?? raw.JobSeekerName ?? raw.fullName ?? raw.FullName ?? raw.name ?? raw.Name);
+  const appUserId = toNonEmptyString(raw.appUserId ?? raw.AppUserId);
+  const userImage = toNonEmptyString(raw.userImage ?? raw.UserImage);
   const isPublicRaw = raw.isPublic ?? raw.IsPublic;
   const isPublic = typeof isPublicRaw === 'boolean' ? isPublicRaw : undefined;
 
@@ -127,9 +137,13 @@ const parsePublicCvInfo = (raw: Record<string, unknown>): PublicCvInfo | null =>
     fileName: String(raw.fileName ?? raw.FileName ?? raw.name ?? raw.Name ?? 'CV.pdf').trim(),
     filePath,
     fileUrl: buildPublicCvFileUrl(filePath),
+    cvUrl: filePath,
     uploadedAt: uploadedAtRaw,
     jobTitle,
     isPublic,
+    appUserId,
+    userImage,
+    jobSeekrName,
   };
 };
 
@@ -335,6 +349,76 @@ export const replaceCurrentUserCv = async (
   if (!response.ok) {
     throw new Error(await parseApiError(response));
   }
+};
+
+export const viewCvPublic = async (cvId: string | null | undefined): Promise<void> => {
+  const normalizedId = String(cvId ?? '').trim();
+  if (!normalizedId) {
+    throw new Error('Invalid CV ID.');
+  }
+
+  const token = getToken();
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}/PublicCv/view/${encodeURIComponent(normalizedId)}`, {
+      method: 'GET',
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+  } catch {
+    throw new Error('We could not access the CV file right now. Please check your connection and try again.');
+  }
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+
+  const fileBlob = await response.blob();
+  const objectUrl = URL.createObjectURL(fileBlob);
+  window.open(objectUrl, '_blank', 'noopener,noreferrer');
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+};
+
+export const downloadCvPublic = async (
+  cvId: string | null | undefined,
+  suggestedFileName: string | null | undefined
+): Promise<void> => {
+  const normalizedId = String(cvId ?? '').trim();
+  if (!normalizedId) {
+    throw new Error('Invalid CV ID.');
+  }
+
+  const token = getToken();
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}/PublicCv/download/${encodeURIComponent(normalizedId)}`, {
+      method: 'GET',
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+  } catch {
+    throw new Error('We could not access the CV file right now. Please check your connection and try again.');
+  }
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+
+  const fileBlob = await response.blob();
+  const fallbackName = String(suggestedFileName ?? '').trim() || 'cv.pdf';
+  const contentDisposition = response.headers.get('content-disposition');
+  const filename = extractFilenameFromDisposition(contentDisposition, fallbackName);
+  const objectUrl = URL.createObjectURL(fileBlob);
+
+  const link = document.createElement('a');
+  link.href = objectUrl;
+  link.download = filename;
+  link.rel = 'noopener noreferrer';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  URL.revokeObjectURL(objectUrl);
 };
 
 const getAuthorizedCvResponse = async (endpoint: string): Promise<Response> => {
