@@ -1146,12 +1146,12 @@ const ComplaintsManagement = () => {
                                 <p className="text-white/50 text-xs">Warnings</p>
                               </div>
                               <div className="bg-white/5 rounded-lg p-3 text-center">
-                                <p className="text-xs font-bold text-white">
+                                <p className="text-white/50 text-xs">Joined</p>
+                                <p className="text-xs font-bold text-white mt-0.5">
                                   {investigationData.complainant?.joinedAt
                                     ? new Date(investigationData.complainant.joinedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short' })
                                     : '—'}
                                 </p>
-                                <p className="text-white/50 text-xs">Joined</p>
                               </div>
                             </div>
                           </div>
@@ -1192,12 +1192,12 @@ const ComplaintsManagement = () => {
                                 <p className="text-white/50 text-xs">Warnings</p>
                               </div>
                               <div className="bg-white/5 rounded-lg p-3 text-center">
-                                <p className="text-xs font-bold text-white">
+                                <p className="text-white/50 text-xs">Joined</p>
+                                <p className="text-xs font-bold text-white mt-0.5">
                                   {investigationData.reportedUser?.joinedAt
                                     ? new Date(investigationData.reportedUser.joinedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short' })
                                     : '—'}
                                 </p>
-                                <p className="text-white/50 text-xs">Joined</p>
                               </div>
                             </div>
                           </div>
