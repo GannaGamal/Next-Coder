@@ -96,6 +96,7 @@ export interface EmployerJobApplicantItem {
 }
 
 export interface EmployerJobPostDetailsResult {
+  jobStatus?: string;
   applicants: EmployerJobApplicantItem[];
   counts: {
     all: number;
@@ -490,6 +491,7 @@ export const getJobPostDetails = async (jobPostId: number): Promise<EmployerJobP
   };
 
   return {
+    jobStatus: container?.jobStatus ? String(container.jobStatus) : (data?.jobStatus ? String(data.jobStatus) : undefined),
     applicants,
     counts: {
       all: Number.isFinite(countAllRaw) ? countAllRaw : computed.all,

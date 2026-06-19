@@ -346,7 +346,7 @@ const EmployerDashboard = () => {
 
   const openJobDetails = async (job: Job) => {
     setApplicantFilter('all');
-    setShowMatchScores(false);
+    setShowMatchScores(job.status === 'closed');
     setSelectedJob(job);
     setJobDetailsError('');
     setIsLoadingJobDetails(true);
@@ -371,6 +371,11 @@ const EmployerDashboard = () => {
       }));
 
       const nextApplicantsCount = details.counts.all;
+      const updatedStatus = details.jobStatus ? mapStatusToUi(details.jobStatus) : job.status;
+
+      if (updatedStatus === 'closed') {
+        setShowMatchScores(true);
+      }
 
       setJobs((prev) => prev.map((item) => (
         item.id === job.id
@@ -378,6 +383,7 @@ const EmployerDashboard = () => {
             ...item,
             applicants: mappedApplicants,
             applicantsCount: nextApplicantsCount,
+            status: updatedStatus,
           }
           : item
       )));
@@ -388,6 +394,7 @@ const EmployerDashboard = () => {
           ...prev,
           applicants: mappedApplicants,
           applicantsCount: nextApplicantsCount,
+          status: updatedStatus,
         };
       });
 
@@ -579,13 +586,15 @@ const EmployerDashboard = () => {
                   <h4 className={`text-lg font-semibold flex items-center gap-2 ${isLightMode ? 'text-gray-900' : 'text-white'}`}>
                     <i className="ri-bar-chart-grouped-line text-violet-400"></i>{t('employerDashboard.matchingScores')}
                   </h4>
-                  <button
-                    onClick={() => { handleCalculateMatching(); }}
-                    disabled={showMatchScores}
-                    className="px-4 py-2 bg-violet-500 text-white text-sm font-semibold rounded-lg hover:bg-violet-600 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                  >
-                    <><i className="ri-calculator-line"></i>{t('employerDashboard.calculateMatching')}</>
-                  </button>
+                  {selectedJob.status !== 'closed' && (
+                    <button
+                      onClick={() => { handleCalculateMatching(); }}
+                      disabled={showMatchScores}
+                      className="px-4 py-2 bg-violet-500 text-white text-sm font-semibold rounded-lg hover:bg-violet-600 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      <><i className="ri-calculator-line"></i>{t('employerDashboard.calculateMatching')}</>
+                    </button>
+                  )}
                 </div>
 
                 {/* Row 2: Status Filters */}
