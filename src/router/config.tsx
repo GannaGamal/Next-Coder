@@ -15,7 +15,7 @@ const EmployerProfile = lazy(() => import("../pages/profile/EmployerProfile"));
 const ApplicantProfile = lazy(() => import("../pages/profile/ApplicantProfile"));
 const LearnerProfile = lazy(() => import("../pages/profile/LearnerProfile"));
 const PublicCVs = lazy(() => import("../pages/cvs/PublicCVs"));
-const CVDetail = lazy(() => import("../pages/cvs/CVDetail"));
+
 const Portfolios = lazy(() => import("../pages/portfolios/Portfolios"));
 const JobOffers = lazy(() => import("../pages/jobs/JobOffers"));
 const JobApplication = lazy(() => import("../pages/jobs/JobApplication"));
@@ -96,10 +96,7 @@ const routes: RouteObject[] = [
     path: "/cvs",
     element: <PublicCVs />,
   },
-  {
-    path: "/cv/:cvId",
-    element: <CVDetail />,
-  },
+
   {
     path: "/portfolios",
     element: <Portfolios />,
