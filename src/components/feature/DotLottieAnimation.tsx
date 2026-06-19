@@ -1,6 +1,5 @@
-// src/components/common/DotLottieAnimation.tsx
-import { useEffect, useRef } from "react";
-import { DotLottie } from "@lottiefiles/dotlottie-web";
+// src/components/feature/DotLottieAnimation.tsx
+import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 
 interface DotLottieAnimationProps {
   src: string;
@@ -15,24 +14,14 @@ const DotLottieAnimation = ({
   loop = true,
   autoplay = true,
 }: DotLottieAnimationProps) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    if (!canvasRef.current) return;
-
-    const dotLottie = new DotLottie({
-      autoplay,
-      loop,
-      canvas: canvasRef.current,
-      src,
-    });
-
-    return () => {
-      dotLottie.destroy();
-    };
-  }, [src, loop, autoplay]);
-
-  return <canvas ref={canvasRef} className={className} />;
+  return (
+    <DotLottieReact
+      src={src}
+      loop={loop}
+      autoplay={autoplay}
+      className={className}
+    />
+  );
 };
 
 export default DotLottieAnimation;
