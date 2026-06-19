@@ -12,11 +12,11 @@ const Footer = () => {
           <div>
             <div className="flex items-center space-x-3 mb-6">
               <div className="w-10 h-10 flex items-center justify-center rounded-lg">
-                  <img
-                    src={rocketImage}
-                    alt="rocket"
-                    className="w-7 h-7 object-contain"
-                  />
+                <img
+                  src={rocketImage}
+                  alt="rocket"
+                  className="w-7 h-7 object-contain"
+                />
               </div>
               <span className="text-2xl font-bold">Next Coder</span>
             </div>

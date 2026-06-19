@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../../contexts/ThemeContext';
 import {
   getJobApplicationDashboard,
   type JobApplicationDashboardItem,
   withdrawJobApplication,
+  formatSalary,
 } from '../../../services/job-application.service';
 
 type AppliedJob = JobApplicationDashboardItem;
@@ -21,8 +22,19 @@ const ApplicantDashboard = () => {
   const { t } = useTranslation();
 
   const [appliedJobs, setAppliedJobs] = useState<AppliedJob[]>([]);
+  const [dashboardStats, setDashboardStats] = useState({
+    total: 0,
+    underReview: 0,
+    interviews: 0,
+    accepted: 0,
+    rejected: 0,
+  });
+  const hasFetched = useRef(false);
 
   useEffect(() => {
+    if (hasFetched.current) return;
+    hasFetched.current = true;
+
     const loadApplications = async () => {
       setIsLoadingApplications(true);
       setApplicationsError('');
@@ -30,6 +42,13 @@ const ApplicantDashboard = () => {
       try {
         const dashboard = await getJobApplicationDashboard();
         setAppliedJobs(dashboard.items);
+        setDashboardStats({
+          total: dashboard.totalAppliedCount || dashboard.items.length,
+          underReview: dashboard.underReviewCount || dashboard.items.filter(j => j.status === 'Under Review').length,
+          interviews: dashboard.interviewsCount || dashboard.items.filter(j => j.status === 'Interview Scheduled').length,
+          rejected: dashboard.rejectedCount || dashboard.items.filter(j => j.status === 'Rejected').length,
+          accepted: dashboard.items.filter(j => j.status === 'Accepted').length,
+        });
       } catch (err: unknown) {
         setAppliedJobs([]);
         setApplicationsError(err instanceof Error ? err.message : 'We could not load your applications right now. Please try again.');
@@ -41,13 +60,7 @@ const ApplicantDashboard = () => {
     loadApplications();
   }, []);
 
-  const stats = {
-    total: appliedJobs.length,
-    underReview: appliedJobs.filter(j => j.status === 'Under Review').length,
-    interviews: appliedJobs.filter(j => j.status === 'Interview Scheduled').length,
-    accepted: appliedJobs.filter(j => j.status === 'Accepted').length,
-    rejected: appliedJobs.filter(j => j.status === 'Rejected').length,
-  };
+  const stats = dashboardStats;
 
   const filteredJobs = statusFilter === 'all'
     ? appliedJobs
@@ -85,10 +98,18 @@ const ApplicantDashboard = () => {
     setWithdrawingApplicationId(job.id);
 
     try {
-      await withdrawJobApplication(job.id);
-      setAppliedJobs(prev => prev.filter(j => j.id !== job.id));
+      await withdrawJobApplication(job.applicationId);
+      setAppliedJobs(prev => prev.filter(j => j.applicationId !== job.applicationId));
+      setDashboardStats(prev => ({
+        ...prev,
+        total: Math.max(0, prev.total - 1),
+        underReview: job.status === 'Under Review' ? Math.max(0, prev.underReview - 1) : prev.underReview,
+        interviews: job.status === 'Interview Scheduled' ? Math.max(0, prev.interviews - 1) : prev.interviews,
+        rejected: job.status === 'Rejected' ? Math.max(0, prev.rejected - 1) : prev.rejected,
+        accepted: job.status === 'Accepted' ? Math.max(0, prev.accepted - 1) : prev.accepted,
+      }));
       setShowWithdrawConfirm(null);
-      if (selectedJob?.id === job.id) setSelectedJob(null);
+      if (selectedJob?.applicationId === job.applicationId) setSelectedJob(null);
     } catch (err: unknown) {
       setWithdrawError(err instanceof Error ? err.message : 'We could not withdraw this application right now. Please try again.');
     } finally {
@@ -169,9 +190,8 @@ const ApplicantDashboard = () => {
               <button
                 key={btn.value}
                 onClick={() => setStatusFilter(btn.value)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
-                  statusFilter === btn.value ? `${btn.color} text-white` : 'bg-white/5 text-gray-400 hover:bg-white/10'
-                }`}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${statusFilter === btn.value ? `${btn.color} text-white` : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                  }`}
               >
                 {btn.label}
               </button>
@@ -194,30 +214,30 @@ const ApplicantDashboard = () => {
         <div className="space-y-4">
           {filteredJobs.map(job => (
             <div
-              key={job.id}
+              key={job.applicationId}
               className="bg-white/5 rounded-xl p-5 border border-white/10 hover:border-pink-500/40 transition-all cursor-pointer"
               onClick={() => setSelectedJob(job)}
             >
               <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-3">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
-                    <h3 className="text-lg font-bold text-white">{job.position}</h3>
+                    <h3 className="text-lg font-bold text-white">{job.jobTitle}</h3>
                     <span className={`px-2 py-0.5 rounded text-xs font-medium border flex items-center gap-1 whitespace-nowrap ${getStatusColor(job.status)}`}>
                       <i className={getStatusIcon(job.status)}></i>
                       {job.status}
                     </span>
                   </div>
                   <div className="flex flex-wrap items-center gap-3 text-sm text-gray-400">
-                    <span className="flex items-center gap-1"><i className="ri-building-line text-pink-400"></i>{job.company}</span>
+                    <span className="flex items-center gap-1"><i className="ri-building-line text-pink-400"></i>{job.companyName}</span>
                     <span className="flex items-center gap-1"><i className="ri-map-pin-line text-pink-400"></i>{job.location}</span>
-                    <span className="flex items-center gap-1"><i className="ri-money-dollar-circle-line text-pink-400"></i><span className="text-emerald-400 font-medium">{job.salary}</span></span>
+                    <span className="flex items-center gap-1"><i className="ri-money-dollar-circle-line text-pink-400"></i><span className="text-emerald-400 font-medium">{formatSalary(job.minSalary, job.maxSalary)}</span></span>
                     <span className="flex items-center gap-1"><i className="ri-briefcase-line text-pink-400"></i>{job.jobType}</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0">
                   <div className="text-right">
-                    <div className={`text-2xl font-bold bg-gradient-to-r ${getMatchScoreColor(job.matchScore)} bg-clip-text text-transparent`}>
-                      {job.matchScore}%
+                    <div className={`text-2xl font-bold bg-gradient-to-r ${getMatchScoreColor(job.matchPercentage)} bg-clip-text text-transparent`}>
+                      {job.matchPercentage}%
                     </div>
                     <div className="text-xs text-gray-500">{t('common.match')}</div>
                   </div>
@@ -227,8 +247,8 @@ const ApplicantDashboard = () => {
               {/* Match score bar */}
               <div className="h-1.5 bg-white/10 rounded-full overflow-hidden mb-3">
                 <div
-                  className={`h-full bg-gradient-to-r ${getMatchScoreColor(job.matchScore)} rounded-full transition-all`}
-                  style={{ width: `${job.matchScore}%` }}
+                  className={`h-full bg-gradient-to-r ${getMatchScoreColor(job.matchPercentage)} rounded-full transition-all`}
+                  style={{ width: `${job.matchPercentage}%` }}
                 ></div>
               </div>
 
@@ -237,10 +257,10 @@ const ApplicantDashboard = () => {
                   <span className="flex items-center gap-1">
                     <i className="ri-calendar-line"></i>{t('applicantDashboard.applied')} {job.appliedDate}
                   </span>
-                  {job.status === 'Interview Scheduled' && job.interviewDate && (
+                  {job.status === 'Interview Scheduled' && job.interviewScheduledAt && (
                     <span className="flex items-center gap-1 text-sky-400">
                       <i className="ri-calendar-check-line"></i>
-                      {t('applicantDashboard.interview')} {job.interviewDate} at {job.interviewTime}
+                      {t('applicantDashboard.interview')} {new Date(job.interviewScheduledAt).toLocaleDateString()} at {new Date(job.interviewScheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   )}
                 </div>
@@ -277,8 +297,8 @@ const ApplicantDashboard = () => {
             <div className="mb-6">
               <div className="flex items-start gap-3 mb-3">
                 <div className="flex-1">
-                  <h3 className={`text-2xl font-bold mb-1 ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{selectedJob.position}</h3>
-                  <p className={`text-sm ${isLightMode ? 'text-gray-500' : 'text-gray-400'}`}>{selectedJob.company}</p>
+                  <h3 className={`text-2xl font-bold mb-1 ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{selectedJob.jobTitle}</h3>
+                  <p className={`text-sm ${isLightMode ? 'text-gray-500' : 'text-gray-400'}`}>{selectedJob.companyName}</p>
                 </div>
                 <span className={`px-3 py-1 rounded-lg text-xs font-medium border flex items-center gap-1 whitespace-nowrap ${getStatusColor(selectedJob.status)}`}>
                   <i className={getStatusIcon(selectedJob.status)}></i>
@@ -298,7 +318,7 @@ const ApplicantDashboard = () => {
               <div className={`rounded-lg p-4 ${isLightMode ? 'bg-gray-50 border border-gray-200' : 'bg-white/5'}`}>
                 <span className={`text-xs font-medium uppercase tracking-wider ${isLightMode ? 'text-gray-400' : 'text-white/50'}`}>{t('applicantDashboard.salary')}</span>
                 <p className="text-emerald-500 font-semibold mt-1 flex items-center gap-2">
-                  <i className="ri-money-dollar-circle-line"></i>{selectedJob.salary}
+                  <i className="ri-money-dollar-circle-line"></i>{formatSalary(selectedJob.minSalary, selectedJob.maxSalary)}
                 </p>
               </div>
               <div className={`rounded-lg p-4 ${isLightMode ? 'bg-gray-50 border border-gray-200' : 'bg-white/5'}`}>
@@ -315,26 +335,25 @@ const ApplicantDashboard = () => {
               </div>
             </div>
 
-            {/* Match Score */}
             <div className={`rounded-lg p-4 mb-6 ${isLightMode ? 'bg-gray-50 border border-gray-200' : 'bg-white/5'}`}>
               <div className="flex items-center justify-between mb-2">
                 <span className={`text-xs font-medium uppercase tracking-wider ${isLightMode ? 'text-gray-400' : 'text-white/50'}`}>{t('common.matchScore')}</span>
-                <span className={`text-2xl font-bold bg-gradient-to-r ${getMatchScoreColor(selectedJob.matchScore)} bg-clip-text text-transparent`}>
-                  {selectedJob.matchScore}%
+                <span className={`text-2xl font-bold bg-gradient-to-r ${getMatchScoreColor(selectedJob.matchPercentage)} bg-clip-text text-transparent`}>
+                  {selectedJob.matchPercentage}%
                 </span>
               </div>
               <div className={`h-2 rounded-full overflow-hidden ${isLightMode ? 'bg-gray-200' : 'bg-white/10'}`}>
-                <div className={`h-full bg-gradient-to-r ${getMatchScoreColor(selectedJob.matchScore)} rounded-full`} style={{ width: `${selectedJob.matchScore}%` }}></div>
+                <div className={`h-full bg-gradient-to-r ${getMatchScoreColor(selectedJob.matchPercentage)} rounded-full`} style={{ width: `${selectedJob.matchPercentage}%` }}></div>
               </div>
             </div>
 
-            {selectedJob.status === 'Interview Scheduled' && selectedJob.interviewDate && (
+            {selectedJob.status === 'Interview Scheduled' && selectedJob.interviewScheduledAt && (
               <div className="bg-sky-500/10 border border-sky-500/20 rounded-lg p-4 mb-6">
                 <div className="flex items-center gap-2 mb-1">
                   <i className="ri-calendar-check-line text-sky-400"></i>
                   <span className="text-sky-500 font-semibold text-sm">{t('applicantDashboard.interviewScheduled')}</span>
                 </div>
-                <p className={`text-sm ${isLightMode ? 'text-gray-700' : 'text-white'}`}>{selectedJob.interviewDate} at {selectedJob.interviewTime}</p>
+                <p className={`text-sm ${isLightMode ? 'text-gray-700' : 'text-white'}`}>{new Date(selectedJob.interviewScheduledAt).toLocaleDateString()} at {new Date(selectedJob.interviewScheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
               </div>
             )}
 
@@ -347,10 +366,10 @@ const ApplicantDashboard = () => {
               </div>
             )}
 
-            {selectedJob.notes && (
+            {selectedJob.reason && (
               <div className="mb-6">
                 <span className={`text-xs font-medium uppercase tracking-wider ${isLightMode ? 'text-gray-400' : 'text-white/50'}`}>{t('applicantDashboard.notes')}</span>
-                <p className={`text-sm mt-2 leading-relaxed ${isLightMode ? 'text-gray-600' : 'text-white/80'}`}>{selectedJob.notes}</p>
+                <p className={`text-sm mt-2 leading-relaxed ${isLightMode ? 'text-gray-600' : 'text-white/80'}`}>{selectedJob.reason}</p>
               </div>
             )}
 
@@ -380,7 +399,7 @@ const ApplicantDashboard = () => {
               </div>
               <h3 className={`text-xl font-bold mb-2 ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{t('applicantDashboard.withdrawConfirmTitle')}</h3>
               <p className={`text-sm ${isLightMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                {t('applicantDashboard.withdrawConfirmText')} <span className={`font-semibold ${isLightMode ? 'text-gray-800' : 'text-white'}`}>{showWithdrawConfirm.position}</span> {t('applicantDashboard.at')} <span className={`font-semibold ${isLightMode ? 'text-gray-800' : 'text-white'}`}>{showWithdrawConfirm.company}</span>? {t('applicantDashboard.cannotUndo')}
+                {t('applicantDashboard.withdrawConfirmText')} <span className={`font-semibold ${isLightMode ? 'text-gray-800' : 'text-white'}`}>{showWithdrawConfirm.jobTitle}</span> {t('applicantDashboard.at')} <span className={`font-semibold ${isLightMode ? 'text-gray-800' : 'text-white'}`}>{showWithdrawConfirm.companyName}</span>? {t('applicantDashboard.cannotUndo')}
               </p>
             </div>
             {withdrawError && (
@@ -391,17 +410,17 @@ const ApplicantDashboard = () => {
             <div className="flex gap-3">
               <button
                 onClick={closeWithdrawConfirm}
-                disabled={withdrawingApplicationId === showWithdrawConfirm.id}
+                disabled={withdrawingApplicationId === showWithdrawConfirm.applicationId}
                 className={`flex-1 px-5 py-3 font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${isLightMode ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' : 'bg-white/5 text-white hover:bg-white/10'}`}
               >
                 {t('applicantDashboard.cancel')}
               </button>
               <button
                 onClick={() => handleWithdraw(showWithdrawConfirm)}
-                disabled={withdrawingApplicationId === showWithdrawConfirm.id}
+                disabled={withdrawingApplicationId === showWithdrawConfirm.applicationId}
                 className="flex-1 px-5 py-3 bg-red-500 text-white font-semibold rounded-lg hover:bg-red-600 transition-colors whitespace-nowrap cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {withdrawingApplicationId === showWithdrawConfirm.id ? 'Withdrawing...' : t('applicantDashboard.withdraw')}
+                {withdrawingApplicationId === showWithdrawConfirm.applicationId ? 'Withdrawing...' : t('applicantDashboard.withdraw')}
               </button>
             </div>
           </div>

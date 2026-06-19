@@ -284,7 +284,7 @@ const CourseDetail = () => {
 
   const toggleTopicComplete = (sectionId: string, topicId: string) => {
     if (!course) return;
-    
+
     setCourse(prev => {
       if (!prev) return prev;
       const updatedSections = prev.sections.map(section => {
@@ -346,7 +346,7 @@ const CourseDetail = () => {
 
   const handleSubmitProject = () => {
     if (!projectData.githubLink || !projectData.description || !projectData.projectImage) return;
-    
+
     setCourse(prev => {
       if (!prev) return prev;
       return {
@@ -365,7 +365,7 @@ const CourseDetail = () => {
 
   const handleSubmitRating = () => {
     if (courseRating === 0) return;
-    
+
     setCourse(prev => {
       if (!prev) return prev;
       return {
@@ -423,7 +423,7 @@ const CourseDetail = () => {
             <div className="flex-1">
               <h1 className="text-2xl md:text-3xl font-bold text-white mb-3">{course.title}</h1>
               <p className="text-white/60 text-sm mb-4">{course.description}</p>
-              
+
               {/* Progress Bar */}
               <div className="bg-white/5 rounded-xl p-4 border border-white/10">
                 <div className="flex justify-between items-center mb-2">
@@ -432,9 +432,8 @@ const CourseDetail = () => {
                 </div>
                 <div className="h-2.5 bg-white/10 rounded-full overflow-hidden">
                   <div
-                    className={`h-full rounded-full transition-all duration-500 ${
-                      getProgress() === 100 ? 'bg-gradient-to-r from-green-500 to-emerald-500' : 'bg-gradient-to-r from-purple-500 to-pink-500'
-                    }`}
+                    className={`h-full rounded-full transition-all duration-500 ${getProgress() === 100 ? 'bg-gradient-to-r from-green-500 to-emerald-500' : 'bg-gradient-to-r from-purple-500 to-pink-500'
+                      }`}
                     style={{ width: `${getProgress()}%` }}
                   ></div>
                 </div>
@@ -462,9 +461,8 @@ const CourseDetail = () => {
               return (
                 <div
                   key={section.id}
-                  className={`bg-white/5 rounded-xl border transition-all ${
-                    isCompleted ? 'border-green-500/30' : 'border-white/10'
-                  }`}
+                  className={`bg-white/5 rounded-xl border transition-all ${isCompleted ? 'border-green-500/30' : 'border-white/10'
+                    }`}
                 >
                   {/* Section Header */}
                   <button
@@ -472,9 +470,8 @@ const CourseDetail = () => {
                     className="w-full p-4 flex items-center justify-between cursor-pointer hover:bg-white/5 rounded-xl transition-all"
                   >
                     <div className="flex items-center gap-4">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                        isCompleted ? 'bg-green-500/20 text-green-400' : 'bg-purple-500/20 text-purple-400'
-                      }`}>
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isCompleted ? 'bg-green-500/20 text-green-400' : 'bg-purple-500/20 text-purple-400'
+                        }`}>
                         {isCompleted ? (
                           <i className="ri-check-line text-lg"></i>
                         ) : (
@@ -491,9 +488,8 @@ const CourseDetail = () => {
                     <div className="flex items-center gap-4">
                       <div className="hidden md:block w-32 h-1.5 bg-white/10 rounded-full overflow-hidden">
                         <div
-                          className={`h-full rounded-full transition-all ${
-                            isCompleted ? 'bg-green-500' : 'bg-purple-500'
-                          }`}
+                          className={`h-full rounded-full transition-all ${isCompleted ? 'bg-green-500' : 'bg-purple-500'
+                            }`}
                           style={{ width: `${sectionProgress}%` }}
                         ></div>
                       </div>
@@ -510,17 +506,15 @@ const CourseDetail = () => {
                           return (
                             <div
                               key={topic.id}
-                              className={`flex items-center gap-4 p-3 rounded-lg transition-all ${
-                                topic.completed ? 'bg-green-500/10' : 'bg-white/5 hover:bg-white/10'
-                              }`}
+                              className={`flex items-center gap-4 p-3 rounded-lg transition-all ${topic.completed ? 'bg-green-500/10' : 'bg-white/5 hover:bg-white/10'
+                                }`}
                             >
                               <button
                                 onClick={() => toggleTopicComplete(section.id, topic.id)}
-                                className={`w-6 h-6 rounded-full border-2 flex items-center justify-center cursor-pointer transition-all ${
-                                  topic.completed
+                                className={`w-6 h-6 rounded-full border-2 flex items-center justify-center cursor-pointer transition-all ${topic.completed
                                     ? 'bg-green-500 border-green-500 text-white'
                                     : 'border-white/30 hover:border-purple-400'
-                                }`}
+                                  }`}
                               >
                                 {topic.completed && <i className="ri-check-line text-sm"></i>}
                               </button>
@@ -569,9 +563,9 @@ const CourseDetail = () => {
                 <div className="flex flex-col md:flex-row items-start gap-6">
                   {course.graduationProject.projectImage && (
                     <div className="w-full md:w-48 h-32 rounded-xl overflow-hidden flex-shrink-0">
-                      <img 
-                        src={course.graduationProject.projectImage} 
-                        alt="Project" 
+                      <img
+                        src={course.graduationProject.projectImage}
+                        alt="Project"
                         className="w-full h-full object-cover"
                       />
                     </div>
@@ -598,9 +592,8 @@ const CourseDetail = () => {
                             {[1, 2, 3, 4, 5].map((star) => (
                               <i
                                 key={star}
-                                className={`text-sm ${
-                                  star <= course.userRating! ? 'ri-star-fill' : 'ri-star-line'
-                                }`}
+                                className={`text-sm ${star <= course.userRating! ? 'ri-star-fill' : 'ri-star-line'
+                                  }`}
                               ></i>
                             ))}
                           </div>
@@ -748,11 +741,10 @@ const CourseDetail = () => {
                 <button
                   onClick={handleSubmitProject}
                   disabled={!projectData.githubLink || !projectData.description || !projectData.projectImage}
-                  className={`flex-1 py-3 rounded-xl font-semibold transition-all cursor-pointer whitespace-nowrap ${
-                    projectData.githubLink && projectData.description && projectData.projectImage
+                  className={`flex-1 py-3 rounded-xl font-semibold transition-all cursor-pointer whitespace-nowrap ${projectData.githubLink && projectData.description && projectData.projectImage
                       ? 'bg-purple-500 text-white hover:bg-purple-600'
                       : 'bg-white/10 text-white/40 cursor-not-allowed'
-                  }`}
+                    }`}
                 >
                   <i className="ri-arrow-right-line mr-2"></i>{t('roadmaps.nextRateCourse')}
                 </button>
@@ -799,11 +791,10 @@ const CourseDetail = () => {
                       className="w-12 h-12 flex items-center justify-center transition-all cursor-pointer hover:scale-110"
                     >
                       <i
-                        className={`text-4xl transition-all ${
-                          star <= (hoverRating || courseRating)
+                        className={`text-4xl transition-all ${star <= (hoverRating || courseRating)
                             ? 'ri-star-fill text-yellow-400'
                             : 'ri-star-line text-white/30'
-                        }`}
+                          }`}
                       ></i>
                     </button>
                   ))}
@@ -838,11 +829,10 @@ const CourseDetail = () => {
                 <button
                   onClick={handleSubmitRating}
                   disabled={courseRating === 0}
-                  className={`flex-1 py-3 rounded-xl font-semibold transition-all cursor-pointer whitespace-nowrap ${
-                    courseRating > 0
+                  className={`flex-1 py-3 rounded-xl font-semibold transition-all cursor-pointer whitespace-nowrap ${courseRating > 0
                       ? 'bg-yellow-500 text-black hover:bg-yellow-400'
                       : 'bg-white/10 text-white/40 cursor-not-allowed'
-                  }`}
+                    }`}
                 >
                   <i className="ri-send-plane-line mr-2"></i>{t('roadmaps.submitRating')}
                 </button>

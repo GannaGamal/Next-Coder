@@ -297,7 +297,7 @@ const HomePage = () => {
                   <div className="absolute -top-3 -right-3 w-10 h-10 flex items-center justify-center bg-gradient-to-br from-pink-500 to-rose-500 rounded-xl shadow-lg animate-bounce">
                     <i className="ri-sparkling-line text-white text-base"></i>
                   </div>
-                  
+
                 </div>
                 <div
                   className="absolute -right-8 top-8 bg-navy-800/90 backdrop-blur-sm border border-white/10 rounded-xl px-3 py-2 shadow-lg animate-float-slow"

@@ -265,7 +265,7 @@ const Login = () => {
 
                   {/* Back to form */}
                   <button
-                    onClick={() => { setShowOtpPanel(false); setOtp(['','','','','','']); setOtpError(''); }}
+                    onClick={() => { setShowOtpPanel(false); setOtp(['', '', '', '', '', '']); setOtpError(''); }}
                     className="w-full mt-3 text-xs text-white/40 hover:text-white/60 transition-colors cursor-pointer"
                   >
                     &larr; Back to sign in form

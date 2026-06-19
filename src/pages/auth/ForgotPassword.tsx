@@ -319,9 +319,8 @@ const ForgotPassword = () => {
                       type={showConfirm ? 'text' : 'password'}
                       value={confirmPassword}
                       onChange={(e) => { setConfirmPassword(e.target.value); setResetError(''); }}
-                      className={`w-full pl-12 pr-12 py-3 bg-white/5 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all text-sm text-white placeholder-white/40 ${
-                        confirmPassword && newPassword !== confirmPassword ? 'border-red-500/50' : 'border-white/10'
-                      }`}
+                      className={`w-full pl-12 pr-12 py-3 bg-white/5 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all text-sm text-white placeholder-white/40 ${confirmPassword && newPassword !== confirmPassword ? 'border-red-500/50' : 'border-white/10'
+                        }`}
                       placeholder="Repeat your new password"
                     />
                     <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute inset-y-0 right-0 pr-4 flex items-center cursor-pointer">

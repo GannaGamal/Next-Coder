@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -22,12 +22,12 @@ const Dashboard = () => {
   const hasEmployerRole = userRoles.includes('employer');
   const hasApplicantRole = userRoles.includes('applicant');
 
-  const availableRoles = [
+  const availableRoles = useMemo(() => [
     ...(hasFreelancerRole ? ['freelancer'] : []),
     ...(hasClientRole ? ['client'] : []),
     ...(hasEmployerRole ? ['employer'] : []),
     ...(hasApplicantRole ? ['applicant'] : []),
-  ];
+  ], [hasFreelancerRole, hasClientRole, hasEmployerRole, hasApplicantRole]);
 
   const requestedRole = normalizeUserRole(searchParams.get('role')) ?? '';
   const requestedRoleIsValid = requestedRole ? availableRoles.includes(requestedRole) : false;
@@ -84,12 +84,12 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen bg-navy-900">
       <Navbar />
-      
+
       <div className="pt-32 pb-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="mb-8">
             <h2 className="text-4xl font-bold text-white mb-4">{t('dashboard.title')}</h2>
-            
+
             {hasMultipleRoles && (
               <div className="flex gap-2 p-1 bg-white/5 rounded-xl w-fit">
                 {availableRoles.map(role => {
@@ -98,9 +98,8 @@ const Dashboard = () => {
                     <button
                       key={role}
                       onClick={() => handleRoleChange(role)}
-                      className={`px-6 py-2 rounded-lg font-semibold transition-all whitespace-nowrap cursor-pointer ${
-                        activeRole === role ? `${cfg.color} text-white` : 'text-white/60 hover:text-white'
-                      }`}
+                      className={`px-6 py-2 rounded-lg font-semibold transition-all whitespace-nowrap cursor-pointer ${activeRole === role ? `${cfg.color} text-white` : 'text-white/60 hover:text-white'
+                        }`}
                     >
                       <i className={`${cfg.icon} mr-2`}></i>{cfg.label}
                     </button>

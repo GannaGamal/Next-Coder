@@ -489,9 +489,9 @@ const Navbar = () => {
       employerCompanies.map((company) =>
         company.id === companyId
           ? {
-              ...company,
-              documents: company.documents.filter((_, i) => i !== docIndex),
-            }
+            ...company,
+            documents: company.documents.filter((_, i) => i !== docIndex),
+          }
           : company,
       ),
     );
@@ -582,11 +582,10 @@ const Navbar = () => {
 
       {/* Desktop Navbar */}
       <nav
-        className={`fixed ${isViewingAs ? "top-10" : "top-0"} left-0 right-0 z-50 transition-all duration-300 ${
-          scrolled
+        className={`fixed ${isViewingAs ? "top-10" : "top-0"} left-0 right-0 z-50 transition-all duration-300 ${scrolled
             ? "bg-navy-900/95 backdrop-blur-md shadow-lg border-b border-white/10"
             : "bg-transparent"
-        }`}
+          }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
@@ -613,11 +612,10 @@ const Navbar = () => {
                 <Link
                   key={link.path}
                   to={link.path}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap ${
-                    location.pathname === link.path
+                  className={`px-4 py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap ${location.pathname === link.path
                       ? "bg-purple-500 text-white shadow-lg"
                       : "text-white/70 hover:bg-white/5 hover:text-white"
-                  }`}
+                    }`}
                 >
                   {link.label}
                 </Link>
@@ -694,37 +692,37 @@ const Navbar = () => {
                       {/* Profile Links */}
                       {userRoles.filter((role) => role !== "admin").length >
                         0 && (
-                        <div className="p-2 border-b border-white/10">
-                          <div className="px-3 py-2 text-xs font-semibold text-white/50 uppercase tracking-wider">
-                            {t("nav.yourProfiles")}
+                          <div className="p-2 border-b border-white/10">
+                            <div className="px-3 py-2 text-xs font-semibold text-white/50 uppercase tracking-wider">
+                              {t("nav.yourProfiles")}
+                            </div>
+                            {userRoles
+                              .filter((role) => role !== "admin")
+                              .map((role) => (
+                                <Link
+                                  key={role}
+                                  to={
+                                    role === "applicant" ||
+                                      role === "job seeker" ||
+                                      role === "job-seeker"
+                                      ? "/profile/job-seeker"
+                                      : `/profile/${role}`
+                                  }
+                                  onClick={() => setShowDropdown(false)}
+                                  className="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-white/5 transition-colors cursor-pointer group"
+                                >
+                                  <div className="w-8 h-8 flex items-center justify-center bg-gradient-to-br from-purple-500 to-violet-500 rounded-lg group-hover:scale-105 transition-transform">
+                                    <i
+                                      className={`${getRoleIcon(role)} text-white text-sm`}
+                                    ></i>
+                                  </div>
+                                  <span className="text-sm text-white/80 group-hover:text-white whitespace-nowrap capitalize">
+                                    {role == 'applicant' ? 'Job Seeker' : role} {t("nav.profile")}
+                                  </span>
+                                </Link>
+                              ))}
                           </div>
-                          {userRoles
-                            .filter((role) => role !== "admin")
-                            .map((role) => (
-                              <Link
-                                key={role}
-                                to={
-                                  role === "applicant" ||
-                                  role === "job seeker" ||
-                                  role === "job-seeker"
-                                    ? "/profile/job-seeker"
-                                    : `/profile/${role}`
-                                }
-                                onClick={() => setShowDropdown(false)}
-                                className="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-white/5 transition-colors cursor-pointer group"
-                              >
-                                <div className="w-8 h-8 flex items-center justify-center bg-gradient-to-br from-purple-500 to-violet-500 rounded-lg group-hover:scale-105 transition-transform">
-                                  <i
-                                    className={`${getRoleIcon(role)} text-white text-sm`}
-                                  ></i>
-                                </div>
-                                <span className="text-sm text-white/80 group-hover:text-white whitespace-nowrap capitalize">
-                                  {role == 'applicant' ? 'Job Seeker' : role} {t("nav.profile")}
-                                </span>
-                              </Link>
-                            ))}
-                        </div>
-                      )}
+                        )}
 
                       {/* Dashboard Link */}
                       {showDashboard && (
@@ -914,11 +912,10 @@ const Navbar = () => {
                   key={link.path}
                   to={link.path}
                   onClick={() => setShowMobileMenu(false)}
-                  className={`block px-4 py-3 rounded-xl text-sm font-medium transition-all ${
-                    location.pathname === link.path
+                  className={`block px-4 py-3 rounded-xl text-sm font-medium transition-all ${location.pathname === link.path
                       ? "bg-purple-500 text-white shadow-lg"
                       : "text-white/70 hover:bg-white/5 hover:text-white"
-                  }`}
+                    }`}
                 >
                   {link.label}
                 </Link>

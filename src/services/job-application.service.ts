@@ -4,21 +4,26 @@ import { parseApiError } from './api.utils';
 export type ApplicationStatus = 'Under Review' | 'Interview Scheduled' | 'Rejected' | 'Accepted';
 
 export interface JobApplicationDashboardItem {
-  id: number;
-  position: string;
-  company: string;
+  jobId: number;
+  applicationId: number;
+  jobTitle: string;
+  companyName: string;
   location: string;
-  salary: string;
-  appliedDate: string;
-  status: ApplicationStatus;
-  matchScore: number;
+  minSalary: number | null;
+  maxSalary: number | null;
   jobType: string;
-  interviewDate?: string;
-  interviewTime?: string;
-  notes?: string;
+  status: ApplicationStatus;
+  reason: string;
+  appliedDate: string;
+  interviewScheduledAt: string | null;
+  matchPercentage: number;
 }
 
 export interface JobApplicationDashboardResult {
+  totalAppliedCount: number;
+  underReviewCount: number;
+  interviewsCount: number;
+  rejectedCount: number;
   items: JobApplicationDashboardItem[];
 }
 
@@ -72,7 +77,7 @@ const fetchWithNetworkError = async (url: string, init?: RequestInit): Promise<R
   }
 };
 
-const formatSalary = (minSalary?: number, maxSalary?: number): string => {
+export const formatSalary = (minSalary: number | null | undefined, maxSalary: number | null | undefined): string => {
   if (typeof minSalary === 'number' && typeof maxSalary === 'number') {
     return `$${minSalary.toLocaleString()} - $${maxSalary.toLocaleString()}`;
   }
@@ -143,49 +148,37 @@ export const getJobApplicationDashboard = async (): Promise<JobApplicationDashbo
     .concat(toArray(container?.items))
     .concat(toArray(container?.Items));
 
+  const totalAppliedCount = Number(container?.totalAppliedCount ?? 0);
+  const underReviewCount = Number(container?.underReviewCount ?? 0);
+  const interviewsCount = Number(container?.interviewsCount ?? 0);
+  const rejectedCount = Number(container?.rejectedCount ?? 0);
+
   const items: JobApplicationDashboardItem[] = rawItems
     .map((item: unknown) => {
       const raw = item as Record<string, unknown>;
-      const id = Number(raw.id ?? raw.applicationId ?? raw.Id ?? raw.ApplicationId ?? 0);
-      const minSalary = Number(raw.minSalary ?? raw.MinSalary);
-      const maxSalary = Number(raw.maxSalary ?? raw.MaxSalary);
-      const score = Number(raw.matchScore ?? raw.MatchScore ?? raw.fitScore ?? raw.FitScore ?? 0);
-      const interviewAtRaw = raw.interviewScheduledAt ?? raw.InterviewScheduledAt;
-      const interviewDateObj = interviewAtRaw ? new Date(String(interviewAtRaw)) : null;
-      const interviewIso = interviewAtRaw ? String(interviewAtRaw) : '';
-      const hasInterviewDate = Boolean(
-        interviewDateObj
-        && !Number.isNaN(interviewDateObj.getTime())
-        && !interviewIso.startsWith('0001-01-01')
-      );
-      const interviewDate = hasInterviewDate && interviewDateObj
-        ? interviewDateObj.toLocaleDateString()
-        : undefined;
-      const interviewTime = hasInterviewDate && interviewDateObj
-        ? interviewDateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        : undefined;
+      const matchPercentageRaw = Number(raw.matchPercentage ?? raw.MatchPercentage ?? raw.matchScore ?? raw.MatchScore ?? 0);
+      const minSal = Number(raw.minSalary ?? raw.MinSalary);
+      const maxSal = Number(raw.maxSalary ?? raw.MaxSalary);
 
       return {
-        id,
-        position: String(raw.position ?? raw.title ?? raw.jobTitle ?? raw.jobPostTitle ?? raw.Position ?? raw.Title ?? ''),
-        company: String(raw.company ?? raw.companyName ?? raw.Company ?? raw.CompanyName ?? ''),
+        jobId: Number(raw.jobId ?? raw.JobId ?? 0),
+        applicationId: Number(raw.applicationId ?? raw.ApplicationId ?? raw.id ?? raw.Id ?? 0),
+        jobTitle: String(raw.jobTitle ?? raw.JobTitle ?? raw.position ?? raw.title ?? ''),
+        companyName: String(raw.companyName ?? raw.CompanyName ?? raw.company ?? ''),
         location: String(raw.location ?? raw.Location ?? 'Remote'),
-        salary: formatSalary(
-          Number.isFinite(minSalary) ? minSalary : undefined,
-          Number.isFinite(maxSalary) ? maxSalary : undefined
-        ),
-        appliedDate: String(raw.appliedDate ?? raw.appliedAt ?? raw.createdAt ?? raw.AppliedDate ?? raw.AppliedAt ?? raw.CreatedAt ?? ''),
-        status: mapApiStatus(raw.status ?? raw.Status),
-        matchScore: Number.isFinite(score) ? Math.max(0, Math.min(100, score)) : 0,
+        minSalary: Number.isFinite(minSal) ? minSal : null,
+        maxSalary: Number.isFinite(maxSal) ? maxSal : null,
         jobType: String(raw.jobType ?? raw.JobType ?? 'Not specified'),
-        interviewDate,
-        interviewTime,
-        notes: String(raw.notes ?? raw.note ?? raw.reason ?? raw.rejectionReason ?? raw.Notes ?? raw.Note ?? raw.Reason ?? raw.RejectionReason ?? ''),
+        status: mapApiStatus(raw.status ?? raw.Status),
+        reason: String(raw.reason ?? raw.Reason ?? raw.notes ?? raw.note ?? ''),
+        appliedDate: String(raw.appliedDate ?? raw.AppliedDate ?? raw.appliedAt ?? raw.createdAt ?? ''),
+        interviewScheduledAt: raw.interviewScheduledAt ? String(raw.interviewScheduledAt) : null,
+        matchPercentage: Number.isFinite(matchPercentageRaw) ? Math.max(0, Math.min(100, matchPercentageRaw)) : 0,
       };
     })
-    .filter((item) => item.id > 0 && item.position.length > 0);
+    .filter((item) => item.applicationId > 0 && item.jobTitle.length > 0);
 
-  return { items };
+  return { totalAppliedCount, underReviewCount, interviewsCount, rejectedCount, items };
 };
 
 export const createJobApplication = async (payload: CreateJobApplicationPayload): Promise<void> => {

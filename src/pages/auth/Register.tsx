@@ -430,8 +430,8 @@ const Register = () => {
               {step === 4 && otpSuccess
                 ? 'Welcome aboard! Taking you home...'
                 : step === 4
-                ? `We sent a 6-digit code to ${formData.email}`
-                : t('auth.registerSubtitle')}
+                  ? `We sent a 6-digit code to ${formData.email}`
+                  : t('auth.registerSubtitle')}
             </p>
           </div>
 
@@ -910,9 +910,8 @@ const Register = () => {
                       value={digit}
                       onChange={(e) => handleOtpChange(index, e.target.value)}
                       onKeyDown={(e) => handleOtpKeyDown(index, e)}
-                      className={`w-12 h-14 text-center text-xl font-bold bg-white/5 border-2 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all ${
-                        otpError ? 'border-red-500/60' : digit ? 'border-purple-500/60' : 'border-white/10'
-                      }`}
+                      className={`w-12 h-14 text-center text-xl font-bold bg-white/5 border-2 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all ${otpError ? 'border-red-500/60' : digit ? 'border-purple-500/60' : 'border-white/10'
+                        }`}
                     />
                   ))}
                 </div>
