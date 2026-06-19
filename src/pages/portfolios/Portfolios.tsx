@@ -94,6 +94,8 @@ const Portfolios = () => {
     coverImage: null,
   });
   const [coverImagePreviewUrl, setCoverImagePreviewUrl] = useState('');
+  const [expandedBios, setExpandedBios] = useState<Record<number, boolean>>({});
+  const [expandedSkills, setExpandedSkills] = useState<Record<number, boolean>>({});
 
   const jobTitleOptions = useMemo(() => {
     const merged = [...DEFAULT_JOB_TITLE_OPTIONS];
@@ -284,6 +286,18 @@ const Portfolios = () => {
     }
   };
 
+  const toggleBio = (id: number, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setExpandedBios((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const toggleSkills = (id: number, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setExpandedSkills((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
   const renderPortfolioCard = (portfolio: PublicFreelancerPortfolioItem) => (
     <div
       key={portfolio.portfolioId}
@@ -342,12 +356,22 @@ const Portfolios = () => {
       <div className="p-4 sm:p-5">
         <p className="text-white text-lg font-bold truncate">{portfolio.jobTitleName || 'Freelancer'}</p>
 
-        <p className={`${isLightMode ? 'text-gray-600' : 'text-gray-300'} text-sm sm:text-base mb-4 leading-relaxed`}>
-          {portfolio.bio || 'No bio provided.'}
-        </p>
+        <div className="mb-4">
+          <p className={`${isLightMode ? 'text-gray-600' : 'text-gray-300'} text-sm sm:text-base leading-relaxed ${expandedBios[portfolio.portfolioId] ? '' : 'line-clamp-3'}`}>
+            {portfolio.bio || 'No bio provided.'}
+          </p>
+          {portfolio.bio && portfolio.bio.length > 120 && (
+            <button
+              onClick={(e) => toggleBio(portfolio.portfolioId, e)}
+              className={`text-sm font-semibold mt-1 cursor-pointer transition-colors ${isLightMode ? 'text-emerald-600 hover:text-emerald-700' : 'text-emerald-400 hover:text-emerald-300'}`}
+            >
+              {expandedBios[portfolio.portfolioId] ? 'View Less' : 'View More'}
+            </button>
+          )}
+        </div>
 
-        <div className="flex flex-wrap gap-1.5 mb-4">
-          {portfolio.skills.map((skill) => (
+        <div className="flex flex-wrap gap-1.5 mb-4 items-center">
+          {(expandedSkills[portfolio.portfolioId] ? portfolio.skills : portfolio.skills.slice(0, 4)).map((skill) => (
             <span
               key={skill}
               className={`px-2 py-0.5 rounded text-xs ${isLightMode ? 'bg-gray-100 border border-gray-200 text-gray-600' : 'bg-white/5 border border-white/10 text-gray-300'}`}
@@ -355,6 +379,14 @@ const Portfolios = () => {
               {skill}
             </span>
           ))}
+          {portfolio.skills.length > 4 && (
+            <button
+              onClick={(e) => toggleSkills(portfolio.portfolioId, e)}
+              className={`text-xs font-semibold cursor-pointer transition-colors ml-1 ${isLightMode ? 'text-emerald-600 hover:text-emerald-700' : 'text-emerald-400 hover:text-emerald-300'}`}
+            >
+              {expandedSkills[portfolio.portfolioId] ? 'Show Less' : 'View All Skills'}
+            </button>
+          )}
         </div>
 
         <div className={`flex flex-wrap items-center justify-between gap-3 pt-4 border-t ${isLightMode ? 'border-gray-100' : 'border-white/10'}`}>
