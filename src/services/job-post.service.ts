@@ -77,7 +77,7 @@ export interface EmployerDashboardResult {
   jobPostings: EmployerDashboardJobPostItem[];
 }
 
-export type EmployerJobApplicationStatus = 'pending' | 'reviewed' | 'shortlisted' | 'rejected' | 'interview_scheduled';
+export type EmployerJobApplicationStatus = 'pending' | 'reviewed' | 'rejected' | 'interview_scheduled';
 
 export interface EmployerJobApplicantItem {
   id: number;
@@ -101,7 +101,6 @@ export interface EmployerJobPostDetailsResult {
   counts: {
     all: number;
     pending: number;
-    shortlisted: number;
     rejected: number;
     interviewScheduled: number;
   };
@@ -140,7 +139,6 @@ const mapApplicantStatus = (status: unknown): EmployerJobApplicationStatus => {
   const value = String(status ?? '').trim().toLowerCase();
 
   if (value.includes('interview')) return 'interview_scheduled';
-  if (value.includes('short')) return 'shortlisted';
   if (value.includes('reject')) return 'rejected';
   if (value.includes('review')) return 'reviewed';
   return 'pending';
@@ -473,7 +471,6 @@ export const getJobPostDetails = async (jobPostId: number): Promise<EmployerJobP
       ?? data?.AllCount
   );
   const countPendingRaw = Number(container?.pendingCount ?? container?.PendingCount ?? data?.pendingCount ?? data?.PendingCount);
-  const countShortlistedRaw = Number(container?.shortlistedCount ?? container?.ShortlistedCount ?? data?.shortlistedCount ?? data?.ShortlistedCount);
   const countRejectedRaw = Number(container?.rejectedCount ?? container?.RejectedCount ?? data?.rejectedCount ?? data?.RejectedCount);
   const countInterviewRaw = Number(
     container?.interviewScheduledCount
@@ -485,7 +482,6 @@ export const getJobPostDetails = async (jobPostId: number): Promise<EmployerJobP
   const computed = {
     all: applicants.length,
     pending: applicants.filter((a) => a.status === 'pending').length,
-    shortlisted: applicants.filter((a) => a.status === 'shortlisted').length,
     rejected: applicants.filter((a) => a.status === 'rejected').length,
     interviewScheduled: applicants.filter((a) => a.status === 'interview_scheduled').length,
   };
@@ -496,7 +492,6 @@ export const getJobPostDetails = async (jobPostId: number): Promise<EmployerJobP
     counts: {
       all: Number.isFinite(countAllRaw) ? countAllRaw : computed.all,
       pending: Number.isFinite(countPendingRaw) ? countPendingRaw : computed.pending,
-      shortlisted: Number.isFinite(countShortlistedRaw) ? countShortlistedRaw : computed.shortlisted,
       rejected: Number.isFinite(countRejectedRaw) ? countRejectedRaw : computed.rejected,
       interviewScheduled: Number.isFinite(countInterviewRaw) ? countInterviewRaw : computed.interviewScheduled,
     },

@@ -111,6 +111,7 @@ const JobOffers = () => {
   const [jobDescription, setJobDescription] = useState('');
   const [jobSubmitted, setJobSubmitted] = useState(false);
   const [jobSubmitError, setJobSubmitError] = useState('');
+  const [jobCompanyError, setJobCompanyError] = useState(false);
   const [isPostingJob, setIsPostingJob] = useState(false);
   const [apiSkills, setApiSkills] = useState<JobSkill[]>([]);
   const [skillsLoadError, setSkillsLoadError] = useState('');
@@ -128,6 +129,13 @@ const JobOffers = () => {
   const handlePostJobSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setJobSubmitError('');
+    setJobCompanyError(false);
+
+    if (!jobCompany.trim()) {
+      setJobCompanyError(true);
+      return;
+    }
+
     setIsPostingJob(true);
 
     try {
@@ -193,6 +201,7 @@ const JobOffers = () => {
         setJobFormSkills([]);
         setJobType('Full-time');
         setJobExperience('Entry');
+        setJobCompanyError(false);
       }, 1800);
     } catch (err: unknown) {
       setJobSubmitError(err instanceof Error ? err.message : 'Failed to post job. Please try again.');
@@ -498,10 +507,18 @@ const JobOffers = () => {
                       <CompanySelect 
                         employerId={user?.employerId}
                         value={jobCompany}
-                        onChange={(companyName) => setJobCompany(companyName)}
+                        onChange={(companyName) => {
+                          setJobCompany(companyName);
+                          if (companyName) setJobCompanyError(false);
+                        }}
                         isLightMode={isLightMode}
                         placeholder={t('jobs.companyPlaceholder')}
+                        required
+                        hasError={jobCompanyError}
                       />
+                      {jobCompanyError && (
+                        <p className={`text-xs mt-1.5 ${isLightMode ? 'text-red-600' : 'text-red-400'}`}>Please select a company.</p>
+                      )}
                     </div>
                   </div>
 

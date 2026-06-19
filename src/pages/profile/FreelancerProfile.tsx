@@ -885,7 +885,7 @@ const FreelancerProfile = () => {
               <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 sm:p-6 lg:p-8 border border-white/10">
                 <div className="flex items-center justify-between mb-3 sm:mb-4">
                   <h2 className="text-xl sm:text-2xl font-bold text-white">About Me</h2>
-                  
+
                 </div>
                 {freelancerProfile.bio ? (
                   <p className="text-sm sm:text-base text-gray-300 leading-relaxed">{freelancerProfile.bio}</p>
@@ -980,8 +980,8 @@ const FreelancerProfile = () => {
                         }}
                         disabled={isAddingSkill || (deletingSkillId !== null)}
                         className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed ${isSelected
-                            ? 'bg-purple-500/20 border-purple-500/50 text-purple-300'
-                            : 'bg-white/5 border-white/10 text-gray-400 hover:bg-purple-500/15 hover:border-purple-500/40 hover:text-purple-200'
+                          ? 'bg-purple-500/20 border-purple-500/50 text-purple-300'
+                          : 'bg-white/5 border-white/10 text-gray-400 hover:bg-purple-500/15 hover:border-purple-500/40 hover:text-purple-200'
                           }`}
                       >
                         {isSelected && <i className="ri-check-line mr-1 text-xs"></i>}
@@ -1023,7 +1023,7 @@ const FreelancerProfile = () => {
               <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 sm:p-6 lg:p-8 border border-white/10">
                 <div className="flex items-center justify-between mb-3 sm:mb-4">
                   <h2 className="text-xl sm:text-2xl font-bold text-white">Hourly Rate</h2>
-                  
+
                 </div>
                 <div className="flex items-end gap-2">
                   <span className="text-3xl sm:text-4xl font-bold text-white">${freelancerProfile.hourlyRate}</span>
@@ -1179,7 +1179,7 @@ const FreelancerProfile = () => {
                 {portfolio.map((item) => (
                   <div key={item.id} className="bg-white/5 backdrop-blur-sm rounded-2xl overflow-hidden border border-white/10 hover:border-purple-500/50 transition-all">
                     {/* PDF Preview Area */}
-                    <div 
+                    <div
                       className="w-full h-40 sm:h-48 bg-gradient-to-br from-purple-500/10 to-pink-500/10 border-b border-white/10 flex flex-col items-center justify-center gap-3 relative cursor-pointer hover:from-purple-500/20 hover:to-pink-500/20 transition-all group"
                       onClick={() => item.pdfUrl && window.open(item.pdfUrl, '_blank', 'noopener,noreferrer')}
                       title="Click to view portfolio"
@@ -1234,7 +1234,7 @@ const FreelancerProfile = () => {
                         </span>
                         <span className="text-gray-400 text-xs sm:text-sm">{item.completedDate}</span>
                       </div>
-                      <h3 
+                      <h3
                         className="text-lg sm:text-xl font-bold text-white mb-2 cursor-pointer hover:text-purple-300 transition-colors"
                         onClick={() => item.pdfUrl && window.open(item.pdfUrl, '_blank', 'noopener,noreferrer')}
                         title="Click to view portfolio"
@@ -1537,10 +1537,10 @@ const FreelancerProfile = () => {
                   {reports.map((report) => {
                     const isExpanded = expandedReportId === report.reportId;
                     const statusColors: Record<string, string> = {
-                      Pending:     'bg-yellow-500/20 border-yellow-500/30 text-yellow-400',
+                      Pending: 'bg-yellow-500/20 border-yellow-500/30 text-yellow-400',
                       UnderReview: 'bg-blue-500/20 border-blue-500/30 text-blue-400',
-                      Resolved:    'bg-green-500/20 border-green-500/30 text-green-400',
-                      Dismissed:   'bg-gray-500/20 border-gray-500/30 text-gray-400',
+                      Resolved: 'bg-green-500/20 border-green-500/30 text-green-400',
+                      Dismissed: 'bg-gray-500/20 border-gray-500/30 text-gray-400',
                     };
                     const statusCls = statusColors[report.status] ?? 'bg-white/10 border-white/20 text-gray-300';
 

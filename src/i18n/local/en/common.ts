@@ -401,7 +401,6 @@ const en = {
     allDataLost: 'All job seeker data will be lost.',
     remove: 'Remove',
     pending: 'Pending',
-    shortlisted: 'Shortlisted',
     interviewScheduled: 'Interview Scheduled',
     reviewed: 'Reviewed',
     rejected: 'Rejected',

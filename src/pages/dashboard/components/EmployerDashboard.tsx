@@ -14,7 +14,7 @@ interface Applicant {
   experience: string;
   matchScore: number | null;
   appliedDate: string;
-  status: 'pending' | 'reviewed' | 'shortlisted' | 'rejected' | 'interview_scheduled';
+  status: 'pending' | 'reviewed' | 'rejected' | 'interview_scheduled';
   interviewDate?: string;
   interviewTime?: string;
   rejectionReason?: string;
@@ -120,7 +120,7 @@ const EmployerDashboard = () => {
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [jobToDelete, setJobToDelete] = useState<Job | null>(null);
   const [jobFilter, setJobFilter] = useState<'all' | 'active' | 'closed'>('all');
-  const [applicantFilter, setApplicantFilter] = useState<'all' | 'pending' | 'shortlisted' | 'interview_scheduled' | 'rejected'>('all');
+  const [applicantFilter, setApplicantFilter] = useState<'all' | 'pending' | 'interview_scheduled' | 'rejected'>('all');
   const [showInterviewModal, setShowInterviewModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [selectedApplicant, setSelectedApplicant] = useState<Applicant | null>(null);
@@ -176,7 +176,6 @@ const EmployerDashboard = () => {
 
   const getApplicantStatusColor = (status: string) => {
     switch (status) {
-      case 'shortlisted': return 'text-emerald-400 bg-emerald-400/10 border-emerald-400/30';
       case 'reviewed': return 'text-violet-400 bg-violet-400/10 border-violet-400/30';
       case 'rejected': return 'text-red-400 bg-red-400/10 border-red-400/30';
       case 'interview_scheduled': return 'text-sky-400 bg-sky-400/10 border-sky-400/30';
@@ -201,7 +200,6 @@ const EmployerDashboard = () => {
   const getApplicantCounts = (applicants: Applicant[]) => ({
     all: applicants.length,
     pending: applicants.filter(a => a.status === 'pending').length,
-    shortlisted: applicants.filter(a => a.status === 'shortlisted').length,
     interview_scheduled: applicants.filter(a => a.status === 'interview_scheduled').length,
     rejected: applicants.filter(a => a.status === 'rejected').length,
   });
@@ -605,7 +603,6 @@ const EmployerDashboard = () => {
                       <>
                         <button onClick={() => setApplicantFilter('all')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${applicantFilter === 'all' ? 'bg-violet-500 text-white' : isLightMode ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>{t('employerDashboard.allCount')} ({counts.all})</button>
                         <button onClick={() => setApplicantFilter('pending')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${applicantFilter === 'pending' ? 'bg-amber-500 text-white' : isLightMode ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>{t('employerDashboard.pending')} ({counts.pending})</button>
-                        <button onClick={() => setApplicantFilter('shortlisted')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${applicantFilter === 'shortlisted' ? 'bg-emerald-500 text-white' : isLightMode ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>{t('employerDashboard.shortlisted')} ({counts.shortlisted})</button>
                         <button onClick={() => setApplicantFilter('interview_scheduled')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${applicantFilter === 'interview_scheduled' ? 'bg-sky-500 text-white' : isLightMode ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>{t('employerDashboard.interviewScheduled')} ({counts.interview_scheduled})</button>
                         <button onClick={() => setApplicantFilter('rejected')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${applicantFilter === 'rejected' ? 'bg-red-500 text-white' : isLightMode ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>{t('employerDashboard.rejected')} ({counts.rejected})</button>
                       </>

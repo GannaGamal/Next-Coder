@@ -397,7 +397,6 @@ const ar = {
     allDataLost: 'ستضيع جميع بيانات المتقدمين.',
     remove: 'إزالة',
     pending: 'معلق',
-    shortlisted: 'مختار للقائمة القصيرة',
     interviewScheduled: 'مقابلة مجدولة',
     reviewed: 'تمت المراجعة',
     rejected: 'مرفوض',

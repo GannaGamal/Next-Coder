@@ -10,6 +10,8 @@ interface CompanySelectProps {
   isLightMode: boolean;
   disabled?: boolean;
   placeholder?: string;
+  required?: boolean;
+  hasError?: boolean;
 }
 
 export const CompanySelect = ({
@@ -19,6 +21,8 @@ export const CompanySelect = ({
   isLightMode,
   disabled = false,
   placeholder = 'Select a company',
+  required = false,
+  hasError = false,
 }: CompanySelectProps) => {
   const [companies, setCompanies] = useState<CompanyInfo[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -77,8 +81,8 @@ export const CompanySelect = ({
   };
 
   const inputCls = isLightMode
-    ? 'bg-gray-100 border-gray-200 text-gray-900 placeholder-gray-400'
-    : 'bg-white/5 border-white/10 text-white placeholder-gray-500';
+    ? `bg-gray-100 text-gray-900 placeholder-gray-400 ${hasError ? 'border-red-500 focus:border-red-500' : 'border-gray-200'}`
+    : `bg-white/5 text-white placeholder-gray-500 ${hasError ? 'border-red-500 focus:border-red-500' : 'border-white/10'}`;
 
   const labelCls = isLightMode ? 'text-gray-700' : 'text-white';
 
