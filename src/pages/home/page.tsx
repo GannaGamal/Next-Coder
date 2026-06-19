@@ -4,6 +4,9 @@ import Footer from "../../components/feature/Footer";
 import { useAuth } from "../../contexts/AuthContext";
 import { useTranslation } from "react-i18next";
 import rocketImage from "../../assets/space-rocket.png";
+import rocketAnimation from "../../assets/animations/rocket.json?url";
+import DotLottieAnimation from "../../components/feature/DotLottieAnimation";
+
 
 const HomePage = () => {
   const { isAuthenticated } = useAuth();
@@ -287,12 +290,10 @@ const HomePage = () => {
                   style={{ animationDelay: "1s" }}
                 ></div>
                 <div className="relative z-10 animate-float">
-                  <div className="w-36 h-36 md:w-44 md:h-44 flex items-center justify-center rounded-3xl">
-                    <img
-                      src={rocketImage}
-                      alt="logo"
-                      className="w-full h-full object-contain"
-                    />
+                  <div className="w-56 h-56 md:w-72 md:h-72 flex items-center justify-center rounded-3xl">
+                   <div className="w-74 h-74 md:w-80 md:h-80 flex items-center justify-center rounded-3xl">
+                    <DotLottieAnimation src={rocketAnimation} className="w-full h-full" />
+                   </div>
                   </div>
                   <div className="absolute -top-3 -right-3 w-10 h-10 flex items-center justify-center bg-gradient-to-br from-pink-500 to-rose-500 rounded-xl shadow-lg animate-bounce">
                     <i className="ri-sparkling-line text-white text-base"></i>

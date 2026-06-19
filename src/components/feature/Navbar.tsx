@@ -9,7 +9,7 @@ import { normalizeUserRole } from "../../utils/dashboard";
 import { assignNewRole, getPublicRoles, unassignRole } from "../../services/role.service";
 import NotificationDropdown from "./NotificationDropdown";
 import LanguageSwitcher from "./LanguageSwitcher";
-import rocketImage from "../../assets/space-rocket.png";
+import rocketImage from "../../assets/logo.png";
 import CustomSelect from "../base/CustomSelect";
 
 interface PortfolioItem {
@@ -594,7 +594,7 @@ const Navbar = () => {
               to="/"
               className="flex items-center space-x-2 group flex-shrink-0 mr-6"
             >
-              <div className="w-7 h-7 flex items-center justify-center rounded-lg group-hover:scale-105 transition-transform">
+              <div className="w-8 h-8 flex items-center justify-center rounded-lg group-hover:scale-105 transition-transform">
                 <img
                   src={rocketImage}
                   alt="logo"
