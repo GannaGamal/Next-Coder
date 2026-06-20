@@ -6,11 +6,28 @@ import { useTranslation } from "react-i18next";
 import rocketImage from "../../assets/space-rocket.png";
 import rocketAnimation from "../../assets/animations/rocket.json?url";
 import DotLottieAnimation from "../../components/feature/DotLottieAnimation";
+import { useEffect, useState } from "react";
+import { type HomeData, getHomeData, type Review, getReviews } from "../../services/Home.service";
 
 
 const HomePage = () => {
   const { isAuthenticated } = useAuth();
   const { t } = useTranslation();
+
+  const [homeData, setHomeData] = useState<HomeData | null>(null);
+  const [reviews, setReviews] = useState<Review[]>([]);
+
+  useEffect(() => {
+    getHomeData().then(setHomeData).catch(console.error);
+    getReviews()
+      .then((data) => {
+        const top3 = [...data]
+          .sort((a, b) => b.rating - a.rating)
+          .slice(0, 3);
+        setReviews(top3);
+      })
+      .catch(console.error);
+  }, []);
 
   const allFeatures = [
     {
@@ -61,36 +78,21 @@ const HomePage = () => {
   ];
 
   const stats = [
-    { number: "5,000+", label: t("home.activeFreelancers") },
-    { number: "2,500+", label: t("home.projectsCompleted") },
-    { number: "1,200+", label: t("home.companiesHiring") },
-    { number: "98%", label: t("home.successRate") },
-  ];
-
-  const testimonials = [
     {
-      name: "Sarah Johnson",
-      role: "Freelance Designer",
-      avatar:
-        "https://readdy.ai/api/search-image?query=professional%20female%20designer%20portrait%20smiling%20confident%20in%20creative%20workspace%20with%20clean%20bright%20background%20modern%20casual%20attire&width=200&height=200&seq=test1&orientation=squarish",
-      rating: 5,
-      text: "Next Coder transformed my freelance career. The milestone system ensures I get paid fairly, and clients love the transparency.",
+      number: homeData ? `${homeData.totalUsers.toLocaleString()}+` : "—",
+      label: 'Total Users',
     },
     {
-      name: "Michael Chen",
-      role: "Software Engineer",
-      avatar:
-        "https://readdy.ai/api/search-image?query=professional%20male%20software%20engineer%20portrait%20friendly%20smile%20in%20tech%20office%20environment%20clean%20background%20business%20casual&width=200&height=200&seq=test2&orientation=squarish",
-      rating: 5,
-      text: "Found my dream job through Next Coder. The CV matching feature helped me stand out, and I got multiple offers within weeks.",
+      number: homeData ? `${homeData.activeFreelancers.toLocaleString()}+` : "—",
+      label: 'Active Freelancers',
     },
     {
-      name: "Emily Rodriguez",
-      role: "Marketing Manager",
-      avatar:
-        "https://readdy.ai/api/search-image?query=professional%20female%20marketing%20manager%20portrait%20confident%20smile%20in%20modern%20office%20clean%20white%20background%20professional%20attire&width=200&height=200&seq=test3&orientation=squarish",
-      rating: 5,
-      text: "As an employer, Next Coder makes hiring so much easier. The filtering system saves hours of CV screening time.",
+      number: homeData ? `${homeData.postedJobs.toLocaleString()}+` : "—",
+      label: 'Posted Jobs',
+    },
+    {
+      number: homeData ? `${homeData.activeProjects.toLocaleString()}+` : "—",
+      label: 'Active Projects',
     },
   ];
 
@@ -241,7 +243,9 @@ const HomePage = () => {
                 </div>
                 <span className="text-sm text-white/50">
                   {t("home.joinedBy")}{" "}
-                  <strong className="text-white/80">5,000+</strong>{" "}
+                  <strong className="text-white/80">
+                    {homeData ? `${homeData.totalUsers.toLocaleString()}+` : "…"}
+                  </strong>{" "}
                   {t("home.professionals")}
                 </span>
               </div>
@@ -319,7 +323,8 @@ const HomePage = () => {
                     {t("home.projectsCompleted")}
                   </div>
                   <div className="text-sm font-bold text-white">
-                    2,500+ <span className="text-purple-400">✓</span>
+                    {homeData ? `${homeData.activeProjects.toLocaleString()}+` : "…"}{" "}
+                    <span className="text-purple-400">✓</span>
                   </div>
                 </div>
               </div>
@@ -479,40 +484,80 @@ const HomePage = () => {
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {testimonials.map((testimonial, index) => (
-              <div
-                key={index}
-                className="bg-navy-800/50 backdrop-blur-sm rounded-2xl p-8 border border-white/5 hover:border-white/10 hover:-translate-y-1 transition-all animate-rise"
-                style={{ animationDelay: `${index * 100}ms` }}
-              >
-                <div className="flex items-center mb-4">
-                  {[...Array(testimonial.rating)].map((_, i) => (
-                    <i
-                      key={i}
-                      className="ri-star-fill text-yellow-400 text-lg"
-                    ></i>
-                  ))}
-                </div>
-                <p className="text-white/70 leading-relaxed mb-6 italic">
-                  &ldquo;{testimonial.text}&rdquo;
-                </p>
-                <div className="flex items-center">
-                  <img
-                    src={testimonial.avatar}
-                    alt={testimonial.name}
-                    className="w-12 h-12 rounded-full object-cover mr-4 ring-2 ring-purple-500/30"
-                  />
-                  <div>
-                    <div className="font-semibold text-white">
-                      {testimonial.name}
-                    </div>
-                    <div className="text-sm text-white/60">
-                      {testimonial.role}
+            {reviews.length > 0 ? reviews.map((review, index) => {
+              const ASSET_BASE = "https://nextcoder.runasp.net/";
+              const avatarSrc = review.userImage
+                ? /^https?:\/\//i.test(review.userImage)
+                  ? review.userImage
+                  : `${ASSET_BASE}${review.userImage.replace(/^\//, "")}`
+                : `https://ui-avatars.com/api/?name=${encodeURIComponent(review.userName)}&background=7c3aed&color=fff&size=128`;
+              return (
+                <div
+                  key={index}
+                  className="bg-navy-800/50 backdrop-blur-sm rounded-2xl p-8 border border-white/5 hover:border-white/10 hover:-translate-y-1 transition-all animate-rise"
+                  style={{ animationDelay: `${index * 100}ms` }}
+                >
+                  <div className="flex items-center mb-4">
+                    {[...Array(Math.min(review.rating, 5))].map((_, i) => (
+                      <i key={i} className="ri-star-fill text-yellow-400 text-lg"></i>
+                    ))}
+                    {[...Array(Math.max(0, 5 - review.rating))].map((_, i) => (
+                      <i key={`empty-${i}`} className="ri-star-line text-yellow-400/30 text-lg"></i>
+                    ))}
+                  </div>
+                  <p className="text-white/70 leading-relaxed mb-6 italic">
+                    &ldquo;{review.comment}&rdquo;
+                  </p>
+                  <div className="flex items-center">
+                    <img
+                      src={avatarSrc}
+                      alt={review.userName}
+                      className="w-12 h-12 rounded-full object-cover mr-4 ring-2 ring-purple-500/30"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src =
+                          `https://ui-avatars.com/api/?name=${encodeURIComponent(review.userName)}&background=7c3aed&color=fff&size=128`;
+                      }}
+                    />
+                    <div>
+                      <div className="font-semibold text-white">{review.userName}</div>
+                      <div className="text-sm text-white/60">
+                        {new Date(review.createdAt).toLocaleDateString(undefined, {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                        })}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            }) : (
+              // Skeleton placeholders while loading
+              [...Array(3)].map((_, i) => (
+                <div
+                  key={i}
+                  className="bg-navy-800/50 backdrop-blur-sm rounded-2xl p-8 border border-white/5 animate-pulse"
+                >
+                  <div className="flex gap-1 mb-4">
+                    {[...Array(5)].map((_, j) => (
+                      <div key={j} className="w-5 h-5 rounded bg-white/10"></div>
+                    ))}
+                  </div>
+                  <div className="space-y-2 mb-6">
+                    <div className="h-3 bg-white/10 rounded w-full"></div>
+                    <div className="h-3 bg-white/10 rounded w-5/6"></div>
+                    <div className="h-3 bg-white/10 rounded w-4/6"></div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-white/10"></div>
+                    <div className="space-y-2">
+                      <div className="h-3 bg-white/10 rounded w-24"></div>
+                      <div className="h-3 bg-white/10 rounded w-16"></div>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </section>

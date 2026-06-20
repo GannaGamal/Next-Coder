@@ -1,6 +1,15 @@
 import { API_BASE } from './api.config';
 import { parseApiError } from './api.utils';
 
+export interface HomeData {
+  totalUsers : number;
+  activeFreelancers : number;
+  activeClients : number;
+  postedJobs : number;
+  activeProjects : number;
+  platformRevenue : number;
+}
+
 export interface Review {
   userName: string;
   userImage: string;
@@ -73,3 +82,23 @@ export const getReviewSummary = async (): Promise<ReviewSummary> => {
 
   return body.data as ReviewSummary;
 };
+
+
+export const getHomeData = async (): Promise<HomeData> => {
+  const response = await fetch(`${API_BASE}/Home/Dashboard`, {
+    method: 'GET',  
+  headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+  const body = await response.json();
+  if (!body?.success || !body?.data) {
+    throw new Error('Unable to load home data.');
+  }
+  return body.data as HomeData;
+}
+
+

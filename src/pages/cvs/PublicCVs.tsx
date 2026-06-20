@@ -168,42 +168,6 @@ const PublicCVs = () => {
             </p>
           </div>
 
-          {/* ATS Tips Card */}
-          <div className={`backdrop-blur-sm rounded-xl border p-6 mb-8 ${isLightMode ? 'bg-purple-50 border-purple-200' : 'bg-gradient-to-br from-purple-500/10 to-pink-500/10 border-purple-500/30'}`}>
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-purple-500/20 flex-shrink-0">
-                <i className="ri-lightbulb-line text-xl text-purple-400"></i>
-              </div>
-              <div className="flex-1 min-w-0">
-                <h4 className={`text-lg font-bold mb-3 ${isLightMode ? 'text-gray-900' : 'text-white'}`}>
-                  {t('common.tipsForSuccess', 'Tips for Success')}
-                </h4>
-                <div className={`text-sm space-y-4 ${isLightMode ? 'text-gray-700' : 'text-gray-300'}`}>
-                  <p>
-                    To maximize your chances of passing ATS (Applicant Tracking System) screening, it is highly recommended to use a professional ATS-friendly resume template.
-                  </p>
-                  <div>
-                    <p className={`font-semibold mb-2 ${isLightMode ? 'text-gray-900' : 'text-white'}`}>Recommended templates:</p>
-                    <ul className="list-disc pl-5 space-y-1">
-                      <li>
-                        <a href="https://www.canva.com/ar_eg/templates/EAGHNEVFuCs/" target="_blank" rel="noopener noreferrer" className="text-purple-500 hover:text-purple-600 dark:hover:text-purple-400 hover:underline font-medium transition-colors">
-                          Canva ATS Resume Template
-                        </a>
-                      </li>
-                      <li>
-                        <a href="https://www.overleaf.com/latex/templates/jakes-resume/syzfjbzwjncs" target="_blank" rel="noopener noreferrer" className="text-purple-500 hover:text-purple-600 dark:hover:text-purple-400 hover:underline font-medium transition-colors">
-                          Jake's Resume (Overleaf)
-                        </a>
-                      </li>
-                    </ul>
-                  </div>
-                  <p>
-                    Using non-ATS-friendly resume formats may reduce the visibility of your CV during filtering and screening processes. For the best results, use a clean, structured resume similar to the templates above.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
 
           {(cvLoading || cvError) && (
             <div

@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import Navbar from '../../components/feature/Navbar';
@@ -533,77 +532,115 @@ const JobApplication = () => {
               </div>
             )}
 
-            {/* CV Upload Section */}
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
-              <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                <i className="ri-file-user-line text-purple-400"></i>
-                Upload Your CV
-                <span className="text-red-400">*</span>
-              </h2>
-              <div
-                onDragEnter={handleDrag}
-                onDragLeave={handleDrag}
-                onDragOver={handleDrag}
-                onDrop={handleDrop}
-                className={`border-2 border-dashed rounded-xl p-8 text-center transition-all ${
-                  dragActive
-                    ? 'border-purple-500 bg-purple-500/10'
-                    : uploadedCV
-                    ? 'border-emerald-500/50 bg-emerald-500/5'
-                    : 'border-white/20 hover:border-purple-500/50'
-                }`}
-              >
-                {uploadedCV ? (
-                  <div className="flex items-center justify-center gap-4">
-                    <div className="w-14 h-14 flex items-center justify-center rounded-xl bg-emerald-500/20">
-                      <i className="ri-file-text-line text-3xl text-emerald-400"></i>
+            {/* CV Upload + Tips Side by Side */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+              {/* CV Upload Section */}
+              <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6 flex flex-col">
+                <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                  <i className="ri-file-user-line text-purple-400"></i>
+                  Upload Your CV
+                  <span className="text-red-400">*</span>
+                </h2>
+                <div
+                  onDragEnter={handleDrag}
+                  onDragLeave={handleDrag}
+                  onDragOver={handleDrag}
+                  onDrop={handleDrop}
+                  className={`border-2 border-dashed rounded-xl p-8 text-center transition-all ${
+                    dragActive
+                      ? 'border-purple-500 bg-purple-500/10'
+                      : uploadedCV
+                      ? 'border-emerald-500/50 bg-emerald-500/5'
+                      : 'border-white/20 hover:border-purple-500/50'
+                  }`}
+                >
+                  {uploadedCV ? (
+                    <div className="flex items-center justify-center gap-4">
+                      <div className="w-14 h-14 flex items-center justify-center rounded-xl bg-emerald-500/20">
+                        <i className="ri-file-text-line text-3xl text-emerald-400"></i>
+                      </div>
+                      <div className="text-left">
+                        <p className="text-white font-semibold">{uploadedCV.name}</p>
+                        <p className="text-gray-400 text-sm">{(uploadedCV.size / 1024).toFixed(2)} KB</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUploadedCV(null);
+                          setFullText('');
+                          setCvParseError('');
+                        }}
+                        className="w-10 h-10 flex items-center justify-center text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
+                      >
+                        <i className="ri-delete-bin-line text-xl"></i>
+                      </button>
                     </div>
-                    <div className="text-left">
-                      <p className="text-white font-semibold">{uploadedCV.name}</p>
-                      <p className="text-gray-400 text-sm">{(uploadedCV.size / 1024).toFixed(2)} KB</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setUploadedCV(null);
-                        setFullText('');
-                        setCvParseError('');
-                      }}
-                      className="w-10 h-10 flex items-center justify-center text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
-                    >
-                      <i className="ri-delete-bin-line text-xl"></i>
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    <div className="w-16 h-16 flex items-center justify-center rounded-full bg-purple-500/20 mx-auto mb-4">
-                      <i className="ri-upload-cloud-2-line text-3xl text-purple-400"></i>
-                    </div>
-                    <p className="text-white font-semibold mb-2">Drag & drop your CV here</p>
-                    <p className="text-gray-400 text-sm mb-4">or click to browse files</p>
-                    <label className="inline-block px-6 py-3 bg-purple-500 text-white font-semibold rounded-lg hover:bg-purple-600 transition-colors cursor-pointer whitespace-nowrap">
-                      <i className="ri-folder-open-line mr-2"></i>
-                      Browse Files
-                      <input
-                        type="file"
-                        accept=".pdf,.doc,.docx"
-                        onChange={handleFileChange}
-                        className="hidden"
-                      />
-                    </label>
-                    <p className="text-gray-500 text-xs mt-4">Supported formats: PDF, DOC, DOCX (Max 5MB)</p>
-                  </>
+                  ) : (
+                    <>
+                      <div className="w-16 h-16 flex items-center justify-center rounded-full bg-purple-500/20 mx-auto mb-4">
+                        <i className="ri-upload-cloud-2-line text-3xl text-purple-400"></i>
+                      </div>
+                      <p className="text-white font-semibold mb-2">Drag & drop your CV here</p>
+                      <p className="text-gray-400 text-sm mb-4">or click to browse files</p>
+                      <label className="inline-block px-6 py-3 bg-purple-500 text-white font-semibold rounded-lg hover:bg-purple-600 transition-colors cursor-pointer whitespace-nowrap">
+                        <i className="ri-folder-open-line mr-2"></i>
+                        Browse Files
+                        <input
+                          type="file"
+                          accept=".pdf,.doc,.docx"
+                          onChange={handleFileChange}
+                          className="hidden"
+                        />
+                      </label>
+                      <p className="text-gray-500 text-xs mt-4">Supported formats: PDF, DOC, DOCX (Max 5MB)</p>
+                    </>
+                  )}
+                </div>
+                {fileError && (
+                  <p className="text-red-300 text-xs mt-3">{fileError}</p>
+                )}
+                {!fileError && cvParseError && (
+                  <p className="text-amber-300 text-xs mt-3">{cvParseError}</p>
+                )}
+                {isParsingCv && (
+                  <p className="text-xs text-gray-400 mt-3">Parsing your CV...</p>
                 )}
               </div>
-              {fileError && (
-                <p className="text-red-300 text-xs mt-3">{fileError}</p>
-              )}
-              {!fileError && cvParseError && (
-                <p className="text-amber-300 text-xs mt-3">{cvParseError}</p>
-              )}
-              {isParsingCv && (
-                <p className="text-xs text-gray-400 mt-3">Parsing your CV...</p>
-              )}
+
+              {/* Tips for Success */}
+              <div className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 backdrop-blur-sm rounded-xl border border-purple-500/30 p-6">
+                <div className="flex items-start gap-4">
+                  <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-purple-500/20 flex-shrink-0">
+                    <i className="ri-lightbulb-line text-xl text-purple-400"></i>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-xl font-bold text-white mb-3">Tips for Success</h4>
+                    <div className="text-md space-y-4 text-gray-300">
+                      <p>
+                        To maximize your chances of passing ATS (Applicant Tracking System) screening, it is highly recommended to use a professional ATS-friendly resume template.
+                      </p>
+                      <div>
+                        <p className="font-semibold text-white mb-2">Recommended templates:</p>
+                        <ul className="list-disc pl-5 space-y-1">
+                          <li>
+                            <a href="https://www.canva.com/ar_eg/templates/EAGHNEVFuCs/" target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:text-purple-300 hover:underline font-medium transition-colors">
+                              Canva ATS Resume Template
+                            </a>
+                          </li>
+                          <li>
+                            <a href="https://www.overleaf.com/latex/templates/jakes-resume/syzfjbzwjncs" target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:text-purple-300 hover:underline font-medium transition-colors">
+                              Jake's Resume (Overleaf)
+                            </a>
+                          </li>
+                        </ul>
+                      </div>
+                      <p>
+                        Using non-ATS-friendly resume formats may reduce the visibility of your CV during filtering and screening processes. For the best results, use a clean, structured resume similar to the templates above.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* API Parameters */}
