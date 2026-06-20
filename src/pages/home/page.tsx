@@ -4,8 +4,7 @@ import Footer from "../../components/feature/Footer";
 import { useAuth } from "../../contexts/AuthContext";
 import { useTranslation } from "react-i18next";
 import rocketImage from "../../assets/space-rocket.png";
-import rocketAnimation from "../../assets/animations/rocket.json?url";
-import DotLottieAnimation from "../../components/feature/DotLottieAnimation";
+import pairProgrammingIllustration from "../../assets/pair-programming.svg";
 import { useEffect, useState } from "react";
 import { type HomeData, getHomeData, type Review, getReviews } from "../../services/Home.service";
 
@@ -252,81 +251,34 @@ const HomePage = () => {
             </div>
 
             <div
-              className="relative flex items-center justify-center animate-fade-in"
+              className="relative flex flex-col items-center justify-center animate-fade-in w-full"
               style={{ animationDelay: "200ms" }}
             >
-              {orbitIcons.map((item, i) => (
-                <div
-                  key={i}
-                  className={`absolute ${item.anim} z-20`}
-                  style={{
-                    top: item.top,
-                    left: "left" in item ? item.left : undefined,
-                    right: "right" in item ? item.right : undefined,
-                    animationDelay: item.delay,
-                  }}
+              <div className="w-full max-w-lg md:max-w-xl lg:max-w-2xl">
+                <object
+                  type="image/svg+xml"
+                  data={pairProgrammingIllustration}
+                  className="w-full h-auto drop-shadow-2xl"
+                  aria-label="Pair programming illustration"
+                  style={{ minHeight: "320px" }}
                 >
-                  <div
-                    className={`w-10 h-10 flex items-center justify-center rounded-xl ${item.color} shadow-lg`}
-                  >
-                    <i className={`${item.icon} text-white text-lg`}></i>
-                  </div>
-                </div>
-              ))}
-              <div className="relative w-80 h-80 md:w-96 md:h-96 flex items-center justify-center">
-                <div className="absolute inset-0 rounded-full border border-purple-500/15 animate-spin-slow">
-                  <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-purple-400/60 shadow-md shadow-purple-400/40"></div>
-                  <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-violet-400/50"></div>
-                </div>
-                <div className="absolute inset-8 rounded-full border border-violet-400/20 animate-spin-reverse">
-                  <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-pink-400/70"></div>
-                  <div className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-teal-400/60"></div>
-                </div>
-                <div
-                  className="absolute inset-16 rounded-full border border-white/10 animate-spin-slow"
-                  style={{ animationDuration: "10s" }}
+                  <img
+                    src={pairProgrammingIllustration}
+                    alt="Pair programming illustration"
+                    className="w-full h-auto"
+                  />
+                </object>
+              </div>
+              <div className="mt-3 text-center">
+                <a
+                  href="https://storyset.com/work"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[11px] text-white/30 hover:text-white/50 transition-colors"
+                  style={{ textDecoration: "none" }}
                 >
-                  <div className="absolute -left-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-amber-400/70"></div>
-                </div>
-                <div className="absolute w-48 h-48 bg-purple-500/30 rounded-full blur-3xl animate-pulse-glow"></div>
-                <div
-                  className="absolute w-32 h-32 bg-violet-500/40 rounded-full blur-2xl animate-pulse-glow"
-                  style={{ animationDelay: "1s" }}
-                ></div>
-                <div className="relative z-10 animate-float">
-                  <div className="w-56 h-56 md:w-72 md:h-72 flex items-center justify-center rounded-3xl">
-                   <div className="w-74 h-74 md:w-80 md:h-80 flex items-center justify-center rounded-3xl">
-                    <DotLottieAnimation src={rocketAnimation} className="w-full h-full" />
-                   </div>
-                  </div>
-                  <div className="absolute -top-3 -right-3 w-10 h-10 flex items-center justify-center bg-gradient-to-br from-pink-500 to-rose-500 rounded-xl shadow-lg animate-bounce">
-                    <i className="ri-sparkling-line text-white text-base"></i>
-                  </div>
-
-                </div>
-                <div
-                  className="absolute -right-8 top-8 bg-navy-800/90 backdrop-blur-sm border border-white/10 rounded-xl px-3 py-2 shadow-lg animate-float-slow"
-                  style={{ animationDelay: "0.6s" }}
-                >
-                  <div className="text-xs text-white/50 mb-0.5">
-                    {t("home.successRate")}
-                  </div>
-                  <div className="text-sm font-bold text-white">
-                    98% <span className="text-green-400">↑</span>
-                  </div>
-                </div>
-                <div
-                  className="absolute -left-8 bottom-12 bg-navy-800/90 backdrop-blur-sm border border-white/10 rounded-xl px-3 py-2 shadow-lg animate-float-slow"
-                  style={{ animationDelay: "1.2s" }}
-                >
-                  <div className="text-xs text-white/50 mb-0.5">
-                    {t("home.projectsCompleted")}
-                  </div>
-                  <div className="text-sm font-bold text-white">
-                    {homeData ? `${homeData.activeProjects.toLocaleString()}+` : "…"}{" "}
-                    <span className="text-purple-400">✓</span>
-                  </div>
-                </div>
+                  Work illustrations by Storyset
+                </a>
               </div>
             </div>
           </div>
