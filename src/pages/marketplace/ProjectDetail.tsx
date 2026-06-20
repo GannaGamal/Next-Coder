@@ -7,7 +7,6 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import RoleGateModal from '../../components/feature/RoleGateModal';
-import { useTranslation } from 'react-i18next';
 import {
   getProjectDetails,
   submitProposal,
