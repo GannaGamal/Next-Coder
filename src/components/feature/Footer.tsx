@@ -11,26 +11,25 @@ const Footer = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
           <div>
             <div className="flex items-center space-x-3 mb-6">
-              <div className="w-10 h-10 flex items-center justify-center rounded-lg">
-                <img
-                  src={rocketImage}
-                  alt="rocket"
-                  className="w-7 h-7 object-contain"
-                />
-              </div>
-              <span className="text-2xl font-bold">Next Coder</span>
+              
+              <Link
+                to="/"
+                className="flex items-center group flex-shrink-0 mr-6"
+              >
+                <span className="text-[26px] font-black tracking-tight whitespace-nowrap bg-gradient-to-r from-purple-400 via-indigo-400 to-indigo-500 bg-clip-text text-transparent drop-shadow-[0_0_10px_rgba(168,85,247,0.25)] group-hover:drop-shadow-[0_0_15px_rgba(168,85,247,0.4)] transition-all duration-300">
+                  Next Coder
+                </span>
+              </Link>
             </div>
             <p className="text-white/60 text-sm leading-relaxed mb-6">
               {t('footer.tagline')}
             </p>
             <div className="flex space-x-4">
-              <a href="#" className="w-10 h-10 flex items-center justify-center bg-white/5 hover:bg-purple-500 rounded-lg transition-colors cursor-pointer" aria-label="Facebook">
+              <a href="https://www.facebook.com/profile.php?id=61590898854966" className="w-10 h-10 flex items-center justify-center bg-white/5 hover:bg-purple-500 rounded-lg transition-colors cursor-pointer" aria-label="Facebook">
                 <i className="ri-facebook-fill text-lg"></i>
               </a>
-              <a href="#" className="w-10 h-10 flex items-center justify-center bg-white/5 hover:bg-purple-500 rounded-lg transition-colors cursor-pointer" aria-label="Twitter">
-                <i className="ri-twitter-x-fill text-lg"></i>
-              </a>
-              <a href="#" className="w-10 h-10 flex items-center justify-center bg-white/5 hover:bg-purple-500 rounded-lg transition-colors cursor-pointer" aria-label="Instagram">
+              
+              <a href="https://www.instagram.com/nextcoder_?fbclid=IwY2xjawSjmcpleHRuA2FlbQIxMABicmlkETFvT0ZzZUhibFdKTjBiUzg1c3J0YwZhcHBfaWQQMjIyMDM5MTc4ODIwMDg5MgABHlGoxfVTP9FM6a2AYMY0KELmaBt9imt9ZwqfL3RAFqTdgAxasV7IfduC5CJQ_aem_wgLmKDpGhhOsm8gbbGMdoA" className="w-10 h-10 flex items-center justify-center bg-white/5 hover:bg-purple-500 rounded-lg transition-colors cursor-pointer" aria-label="Instagram">
                 <i className="ri-instagram-fill text-lg"></i>
               </a>
             </div>

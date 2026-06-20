@@ -409,16 +409,13 @@ const Register = () => {
       {/* Left Side */}
       <div className="flex-1 flex items-center justify-center px-6 py-12">
         <div className="w-full max-w-2xl">
-          {/* Logo */}
-          <Link to="/" className="inline-flex items-center space-x-3 mb-8">
-            <div className="w-10 h-10 flex items-center justify-center rounded-lg">
-              <img
-                src={rocketImage}
-                alt="rocket"
-                className="w-5 h-5 object-contain"
-              />
-            </div>
-            <span className="text-2xl font-bold text-white">Next Coder</span>
+          <Link
+              to="/"
+              className="inline-flex items-center space-x-3 mb-10"
+            >
+              <span className="text-[26px] font-black tracking-tight whitespace-nowrap bg-gradient-to-r from-purple-400 via-indigo-400 to-indigo-500 bg-clip-text text-transparent drop-shadow-[0_0_10px_rgba(168,85,247,0.25)] group-hover:drop-shadow-[0_0_15px_rgba(168,85,247,0.4)] transition-all duration-300">
+                Next Coder
+              </span>
           </Link>
 
           {/* Header */}
@@ -999,13 +996,7 @@ const Register = () => {
             <h2 className="text-4xl font-bold text-white mb-4">{t('auth.rightPanelTitle2')}</h2>
             <p className="text-lg text-white/90 leading-relaxed">{t('auth.rightPanelSubtitle2')}</p>
           </div>
-          <div className="flex items-center space-x-8 mt-12">
-            <div className="text-center"><div className="text-3xl font-bold text-white mb-1">5K+</div><div className="text-sm text-white/80">{t('auth.freelancersCount')}</div></div>
-            <div className="w-px h-12 bg-white/30"></div>
-            <div className="text-center"><div className="text-3xl font-bold text-white mb-1">2.5K+</div><div className="text-sm text-white/80">{t('auth.projectsCount')}</div></div>
-            <div className="w-px h-12 bg-white/30"></div>
-            <div className="text-center"><div className="text-3xl font-bold text-white mb-1">100+</div><div className="text-sm text-white/80">{t('auth.coursesCount')}</div></div>
-          </div>
+          
         </div>
         <div className="absolute top-20 right-20 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
         <div className="absolute bottom-20 left-20 w-96 h-96 bg-white/10 rounded-full blur-3xl"></div>

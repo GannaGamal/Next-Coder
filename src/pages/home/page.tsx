@@ -3,7 +3,6 @@ import Navbar from "../../components/feature/Navbar";
 import Footer from "../../components/feature/Footer";
 import { useAuth } from "../../contexts/AuthContext";
 import { useTranslation } from "react-i18next";
-import rocketImage from "../../assets/space-rocket.png";
 import pairProgrammingIllustration from "../../assets/pair-programming.svg";
 import { useEffect, useState } from "react";
 import { type HomeData, getHomeData, type Review, getReviews } from "../../services/Home.service";
@@ -277,7 +276,6 @@ const HomePage = () => {
                   className="text-[11px] text-white/30 hover:text-white/50 transition-colors"
                   style={{ textDecoration: "none" }}
                 >
-                  Work illustrations by Storyset
                 </a>
               </div>
             </div>
@@ -535,13 +533,7 @@ const HomePage = () => {
           ))}
         </div>
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10 animate-rise">
-          <div className="w-30 h-30 flex items-center justify-center  rounded-2xl mx-auto mb-8 animate-float">
-            <img
-              src={rocketImage}
-              alt="rocket"
-              className="w-20 h-20 object-contain"
-            />
-          </div>
+          
           <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
             {t("home.ctaTitle")}
           </h2>

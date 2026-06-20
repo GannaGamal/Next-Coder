@@ -1,40 +1,17 @@
-import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import Navbar from '../../components/feature/Navbar';
 import Footer from '../../components/feature/Footer';
 import { useTheme } from '../../contexts/ThemeContext';
-import { submitContactForm } from '../../services/form.service';
-import type { ContactFormData } from '../../services/form.service';
+
 
 const Contact = () => {
   const { isLightMode } = useTheme();
   const { t } = useTranslation();
-  const [formData, setFormData] = useState({ name: '', email: '', subject: '', message: '' });
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    try {
-      await submitContactForm(formData as ContactFormData);
-      setIsSubmitted(true);
-      setFormData({ name: '', email: '', subject: '', message: '' });
-    } catch (error) {
-      console.error('Error submitting form:', error);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
+  
   const contactInfo = [
-    { icon: 'ri-mail-line', title: t('contact.emailUs'), description: t('contact.emailDesc'), value: 'support@nextcoder.com' },
-    { icon: 'ri-map-pin-line', title: t('contact.visitUs'), description: t('contact.visitDesc'), value: '123 Tech Street, San Francisco, CA 94102' },
-    { icon: 'ri-phone-line', title: t('contact.callUs'), description: t('contact.callDesc'), value: '+1 (555) 123-4567' },
+    { icon: 'ri-mail-line', title: t('contact.emailUs'), description: t('contact.emailDesc'), value: 'nextcoder41@gmail.com' },
+    { icon: 'ri-phone-line', title: t('contact.callUs'), description: t('contact.callDesc'), value: '+20 109 839 7978' },
   ];
 
   const faqs = [
@@ -44,10 +21,6 @@ const Contact = () => {
     { question: t('contact.faq4Q'), answer: t('contact.faq4A') },
   ];
 
-  const inputClass = isLightMode
-    ? 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:border-emerald-500'
-    : 'bg-white/5 border-white/10 text-white placeholder-white/40 focus:border-purple-500';
-  const labelClass = isLightMode ? 'text-gray-700' : 'text-white/80';
 
   return (
     <div className={`min-h-screen ${isLightMode ? 'bg-gray-50' : 'bg-[#1a1f37]'}`}>
@@ -72,7 +45,7 @@ const Contact = () => {
 
       <section className={`py-16 ${isLightMode ? 'bg-gray-50' : 'bg-[#1a1f37]'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {contactInfo.map((info, index) => (
               <div key={index} className={`rounded-2xl p-8 border transition-all text-center group ${
                 isLightMode ? 'bg-white border-gray-100 hover:border-emerald-300 hover:shadow-sm' : 'bg-white/5 backdrop-blur-sm border-white/10 hover:border-purple-500/50'
@@ -89,98 +62,7 @@ const Contact = () => {
         </div>
       </section>
 
-      <section className={`py-20 ${isLightMode ? 'bg-white' : 'bg-[#151929]'}`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-            <div className={`rounded-2xl p-8 md:p-10 border ${isLightMode ? 'bg-gray-50 border-gray-100' : 'bg-white/5 backdrop-blur-sm border-white/10'}`}>
-              <h2 className={`text-3xl font-bold mb-2 ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{t('contact.sendMessage')}</h2>
-              <p className={`mb-8 ${isLightMode ? 'text-gray-500' : 'text-white/60'}`}>{t('contact.formSubtitle')}</p>
-
-              {isSubmitted ? (
-                <div className="text-center py-12">
-                  <div className="w-20 h-20 flex items-center justify-center bg-gradient-to-br from-green-500 to-emerald-500 rounded-full mx-auto mb-6">
-                    <i className="ri-check-line text-4xl text-white"></i>
-                  </div>
-                  <h3 className={`text-2xl font-bold mb-3 ${isLightMode ? 'text-gray-900' : 'text-white'}`}>{t('contact.messageSent')}</h3>
-                  <p className={`mb-6 ${isLightMode ? 'text-gray-500' : 'text-white/60'}`}>{t('contact.thankYouMsg')}</p>
-                  <button onClick={() => setIsSubmitted(false)} className={`px-6 py-3 font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap ${
-                    isLightMode ? 'bg-emerald-500 text-white hover:bg-emerald-600' : 'bg-purple-500 text-white hover:bg-purple-600'
-                  }`}>
-                    {t('contact.sendAnother')}
-                  </button>
-                </div>
-              ) : (
-                <form id="contact-form" data-readdy-form onSubmit={handleSubmit} className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className={`block text-sm font-medium mb-2 ${labelClass}`}>{t('contact.yourName')}</label>
-                      <div className="relative">
-                        <i className={`ri-user-line absolute left-4 top-1/2 -translate-y-1/2 ${isLightMode ? 'text-gray-400' : 'text-white/40'}`}></i>
-                        <input type="text" name="name" value={formData.name} onChange={handleChange} required placeholder={t('contact.namePlaceholder')} className={`w-full pl-12 pr-4 py-3 border rounded-lg focus:outline-none transition-colors text-sm ${inputClass}`} />
-                      </div>
-                    </div>
-                    <div>
-                      <label className={`block text-sm font-medium mb-2 ${labelClass}`}>{t('contact.emailAddress')}</label>
-                      <div className="relative">
-                        <i className={`ri-mail-line absolute left-4 top-1/2 -translate-y-1/2 ${isLightMode ? 'text-gray-400' : 'text-white/40'}`}></i>
-                        <input type="email" name="email" value={formData.email} onChange={handleChange} required placeholder={t('contact.emailPlaceholder')} className={`w-full pl-12 pr-4 py-3 border rounded-lg focus:outline-none transition-colors text-sm ${inputClass}`} />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className={`block text-sm font-medium mb-2 ${labelClass}`}>{t('contact.subject')}</label>
-                    <div className="relative">
-                      <i className={`ri-chat-1-line absolute left-4 top-1/2 -translate-y-1/2 ${isLightMode ? 'text-gray-400' : 'text-white/40'}`}></i>
-                      <select name="subject" value={formData.subject} onChange={handleChange} required className={`w-full pl-12 pr-10 py-3 border rounded-lg focus:outline-none transition-colors text-sm appearance-none cursor-pointer ${
-                        isLightMode ? 'bg-gray-50 border-gray-200 text-gray-900 focus:border-emerald-500' : 'bg-[#1a1f37] border-white/10 text-white focus:border-purple-500'
-                      }`}>
-                        <option value="" className={isLightMode ? 'bg-white text-gray-900' : 'bg-[#1a1f37]'}>{t('contact.subjectPlaceholder')}</option>
-                        <option value="General Inquiry" className={isLightMode ? 'bg-white text-gray-900' : 'bg-[#1a1f37]'}>{t('contact.generalInquiry')}</option>
-                        <option value="Technical Support" className={isLightMode ? 'bg-white text-gray-900' : 'bg-[#1a1f37]'}>{t('contact.technicalSupport')}</option>
-                        <option value="Billing Question" className={isLightMode ? 'bg-white text-gray-900' : 'bg-[#1a1f37]'}>{t('contact.billingQuestion')}</option>
-                        <option value="Partnership" className={isLightMode ? 'bg-white text-gray-900' : 'bg-[#1a1f37]'}>{t('contact.partnership')}</option>
-                        <option value="Feedback" className={isLightMode ? 'bg-white text-gray-900' : 'bg-[#1a1f37]'}>{t('contact.feedback')}</option>
-                      </select>
-                      <i className={`ri-arrow-down-s-line absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none ${isLightMode ? 'text-gray-400' : 'text-white/40'}`}></i>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className={`block text-sm font-medium mb-2 ${labelClass}`}>{t('contact.message')}</label>
-                    <textarea name="message" value={formData.message} onChange={handleChange} required maxLength={500} rows={5} placeholder={t('contact.messagePlaceholder')} className={`w-full px-4 py-3 border rounded-lg focus:outline-none transition-colors text-sm resize-none ${inputClass}`}></textarea>
-                    <p className={`text-xs mt-1 text-right ${isLightMode ? 'text-gray-400' : 'text-white/40'}`}>{formData.message.length}/500</p>
-                  </div>
-
-                  <button type="submit" disabled={isSubmitting} className={`w-full py-4 text-white font-semibold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap bg-gradient-to-r ${
-                    isLightMode ? 'from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600' : 'from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600'
-                  }`}>
-                    {isSubmitting ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <i className="ri-loader-4-line animate-spin"></i>
-                        {t('contact.sending')}
-                      </span>
-                    ) : (
-                      <span className="flex items-center justify-center gap-2">
-                        {t('contact.sendBtn')} <i className="ri-send-plane-line"></i>
-                      </span>
-                    )}
-                  </button>
-                </form>
-              )}
-            </div>
-
-            <div className={`rounded-2xl overflow-hidden border ${isLightMode ? 'border-gray-100' : 'bg-white/5 backdrop-blur-sm border-white/10'}`}>
-              <iframe
-                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3153.0977904694045!2d-122.41941548468204!3d37.77492977975892!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x8085809c6c8f4459%3A0xb10ed6d9b5050fa5!2sSan%20Francisco%2C%20CA!5e0!3m2!1sen!2sus!4v1635959481000!5m2!1sen!2sus"
-                width="100%" height="100%" style={{ border: 0, minHeight: '500px' }}
-                allowFullScreen loading="lazy" referrerPolicy="no-referrer-when-downgrade" title="Next Coder Office Location"
-              ></iframe>
-            </div>
-          </div>
-        </div>
-      </section>
-
+      
       <section className={`py-20 ${isLightMode ? 'bg-gray-50' : 'bg-[#1a1f37]'}`}>
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
@@ -212,11 +94,11 @@ const Contact = () => {
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">{t('contact.stillHaveQ')}</h2>
           <p className="text-xl text-white/90 mb-8">{t('contact.joinCommunity')}</p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a href="https://discord.com" target="_blank" rel="nofollow noopener noreferrer" className={`px-8 py-4 bg-white font-bold rounded-lg hover:bg-gray-100 transition-all hover:scale-105 cursor-pointer whitespace-nowrap flex items-center justify-center gap-2 ${isLightMode ? 'text-emerald-600' : 'text-purple-600'}`}>
-              <i className="ri-discord-line text-xl"></i> {t('contact.joinDiscord')}
+            <a href="https://www.instagram.com/nextcoder_?fbclid=IwY2xjawSjmcpleHRuA2FlbQIxMABicmlkETFvT0ZzZUhibFdKTjBiUzg1c3J0YwZhcHBfaWQQMjIyMDM5MTc4ODIwMDg5MgABHlGoxfVTP9FM6a2AYMY0KELmaBt9imt9ZwqfL3RAFqTdgAxasV7IfduC5CJQ_aem_wgLmKDpGhhOsm8gbbGMdoA" target="_blank" rel="nofollow noopener noreferrer" className={`px-8 py-4 bg-white font-bold rounded-lg hover:bg-gray-100 transition-all hover:scale-105 cursor-pointer whitespace-nowrap flex items-center justify-center gap-2 ${isLightMode ? 'text-emerald-600' : 'text-purple-600'}`}>
+              <i className="ri-instagram-line text-xl"></i> Follow on instagram
             </a>
-            <a href="https://twitter.com" target="_blank" rel="nofollow noopener noreferrer" className="px-8 py-4 bg-white/10 text-white font-bold rounded-lg hover:bg-white/20 transition-all cursor-pointer whitespace-nowrap flex items-center justify-center gap-2">
-              <i className="ri-twitter-x-line text-xl"></i> {t('contact.followX')}
+            <a href="https://www.facebook.com/profile.php?id=61590898854966" target="_blank" rel="nofollow noopener noreferrer" className="px-8 py-4 bg-white/10 text-white font-bold rounded-lg hover:bg-white/20 transition-all cursor-pointer whitespace-nowrap flex items-center justify-center gap-2">
+              <i className="ri-facebook-line text-xl"></i> Follow on facebook
             </a>
           </div>
         </div>

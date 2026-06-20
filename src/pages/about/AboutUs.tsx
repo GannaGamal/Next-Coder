@@ -112,7 +112,7 @@ const AboutUs = () => {
         </div>
       </section>
 
-      {/* Team Section */}
+      {/* Team Section
       <section className="py-24 bg-navy-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
@@ -134,57 +134,8 @@ const AboutUs = () => {
             ))}
           </div>
         </div>
-      </section>
-
-      {/* Timeline Section */}
-      <section className="py-24 bg-navy-800/30">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">{t('about.ourJourney')}</h2>
-            <p className="text-lg text-white/60 max-w-2xl mx-auto">{t('about.journeySubtitle')}</p>
-          </div>
-          <div className="relative">
-            <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-gradient-to-b from-purple-500 to-blue-500"></div>
-            <div className="space-y-12">
-              {milestones.map((milestone, index) => (
-                <div key={index} className="relative pl-20">
-                  <div className="absolute left-0 w-16 h-16 flex items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-blue-500 text-white font-bold shadow-lg">
-                    {milestone.year}
-                  </div>
-                  <div className="bg-navy-800/50 backdrop-blur-sm rounded-xl p-6 border border-white/5 hover:border-purple-500/50 transition-all">
-                    <h3 className="text-xl font-bold text-white mb-2">{milestone.event}</h3>
-                    <p className="text-white/60">{milestone.description}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Stats Section */}
-      <section className="py-24 bg-navy-900">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            <div className="text-center">
-              <div className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400 mb-2">5,000+</div>
-              <div className="text-white/60 font-medium">{t('about.statActiveUsers')}</div>
-            </div>
-            <div className="text-center">
-              <div className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400 mb-2">50+</div>
-              <div className="text-white/60 font-medium">{t('about.statCountries')}</div>
-            </div>
-            <div className="text-center">
-              <div className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400 mb-2">10,000+</div>
-              <div className="text-white/60 font-medium">{t('about.statProjects')}</div>
-            </div>
-            <div className="text-center">
-              <div className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400 mb-2">98%</div>
-              <div className="text-white/60 font-medium">{t('about.statSatisfaction')}</div>
-            </div>
-          </div>
-        </div>
-      </section>
+      </section> */}
+    
 
       {/* CTA Section */}
       <section className="py-24 bg-gradient-to-br from-purple-600 to-blue-600 relative overflow-hidden">
