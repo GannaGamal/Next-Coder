@@ -11,7 +11,7 @@ import {
 type AppliedJob = JobApplicationDashboardItem;
 
 const ApplicantDashboard = () => {
-  const [statusFilter, setStatusFilter] = useState<'all' | 'Under Review' | 'Interview Scheduled' | 'Accepted' | 'Rejected'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'Under Review' | 'Interview Scheduled' | 'Rejected'>('all');
   const [selectedJob, setSelectedJob] = useState<AppliedJob | null>(null);
   const [showWithdrawConfirm, setShowWithdrawConfirm] = useState<AppliedJob | null>(null);
   const [isLoadingApplications, setIsLoadingApplications] = useState(false);
@@ -131,14 +131,13 @@ const ApplicantDashboard = () => {
     { label: `${t('applicantDashboard.all')} (${stats.total})`, value: 'all', color: 'bg-pink-500' },
     { label: `${t('applicantDashboard.underReview')} (${stats.underReview})`, value: 'Under Review', color: 'bg-amber-500' },
     { label: `${t('applicantDashboard.interviews')} (${stats.interviews})`, value: 'Interview Scheduled', color: 'bg-sky-500' },
-    { label: `${t('applicantDashboard.accepted')} (${stats.accepted})`, value: 'Accepted', color: 'bg-emerald-500' },
     { label: `${t('applicantDashboard.rejected')} (${stats.rejected})`, value: 'Rejected', color: 'bg-red-500' },
   ];
 
   return (
     <>
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
           <div className="flex items-center justify-between mb-2">
             <span className="text-white/60 text-sm">{t('applicantDashboard.totalApplied')}</span>
@@ -168,16 +167,6 @@ const ApplicantDashboard = () => {
           </div>
           <div className="text-3xl font-bold text-white">{stats.interviews}</div>
           <div className="text-white/50 text-sm mt-1">{t('applicantDashboard.scheduled')}</div>
-        </div>
-        <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-white/60 text-sm">{t('applicantDashboard.accepted')}</span>
-            <div className="w-8 h-8 flex items-center justify-center">
-              <i className="ri-checkbox-circle-line text-emerald-400 text-xl"></i>
-            </div>
-          </div>
-          <div className="text-3xl font-bold text-white">{stats.accepted}</div>
-          <div className="text-white/50 text-sm mt-1">{t('applicantDashboard.offersReceived')}</div>
         </div>
       </div>
 
@@ -357,14 +346,7 @@ const ApplicantDashboard = () => {
               </div>
             )}
 
-            {selectedJob.status === 'Accepted' && (
-              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-4 mb-6">
-                <div className="flex items-center gap-2">
-                  <i className="ri-checkbox-circle-line text-emerald-400 text-xl"></i>
-                  <span className="text-emerald-500 font-semibold">{t('applicantDashboard.congratsAccepted')}</span>
-                </div>
-              </div>
-            )}
+
 
             {selectedJob.reason && (
               <div className="mb-6">
