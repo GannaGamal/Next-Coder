@@ -1,5 +1,6 @@
 
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useViewAs } from '../../../contexts/ViewAsContext';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -300,7 +301,7 @@ const ViewAsRole = () => {
       </div>
 
       {/* Confirm Modal */}
-      {showConfirmModal && selectedRole && (
+      {showConfirmModal && selectedRole && createPortal(
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-[#1a1f37] rounded-xl max-w-md w-full border border-white/10">
             <div className="p-6 border-b border-white/10">
@@ -365,7 +366,8 @@ const ViewAsRole = () => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

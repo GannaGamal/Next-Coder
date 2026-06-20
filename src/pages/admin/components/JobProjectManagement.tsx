@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 
 interface Job {
   id: number;
@@ -323,7 +324,7 @@ const JobProjectManagement = () => {
       )}
 
       {/* Job Details Modal */}
-      {showJobModal && selectedJob && (
+      {showJobModal && selectedJob && createPortal(
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-[#1a1f37] rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-white/10">
             <div className="p-6 border-b border-white/10 flex items-center justify-between">
@@ -396,11 +397,12 @@ const JobProjectManagement = () => {
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Project Details Modal */}
-      {showProjectModal && selectedProject && (
+      {showProjectModal && selectedProject && createPortal(
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-[#1a1f37] rounded-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto border border-white/10">
             <div className="p-6 border-b border-white/10 flex items-center justify-between">
@@ -473,7 +475,8 @@ const JobProjectManagement = () => {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

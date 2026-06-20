@@ -1347,7 +1347,7 @@ const FreelancerDashboard = () => {
       {showSubmitDeliverablesModal && submittingMilestone && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowSubmitDeliverablesModal(false)}></div>
-          <div className={`relative rounded-2xl border p-8 w-full max-w-2xl ${
+          <div className={`relative rounded-2xl border p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto ${
             isLightMode ? 'bg-white border-gray-200' : 'bg-[#1e2442] border-white/10'
           }`}>
             <button onClick={() => setShowSubmitDeliverablesModal(false)} className={`absolute top-4 right-4 w-8 h-8 flex items-center justify-center cursor-pointer ${isLightMode ? 'text-gray-400 hover:text-gray-700' : 'text-gray-400 hover:text-white'}`}>

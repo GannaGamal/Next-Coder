@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import CustomSelect from '../../../components/base/CustomSelect';
 import {
   getAdminContentSummary,
@@ -460,7 +461,7 @@ const PostedContentManagement = () => {
       </div>
 
       {/* Detail Modal */}
-      {showDetailModal && (
+      {showDetailModal && createPortal(
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
           <div className="bg-[#1a1f37] rounded-t-2xl sm:rounded-xl w-full sm:max-w-lg max-h-[90vh] overflow-y-auto border border-white/10">
             <div className="p-4 border-b border-white/10 flex items-center justify-between sticky top-0 bg-[#1a1f37] z-10">
@@ -524,11 +525,12 @@ const PostedContentManagement = () => {
               </div>
             ) : null}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Delete Confirmation Modal */}
-      {showDeleteModal && selectedContent && (
+      {showDeleteModal && selectedContent && createPortal(
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
           <div className="bg-[#1a1f37] rounded-t-2xl sm:rounded-xl w-full sm:max-w-md border border-white/10">
             <div className="p-6 text-center">
@@ -558,7 +560,8 @@ const PostedContentManagement = () => {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import type { AdminTrack, AdminTopic } from '../../../services/admin.roadmap.service';
 import TopicEditor from './TopicEditor';
 
@@ -33,7 +34,6 @@ const makeTopic = (): AdminTopic => ({
 const TrackFormModal = ({ mode, track, onSave, onClose }: TrackFormModalProps) => {
   const [trackName, setTrackName] = useState('');
   const [categorySlug, setCategorySlug] = useState('languages');
-  const [imageUrl, setImageUrl] = useState('');
   const [topics, setTopics] = useState<AdminTopic[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -44,7 +44,6 @@ const TrackFormModal = ({ mode, track, onSave, onClose }: TrackFormModalProps) =
     if (mode === 'edit' && track) {
       setTrackName(track.trackName);
       setCategorySlug(track.categorySlug || 'languages');
-      setImageUrl(track.imageUrl || '');
       // Deep clone so edits don't mutate the parent's reference
       const cloned: AdminTopic[] = track.topics.map(t => ({
         ...t,
@@ -60,7 +59,6 @@ const TrackFormModal = ({ mode, track, onSave, onClose }: TrackFormModalProps) =
       const first = makeTopic();
       setTrackName('');
       setCategorySlug('languages');
-      setImageUrl('');
       setTopics([first]);
       setExpandedTopics(new Set([first.nodeId]));
     }
@@ -106,7 +104,7 @@ const TrackFormModal = ({ mode, track, onSave, onClose }: TrackFormModalProps) =
     setError('');
     setSaving(true);
     try {
-      await onSave(trackName.trim(), imageUrl.trim(), categorySlug, validTopics);
+      await onSave(trackName.trim(), '', categorySlug, validTopics);
     } catch {
       setError('Failed to save. Please try again.');
     } finally {
@@ -114,7 +112,7 @@ const TrackFormModal = ({ mode, track, onSave, onClose }: TrackFormModalProps) =
     }
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-[#13182e] rounded-2xl w-full max-w-3xl max-h-[94vh] flex flex-col border border-white/10 shadow-2xl">
 
@@ -170,36 +168,22 @@ const TrackFormModal = ({ mode, track, onSave, onClose }: TrackFormModalProps) =
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-white/60 text-xs font-semibold uppercase tracking-wider mb-2">
-                Category <span className="text-red-400">*</span>
-              </label>
-              <select
-                value={categorySlug}
-                onChange={e => setCategorySlug(e.target.value)}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-teal-500"
-              >
-                {categoryOptions.map(option => (
-                  <option key={option.value} value={option.value} className="bg-[#13182e]">
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-white/60 text-xs font-semibold uppercase tracking-wider mb-2">
-                Image URL
-              </label>
-              <input
-                type="text"
-                value={imageUrl}
-                onChange={e => setImageUrl(e.target.value)}
-                placeholder="https://example.com/image.jpg"
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/25 focus:outline-none focus:border-teal-500 text-sm"
-              />
-            </div>
+          {/* Category */}
+          <div>
+            <label className="block text-white/60 text-xs font-semibold uppercase tracking-wider mb-2">
+              Category <span className="text-red-400">*</span>
+            </label>
+            <select
+              value={categorySlug}
+              onChange={e => setCategorySlug(e.target.value)}
+              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-teal-500"
+            >
+              {categoryOptions.map(option => (
+                <option key={option.value} value={option.value} className="bg-[#13182e]">
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Topics section */}
@@ -280,7 +264,8 @@ const TrackFormModal = ({ mode, track, onSave, onClose }: TrackFormModalProps) =
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

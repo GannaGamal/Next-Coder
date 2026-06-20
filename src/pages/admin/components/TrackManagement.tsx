@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   adminCreateTrack,
   adminUpdateTrack,
@@ -17,7 +18,7 @@ const TrackManagement = () => {
   const [totalPages, setTotalPages]       = useState(1);
   const [totalCount, setTotalCount]       = useState(0);
   const [pageSize] = useState(10);
-  const [formMode, setFormMode]           = useState<'add' | 'edit'>('add');
+  const [formMode, setFormMode]           = useState<'add'>('add');
   const [editTarget, setEditTarget]       = useState<AdminTrack | null>(null);
   const [showForm, setShowForm]           = useState(false);
   const [deleteTarget, setDeleteTarget]   = useState<AdminTrack | null>(null);
@@ -81,7 +82,6 @@ const TrackManagement = () => {
 
   // ── Handlers ────────────────────────────────────────────────────────────────
   const openAdd = () => { setFormMode('add'); setEditTarget(null); setShowForm(true); };
-  const openEdit = (track: AdminTrack) => { setFormMode('edit'); setEditTarget(track); setShowForm(true); };
 
   const handleSave = async (
     name: string,
@@ -237,15 +237,8 @@ const TrackManagement = () => {
                         <span className="text-white/40 text-xs">{track.updatedAt}</span>
                       </div>
 
-                      {/* Actions */}
+                      {/* Actions — delete only */}
                       <div className="col-span-1 flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => openEdit(track)}
-                          title="Edit"
-                          className="w-8 h-8 flex items-center justify-center text-white/40 hover:text-teal-400 hover:bg-teal-500/10 rounded-lg transition-all cursor-pointer"
-                        >
-                          <i className="ri-edit-line text-sm"></i>
-                        </button>
                         <button
                           onClick={() => setDeleteTarget(track)}
                           title="Delete"
@@ -337,7 +330,7 @@ const TrackManagement = () => {
       )}
 
       {/* Delete confirmation */}
-      {deleteTarget && (
+      {deleteTarget && createPortal(
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-[#1a1f37] rounded-2xl w-full max-w-md border border-white/10 p-6">
             <div className="w-14 h-14 flex items-center justify-center bg-red-500/10 rounded-2xl mx-auto mb-4">
@@ -364,7 +357,8 @@ const TrackManagement = () => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
