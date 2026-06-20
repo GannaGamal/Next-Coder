@@ -396,6 +396,7 @@ const PublicProfile = () => {
   const [profileUser, setProfileUser] = useState<PublicUserData | null>(null);
   const [activeRole, setActiveRole] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [activeTab, setActiveTab] = useState<string>('overview');
 
@@ -414,12 +415,14 @@ const PublicProfile = () => {
         setProfileSummary(null);
         setProfileUser(buildFreelancerProfile(profile));
         setActiveRole('freelancer');
+        setNotFound(false);
         return true;
       } catch {
         if (!isCurrent) return true;
         setProfileSummary(null);
         setProfileUser(null);
         setActiveRole('');
+        setNotFound(true);
         return true;
       } finally {
         if (isCurrent) setIsLoading(false);
@@ -439,6 +442,7 @@ const PublicProfile = () => {
         setProfileSummary(null);
         setProfileUser(null);
         setActiveRole('');
+        setNotFound(true);
         setIsLoading(false);
         return;
       }
@@ -457,12 +461,16 @@ const PublicProfile = () => {
         setProfileSummary(summary);
         setProfileUser(baseProfile);
         setActiveRole(selectedRole);
+        setNotFound(false);
       } catch {
         if (!isCurrent) return;
         setProfileSummary(null);
         setProfileUser(null);
         setActiveRole('');
-        setIsLoading(false);
+        setNotFound(true);
+      } finally {
+        // isLoading stays true here — the second useEffect (loadRoleProfile) will set it to false
+        // once it finishes merging the role-specific data.
       }
     };
 
@@ -484,7 +492,9 @@ const PublicProfile = () => {
 
     const loadRoleProfile = async () => {
       if (!profileSummary || !activeRole) {
-        setIsLoading(false);
+        // If notFound was already set by the first effect, respect that and stop loading.
+        // Otherwise stay in loading state — first effect hasn't finished yet.
+        if (notFound) setIsLoading(false);
         return;
       }
 
@@ -505,7 +515,7 @@ const PublicProfile = () => {
     return () => {
       isCurrent = false;
     };
-  }, [profileSummary, activeRole, freelancerId]);
+  }, [profileSummary, activeRole, freelancerId, notFound]);
 
   useEffect(() => {
     if(activeRole=='employer')
@@ -515,20 +525,47 @@ const PublicProfile = () => {
   }, [activeRole]);
 
 
-  if (!profileUser) {
-      return (
-        <div className="min-h-screen bg-[#0f1225]">
-          <Navbar />
-          <div className="pt-32 pb-16 text-center">
-            <div className="w-20 h-20 flex items-center justify-center mx-auto mb-6 bg-white/5 rounded-full">
-              <i className="ri-loader-4-line text-4xl text-gray-500 animate-spin"></i>
-            </div>
-            <h2 className="text-2xl font-bold text-white mb-2">Loading profile</h2>
-            <p className="text-gray-400">Fetching the latest public profile details.</p>
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#0f1225]">
+        <Navbar />
+        <div className="pt-32 pb-16 text-center">
+          <div className="w-20 h-20 flex items-center justify-center mx-auto mb-6 bg-white/5 rounded-full">
+            <i className="ri-loader-4-line text-4xl text-gray-500 animate-spin"></i>
           </div>
-          <Footer />
+          <h2 className="text-2xl font-bold text-white mb-2">Loading profile</h2>
+          <p className="text-gray-400">Fetching the latest public profile details.</p>
         </div>
-      );
+        <Footer />
+      </div>
+    );
+  }
+
+  if (notFound || !profileUser) {
+    return (
+      <div className="min-h-screen bg-[#0f1225]">
+        <Navbar />
+        <div className="pt-32 pb-16 text-center px-4">
+          <div className="max-w-md mx-auto">
+            <div className="w-24 h-24 flex items-center justify-center mx-auto mb-6 bg-white/5 rounded-full border border-white/10">
+              <i className="ri-user-unfollow-line text-5xl text-gray-500"></i>
+            </div>
+            <h2 className="text-3xl font-bold text-white mb-3">User Not Found</h2>
+            <p className="text-gray-400 mb-8">
+              The profile you're looking for doesn't exist or may have been removed.
+            </p>
+            <Link
+              to="/"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-purple-500 text-white font-semibold rounded-xl hover:bg-purple-600 transition-colors"
+            >
+              <i className="ri-arrow-left-line"></i>
+              Back to Home
+            </Link>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
   }
 
   const gradient = getRoleGradient(activeRole);
@@ -1282,14 +1319,7 @@ const PublicProfile = () => {
 
       <Footer />
 
-      {/* Rating Modal */}
-      <UserRatingModal
-        isOpen={showRatingModal}
-        onClose={() => setShowRatingModal(false)}
-        userName={profileUser.name}
-        userId={profileUser.id}
-        userAvatar={profileUser.avatar}
-      />
+      
     </div>
   );
 };
