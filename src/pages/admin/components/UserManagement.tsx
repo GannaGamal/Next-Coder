@@ -19,7 +19,6 @@ const PAGE_SIZE = 10;
 
 const allRoles: Array<{ value: RoleFilterOption; label: string }> = [
   { value: 'all', label: 'All Roles' },
-  { value: 'Admin', label: 'Admin' },
   { value: 'Client', label: 'Client' },
   { value: 'Freelancer', label: 'Freelancer' },
   { value: 'Employer', label: 'Employer' },

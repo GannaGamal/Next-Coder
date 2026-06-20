@@ -7,7 +7,7 @@ import { ThemeProvider } from './contexts/ThemeContext';
 
 const routerBasename = import.meta.env.BASE_URL === '/'
   ? undefined
-  : import.meta.env.BASE_URL.replace(/\/$/, '');
+  : import.meta.env.BASE_URL;
 
 function App() {
   return (

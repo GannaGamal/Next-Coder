@@ -195,10 +195,9 @@ const TrackManagement = () => {
             <div className="bg-white/5 rounded-xl border border-white/10 overflow-hidden">
               {/* Table header */}
               <div className="grid grid-cols-12 gap-4 px-6 py-3 border-b border-white/10 bg-white/5 text-xs font-semibold text-white/40 uppercase tracking-wider">
-                <div className="col-span-5">Track Name</div>
+                <div className="col-span-7">Track Name</div>
                 <div className="col-span-2 text-center">Topics</div>
                 <div className="col-span-2 text-center">Subtopics</div>
-                <div className="col-span-2 text-center hidden md:block">Updated</div>
                 <div className="col-span-1 text-right">Actions</div>
               </div>
 
@@ -209,7 +208,7 @@ const TrackManagement = () => {
                   return (
                     <div key={track.id} className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-white/5 transition-all">
                       {/* Name */}
-                      <div className="col-span-5 flex items-center gap-3 min-w-0">
+                      <div className="col-span-7 flex items-center gap-3 min-w-0">
                         <div className="w-9 h-9 flex items-center justify-center bg-teal-500/20 rounded-lg flex-shrink-0">
                           <i className="ri-road-map-line text-teal-400"></i>
                         </div>
@@ -232,10 +231,7 @@ const TrackManagement = () => {
                         </span>
                       </div>
 
-                      {/* Updated */}
-                      <div className="col-span-2 text-center hidden md:block">
-                        <span className="text-white/40 text-xs">{track.updatedAt}</span>
-                      </div>
+
 
                       {/* Actions — delete only */}
                       <div className="col-span-1 flex items-center justify-end gap-1">

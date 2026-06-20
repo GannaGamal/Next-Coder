@@ -6,6 +6,31 @@ import type { AuthResponse } from '../services/auth.service';
 import { buildImageUrl } from '../services/user.image.service';
 import { AUTH_EXPIRED_EVENT } from '../services/api.utils';
 
+function ForceReauthModal({ onConfirm }: { onConfirm: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm"></div>
+      <div className="relative bg-[#1a1f37] rounded-2xl border border-white/10 p-8 max-w-md w-full animate-[fadeInScale_0.2s_ease-out] shadow-2xl">
+        <div className="text-center">
+          <div className="w-16 h-16 flex items-center justify-center rounded-full bg-blue-500/20 mx-auto mb-6">
+            <i className="ri-shield-keyhole-line text-3xl text-blue-400"></i>
+          </div>
+          <h3 className="text-2xl font-bold text-white mb-3">Permissions Changed</h3>
+          <p className="text-gray-400 text-sm mb-8 leading-relaxed">
+            Your account roles and permissions have been updated. For security reasons, you must log in again to apply these changes.
+          </p>
+          <button 
+            onClick={onConfirm} 
+            className="w-full py-3.5 bg-blue-500 text-white font-semibold rounded-xl hover:bg-blue-600 transition-colors shadow-lg shadow-blue-500/20"
+          >
+            OK
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Refresh buffer: refresh 90 seconds before expiry
 const REFRESH_BUFFER_MS = 90_000;
 
@@ -70,6 +95,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   });
   const [isAuthReady, setIsAuthReady] = useState(false);
+  const [showRoleChangeModal, setShowRoleChangeModal] = useState(false);
   const refreshTimerRef = useRef<number | null>(null);
 
   // ── Token refresh helpers ──────────────────────────────────────────────────
@@ -358,6 +384,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     doLogout();
   };
 
+  const handleRoleChangeConfirm = () => {
+    doLogout();
+    setShowRoleChangeModal(false);
+    window.location.href = '/Next-Coder/login';
+  };
+
   // ── Register ───────────────────────────────────────────────────────────────
 
   const register = async (email: string, _password: string, name: string, roles: UserRole[]) => {
@@ -421,6 +453,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } catch {
         // Keep the locally updated role even if token refresh is temporarily unavailable.
       }
+
+      setShowRoleChangeModal(true);
     }
   };
 
@@ -463,6 +497,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } catch {
         // Keep the locally updated role even if token refresh is temporarily unavailable.
       }
+
+      setShowRoleChangeModal(true);
     }
   };
 
@@ -470,6 +506,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     <AuthContext.Provider
       value={{ user, login, loginDirectly, impersonate, exitImpersonation, logout, register, updateUser, addRole, removeRole, isAuthenticated: !!user && hasValidToken(), isAuthReady }}
     >
+      {showRoleChangeModal && <ForceReauthModal onConfirm={handleRoleChangeConfirm} />}
       {children}
     </AuthContext.Provider>
   );

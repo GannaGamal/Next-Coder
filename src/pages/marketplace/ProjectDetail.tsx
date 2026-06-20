@@ -5,6 +5,9 @@ import Footer from '../../components/feature/Footer';
 import ComplaintModal from '../../components/feature/ComplaintModal';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useTranslation } from 'react-i18next';
+import { useAuth } from '../../contexts/AuthContext';
+import RoleGateModal from '../../components/feature/RoleGateModal';
+import { useTranslation } from 'react-i18next';
 import {
   getProjectDetails,
   submitProposal,
@@ -70,6 +73,8 @@ const ProjectDetail = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const { isLightMode } = useTheme();
   const { t } = useTranslation();
+  const { user, isAuthenticated } = useAuth();
+  const [showRoleGateModal, setShowRoleGateModal] = useState(false);
   const [showProposalModal, setShowProposalModal] = useState(false);
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
@@ -254,6 +259,14 @@ const ProjectDetail = () => {
     }
   };
 
+  const handleProposalClick = () => {
+    if (!isAuthenticated || !user?.roles.includes('freelancer')) {
+      setShowRoleGateModal(true);
+    } else {
+      setShowProposalModal(true);
+    }
+  };
+
   return (
     <div className={`min-h-screen ${isLightMode ? 'bg-gray-50' : 'bg-[#1a1f37]'}`}>
       <Navbar />
@@ -264,6 +277,17 @@ const ProjectDetail = () => {
         targetName={project?.client.name ?? ''}
         targetAvatar={project?.client.avatar ?? ''}
         targetType="client"
+      />
+
+      <RoleGateModal
+        isOpen={showRoleGateModal}
+        onClose={() => setShowRoleGateModal(false)}
+        requiredRole="freelancer"
+        roleLabel="Freelancer"
+        actionLabel={t('marketplace.submitProposal')}
+        onRoleAdded={() => {
+          setShowRoleGateModal(false);
+        }}
       />
 
       <div className="pt-28 pb-20 px-4 sm:px-6 lg:px-8">
@@ -376,7 +400,7 @@ const ProjectDetail = () => {
                     </div>
 
                     <button
-                      onClick={() => setShowProposalModal(true)}
+                      onClick={handleProposalClick}
                       className="w-full px-6 py-3 bg-purple-500 text-white font-semibold rounded-lg hover:bg-purple-600 transition-colors whitespace-nowrap cursor-pointer flex items-center justify-center gap-2"
                     >
                       <i className="ri-send-plane-line"></i>
