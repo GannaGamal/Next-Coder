@@ -3,7 +3,7 @@ import Navbar from '../../components/feature/Navbar';
 import Footer from '../../components/feature/Footer';
 import DashboardOverview from './components/DashboardOverview';
 import UserManagement from './components/UserManagement';
-import ViewAsRole from './components/ViewAsRole';
+
 import ComplaintsManagement from './components/ComplaintsManagement';
 import PostedContentManagement from './components/PostedContentManagement';
 import TrackManagement from './components/TrackManagement';
@@ -14,7 +14,7 @@ const AdminDashboard = () => {
   const tabs = [
     { id: 'overview', label: 'Dashboard', icon: 'ri-dashboard-line' },
     { id: 'users', label: 'User Management', icon: 'ri-user-settings-line' },
-    { id: 'viewas', label: 'View As', icon: 'ri-eye-line' },
+
     { id: 'content', label: 'Posted Content', icon: 'ri-stack-line' },
     { id: 'tracks', label: 'Tracks', icon: 'ri-road-map-line' },
     { id: 'complaints', label: 'Complaints', icon: 'ri-feedback-line' },
@@ -59,7 +59,7 @@ const AdminDashboard = () => {
           <div>
             {activeTab === 'overview' && <DashboardOverview onViewAllActivities={() => setActiveTab('activity')} />}
             {activeTab === 'users' && <UserManagement />}
-            {activeTab === 'viewas' && <ViewAsRole />}
+
             {activeTab === 'content' && <PostedContentManagement />}
             {activeTab === 'tracks' && <TrackManagement />}
             {activeTab === 'complaints' && <ComplaintsManagement />}
