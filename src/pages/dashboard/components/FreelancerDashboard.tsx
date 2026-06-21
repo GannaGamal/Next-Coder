@@ -650,6 +650,11 @@ const FreelancerDashboard = () => {
     return Math.round((finished / milestones.length) * 100);
   };
 
+  // ── Derived list: exclude accepted applications from the Applied tab ──────────
+  const visibleAppliedProjects = appliedProjects.filter(
+    (app) => getApplicationStatusKey(app.proposalStatus) !== 'accepted'
+  );
+
   return (
     <>
       {appliedActionMessage && (
@@ -699,7 +704,11 @@ const FreelancerDashboard = () => {
       <div className="flex gap-2 mb-6 border-b border-white/10 overflow-x-auto">
         {['applied', 'active', 'completed'].map((tab) => (
           <button key={tab} onClick={() => setActiveTab(tab)} className={`px-6 py-3 font-semibold transition-colors whitespace-nowrap cursor-pointer ${activeTab === tab ? 'text-teal-400 border-b-2 border-teal-400' : 'text-white/60 hover:text-white'}`}>
-            {tab === 'applied' ? `${t('freelancerDashboard.appliedTab')} (${appliedProjects.length})` : tab === 'active' ? `${t('freelancerDashboard.activeTab')} (${activeProjects.length})` : `${t('freelancerDashboard.completedTab')} (${completedProjects.length})`}
+            {tab === 'applied'
+              ? `${t('freelancerDashboard.appliedTab')} (${visibleAppliedProjects.length})`
+              : tab === 'active'
+              ? `${t('freelancerDashboard.activeTab')} (${activeProjects.length})`
+              : `${t('freelancerDashboard.completedTab')} (${completedProjects.length})`}
           </button>
         ))}
       </div>
@@ -731,11 +740,11 @@ const FreelancerDashboard = () => {
             </div>
           )}
 
-          {!isLoadingApplied && !appliedError && appliedProjects.map((application) => {
+          {/* ── Render only non-accepted applications ── */}
+          {!isLoadingApplied && !appliedError && visibleAppliedProjects.map((application) => {
             const statusKey = getApplicationStatusKey(application.proposalStatus);
             const statusLabel = getApplicationStatusLabel(application.proposalStatus);
-            const isAccepted = statusKey === 'accepted';
-            const isRejected = statusKey === 'rejected';
+            const isRejected  = statusKey === 'rejected';
             const isWithdrawn = statusKey === 'withdrawn';
             const canWithdraw = statusKey === 'applied' || statusKey === 'pending' || statusKey === 'submitted' || statusKey === 'unknown';
 
@@ -778,27 +787,21 @@ const FreelancerDashboard = () => {
                   >
                     <i className="ri-eye-line mr-2"></i>{t('freelancerDashboard.viewDetails')}
                   </button>
-                  {isAccepted && (
-                    <button onClick={() => handleStartProject(application)} className="px-4 py-2 bg-teal-500 text-white font-semibold rounded-lg hover:bg-teal-600 transition-colors whitespace-nowrap cursor-pointer">
-                      <i className="ri-play-line mr-2"></i>{t('freelancerDashboard.startProject')}
-                    </button>
-                  )}
-                  {canWithdraw && !isAccepted && !isRejected && !isWithdrawn && (
+
+                  {/* Withdraw — only for pending/submitted/unknown applications */}
+                  {canWithdraw && (
                     <button onClick={() => handleRemoveProject(application)} className="px-4 py-2 bg-red-500/20 text-red-400 font-semibold rounded-lg hover:bg-red-500/30 transition-colors whitespace-nowrap cursor-pointer">
                       <i className="ri-close-circle-line mr-2"></i>{t('freelancerDashboard.withdrawApplication')}
                     </button>
                   )}
-                  {isRejected && (
-                    <button onClick={() => handleRemoveProject(application)} className="px-4 py-2 bg-white/5 text-white/60 font-semibold rounded-lg hover:bg-white/10 transition-colors whitespace-nowrap cursor-pointer">
-                      <i className="ri-delete-bin-line mr-2"></i>{t('freelancerDashboard.removeFromList')}
-                    </button>
-                  )}
+
+                  
                 </div>
               </div>
             );
           })}
 
-          {!isLoadingApplied && !appliedError && appliedProjects.length === 0 && (
+          {!isLoadingApplied && !appliedError && visibleAppliedProjects.length === 0 && (
             <div className="text-center py-12">
               <i className="ri-file-list-3-line text-6xl text-white/20 mb-4"></i>
               <p className="text-white/60">{t('freelancerDashboard.noApplied')}</p>
@@ -1007,8 +1010,6 @@ const FreelancerDashboard = () => {
                                 </div>
                               </div>
                             )}
-
-                            {/* Milestone discussion UI removed */}
                           </div>
                         )}
                       </div>
@@ -1122,7 +1123,7 @@ const FreelancerDashboard = () => {
                 </div>
               </div>
 
-              {/* Ratings - only show after all milestones finished */}
+              {/* Ratings */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                 <div className="bg-white/5 rounded-lg p-4">
                   <span className="text-white/60 text-sm mb-2 block">{t('freelancerDashboard.myRatingForClient')}</span>
@@ -1170,23 +1171,6 @@ const FreelancerDashboard = () => {
                   )}
                 </div>
               </div>
-
-              {/* <div>
-                <h4 className="text-lg font-bold text-white mb-3">{t('freelancerDashboard.projectComments')}</h4>
-                {project.comments.length > 0 && (
-                  <div className="space-y-3">
-                    {project.comments.map((comment) => (
-                      <div key={comment.id} className="bg-white/5 rounded-lg p-4">
-                        <div className="flex justify-between items-start mb-2">
-                          <span className="text-white font-semibold">{getTextValue(comment.author)}</span>
-                          <span className="text-white/60 text-sm">{getTextValue(comment.date)}</span>
-                        </div>
-                        <p className="text-white/80">{getTextValue(comment.text)}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div> */}
             </div>
           ))}
         </div>
@@ -1278,17 +1262,12 @@ const FreelancerDashboard = () => {
               >
                 {t('common.close')}
               </button>
-              {selectedApplicationStatusKey === 'accepted' && (
-                <button onClick={() => { setShowProjectDetailModal(false); handleStartProject(selectedApplication); }} className="flex-1 px-5 py-3 bg-teal-500 text-white font-semibold rounded-lg hover:bg-teal-600 transition-colors whitespace-nowrap cursor-pointer">
-                  <i className="ri-play-line mr-2"></i>{t('freelancerDashboard.startProject')}
-                </button>
-              )}
               {(selectedApplicationStatusKey === 'applied' || selectedApplicationStatusKey === 'pending' || selectedApplicationStatusKey === 'submitted' || selectedApplicationStatusKey === 'unknown') && (
                 <button onClick={() => { setShowProjectDetailModal(false); handleRemoveProject(selectedApplication); }} className="flex-1 px-5 py-3 bg-red-500/20 text-red-500 font-semibold rounded-lg hover:bg-red-500/30 transition-colors whitespace-nowrap cursor-pointer">
                   {t('freelancerDashboard.withdrawApplication')}
                 </button>
               )}
-              {selectedApplicationStatusKey === 'rejected' && (
+              {(selectedApplicationStatusKey === 'rejected' || selectedApplicationStatusKey === 'withdrawn') && (
                 <button onClick={() => { setShowProjectDetailModal(false); handleRemoveProject(selectedApplication); }} className="flex-1 px-5 py-3 bg-red-500/20 text-red-500 font-semibold rounded-lg hover:bg-red-500/30 transition-colors whitespace-nowrap cursor-pointer">
                   {t('freelancerDashboard.removeFromList')}
                 </button>
@@ -1313,12 +1292,12 @@ const FreelancerDashboard = () => {
                 <i className="ri-error-warning-line text-3xl text-red-400"></i>
               </div>
               <h3 className={`text-xl font-bold mb-2 ${isLightMode ? 'text-gray-900' : 'text-white'}`}>
-                {getApplicationStatusKey(applicationToRemove.proposalStatus) === 'rejected'
+                {getApplicationStatusKey(applicationToRemove.proposalStatus) === 'rejected' || getApplicationStatusKey(applicationToRemove.proposalStatus) === 'withdrawn'
                   ? t('freelancerDashboard.removeConfirm')
                   : t('freelancerDashboard.withdrawConfirm')}
               </h3>
               <p className={isLightMode ? 'text-gray-500' : 'text-white/60'}>
-                {getApplicationStatusKey(applicationToRemove.proposalStatus) === 'rejected'
+                {getApplicationStatusKey(applicationToRemove.proposalStatus) === 'rejected' || getApplicationStatusKey(applicationToRemove.proposalStatus) === 'withdrawn'
                   ? `${t('freelancerDashboard.removeConfirmText')} "${getTextValue(applicationToRemove.projectTitle)}" ${t('freelancerDashboard.fromYourList')}`
                   : `${t('freelancerDashboard.withdrawConfirmText')} "${getTextValue(applicationToRemove.projectTitle)}"?`}
               </p>
@@ -1334,7 +1313,7 @@ const FreelancerDashboard = () => {
               >
                 {isApplyingAction && actionProposalId === applicationToRemove.proposalId
                   ? t('common.loading')
-                  : getApplicationStatusKey(applicationToRemove.proposalStatus) === 'rejected'
+                  : getApplicationStatusKey(applicationToRemove.proposalStatus) === 'rejected' || getApplicationStatusKey(applicationToRemove.proposalStatus) === 'withdrawn'
                   ? t('common.delete')
                   : t('freelancerDashboard.withdrawApplication')}
               </button>
@@ -1440,13 +1419,9 @@ const FreelancerDashboard = () => {
                 className="flex-1 px-5 py-3 bg-teal-500 text-white font-semibold rounded-lg hover:bg-teal-600 transition-colors whitespace-nowrap cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {isSubmittingDeliverables ? (
-                  <>
-                    <i className="ri-loader-4-line animate-spin mr-2"></i>{t('common.loading')}
-                  </>
+                  <><i className="ri-loader-4-line animate-spin mr-2"></i>{t('common.loading')}</>
                 ) : (
-                  <>
-                    <i className="ri-upload-2-line mr-2"></i>{t('freelancerDashboard.submit')}
-                  </>
+                  <><i className="ri-upload-2-line mr-2"></i>{t('freelancerDashboard.submit')}</>
                 )}
               </button>
             </div>

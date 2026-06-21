@@ -40,14 +40,6 @@ const AboutUs = () => {
     },
   ];
 
-  const milestones = [
-    { year: '2020', event: 'Next Coder Founded', description: 'Started with a vision to revolutionize the freelance and job market' },
-    { year: '2021', event: '1,000 Users', description: 'Reached our first thousand active users across all platforms' },
-    { year: '2022', event: 'AI Matching Launch', description: 'Introduced AI-powered CV and project matching technology' },
-    { year: '2023', event: '10,000+ Projects', description: 'Facilitated over 10,000 successful project completions' },
-    { year: '2024', event: 'Global Expansion', description: 'Expanded to serve users in over 50 countries worldwide' },
-    { year: '2025', event: 'Career Roadmaps', description: 'Launched personalized learning paths and career development tools' },
-  ];
 
   return (
     <div className="min-h-screen bg-navy-900">

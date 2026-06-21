@@ -441,7 +441,7 @@ const en = {
     heroSubtitle: "We're on a mission to empower professionals worldwide by connecting talent with opportunities, fostering growth, and building a thriving community of freelancers, employers, and learners.",
     ourStory: 'Our Story',
     storyP1: "Next Coder was born from a simple observation: talented professionals and great opportunities often struggle to find each other. We saw freelancers working without fair payment structures, job seekers drowning in irrelevant applications, and learners without clear career paths.",
-    storyP2: "In 2020, we set out to change that. We built a platform that combines freelance marketplace functionality, intelligent job matching, and personalized career development tools—all in one place.",
+    storyP2: "In 2025, we set out to change that. We built a platform that combines freelance marketplace functionality, intelligent job matching, and personalized career development tools—all in one place.",
     storyP3: "Today, Next Coder serves thousands of professionals across the globe, facilitating meaningful connections, fair transactions, and career growth every single day.",
     ourValues: 'Our Values',
     valuesSubtitle: 'The principles that guide everything we do',

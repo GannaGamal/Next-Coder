@@ -94,57 +94,6 @@ const HomePage = () => {
     },
   ];
 
-  const orbitIcons = [
-    {
-      icon: "ri-briefcase-line",
-      color: "bg-purple-500",
-      top: "10%",
-      left: "12%",
-      anim: "animate-float",
-      delay: "0s",
-    },
-    {
-      icon: "ri-graduation-cap-line",
-      color: "bg-teal-500",
-      top: "65%",
-      left: "5%",
-      anim: "animate-float-slow",
-      delay: "0.5s",
-    },
-    {
-      icon: "ri-file-user-line",
-      color: "bg-pink-500",
-      top: "15%",
-      right: "8%",
-      anim: "animate-float",
-      delay: "1s",
-    },
-    {
-      icon: "ri-building-line",
-      color: "bg-amber-500",
-      top: "70%",
-      right: "10%",
-      anim: "animate-float-slow",
-      delay: "1.5s",
-    },
-    {
-      icon: "ri-road-map-line",
-      color: "bg-indigo-500",
-      top: "40%",
-      left: "2%",
-      anim: "animate-float-x",
-      delay: "0.8s",
-    },
-    {
-      icon: "ri-star-line",
-      color: "bg-rose-500",
-      top: "50%",
-      right: "3%",
-      anim: "animate-float-x",
-      delay: "0.3s",
-    },
-  ];
-
   return (
     <div className="min-h-screen bg-navy-900">
       <Navbar />
@@ -230,11 +179,10 @@ const HomePage = () => {
                 style={{ animationDelay: "500ms" }}
               >
                 <div className="flex -space-x-2">
-                  {["test1", "test2", "test3"].map((seq) => (
+                  {reviews.map((rev) => (
                     <img
-                      key={seq}
-                      src={`https://readdy.ai/api/search-image?query=professional%20person%20portrait%20clean%20background&width=60&height=60&seq=${seq}av&orientation=squarish`}
-                      alt="user"
+                      src={'https://nextcoder.runasp.net/'+rev.userImage}
+                      alt={rev.userName}
                       className="w-8 h-8 rounded-full border-2 border-navy-900 object-cover"
                     />
                   ))}
